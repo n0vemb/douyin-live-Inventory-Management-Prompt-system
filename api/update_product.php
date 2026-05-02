@@ -7,8 +7,11 @@ $productId = $input['id'] ?? 0;
 $name = $input['name'] ?? '';
 $commonName = $input['common_name'] ?? null;
 $series = $input['series'] ?? null;
+$brand = $input['brand'] ?? null;
 $barcode = $input['barcode'] ?? '';
 $qiandaoPrice = $input['qiandao_price'] ?? null;
+$releaseDate = $input['release_date'] ?? null;
+$productDescription = $input['product_description'] ?? null;
 $imageUrl = $input['image_url'] ?? null;
 $remark = $input['remark'] ?? null;
 
@@ -24,8 +27,8 @@ if ($stmt->fetch()) {
     error('条码已存在');
 }
 
-$stmt = $pdo->prepare('UPDATE products SET name = ?, common_name = ?, series = ?, barcode = ?, qiandao_price = ?, image_url = ?, remark = ? WHERE id = ?');
-$stmt->execute([$name, $commonName, $series, $barcode, $qiandaoPrice, $imageUrl, $remark, $productId]);
+$stmt = $pdo->prepare('UPDATE products SET name = ?, common_name = ?, series = ?, brand = ?, barcode = ?, qiandao_price = ?, release_date = ?, product_description = ?, image_url = ?, remark = ? WHERE id = ?');
+$stmt->execute([$name, $commonName, $series, $brand, $barcode, $qiandaoPrice, $releaseDate, $productDescription, $imageUrl, $remark, $productId]);
 
 $stmt = $pdo->prepare('SELECT * FROM products WHERE id = ?');
 $stmt->execute([$productId]);

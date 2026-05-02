@@ -99,6 +99,17 @@
             color: #ef4444;
             font-weight: bold;
         }
+        .product-description {
+            font-size: 32px;
+            color: #666;
+            margin: 20px 0;
+            line-height: 1.4;
+            max-width: 800px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
 
         .product-content {
             display: flex;
@@ -392,6 +403,9 @@
             <!-- 参考价格 -->
             <div class="qiandao-price" id="suggestedPriceElement">参考价: <span id="qiandaoPrice"></span></div>
 
+            <!-- 产品介绍 -->
+            <div class="product-description" id="productDescription" style="display:none;"></div>
+
             <!-- 商品图片 -->
             <div class="product-image" id="productImageContainer">
                 <img id="productImage" src="" alt="" style="display:none;">
@@ -431,10 +445,11 @@
     </div>
 
     <script>
+        console.log('Live page JavaScript loaded');
         let CONDITION_TYPES_CN = ['原盒未拆', '拆盒无瑕', '无盒无瑕', '微瑕'];
         let CONDITION_COLORS = { '原盒未拆': '#10b981', '拆盒无瑕': '#3b82f6', '无盒无瑕': '#f59e0b', '微瑕': '#ef4444' };
-        const CONDITION_KEYS = { '1': 0, '2': 1, '3': 2, '4': 3, 'q': 0, 'w': 1, 'e': 2, 'r': 3 };
-        const CONDITION_KEYS_EN = { 'sealed': 0, 'opened': 1, 'boxless': 2, 'flawed': 3 };
+        let CONDITION_KEYS = { '1': 0, '2': 1, '3': 2, '4': 3, 'q': 0, 'w': 1, 'e': 2, 'r': 3 };
+        let CONDITION_KEYS_EN = { 'sealed': 0, 'opened': 1, 'boxless': 2, 'flawed': 3 };
         let CONDITION_NUMBERS = ['❶', '❷', '❸', '❹'];
 
         let currentProduct = null;
@@ -452,14 +467,32 @@
             try {
                 const res = await fetch('api/get_settings.php');
                 const data = await res.json();
+                console.log('loadSettings - response:', data);
                 if (data.success && data.settings) {
                     systemSettings = data.settings;
+                    console.log('loadSettings - systemSettings:', systemSettings);
                     if (systemSettings.condition_types) {
                         const conditions = systemSettings.condition_types;
                         CONDITION_TYPES_CN = conditions.map(c => c.name);
                         CONDITION_COLORS = {};
-                        conditions.forEach(c => {
+                        CONDITION_KEYS_EN = {};
+                        CONDITION_KEYS = {};
+                        CONDITION_NUMBERS = ['❶', '❷', '❸', '❹', '❺', '❻', '❼', '❽', '❾', '❿'];
+                        
+                        conditions.forEach((c, index) => {
                             CONDITION_COLORS[c.name] = c.color;
+                            CONDITION_KEYS_EN[c.key] = index;
+                            // 数字键映射 (1-9, 0)
+                            if (index < 9) {
+                                CONDITION_KEYS[(index + 1).toString()] = index;
+                            } else {
+                                CONDITION_KEYS['0'] = index;
+                            }
+                            // 字母键映射 (q, w, e, r, t, y, u, i, o, p)
+                            const letterKeys = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'];
+                            if (index < 10) {
+                                CONDITION_KEYS[letterKeys[index]] = index;
+                            }
                         });
                     }
                     if (systemSettings.live_display) {
@@ -469,7 +502,7 @@
                     document.querySelector('.standby h1').textContent = systemSettings.system_name || '直播辅助系统';
                 }
             } catch (e) {
-                console.log('使用默认设置');
+                console.log('使用默认设置', e);
             }
         }
 
@@ -478,8 +511,9 @@
                 productName: { enabled: true, left: 60, top: 60, width: 900, height: 120, fontSize: '72px', zIndex: 2 },
                 commonName: { enabled: true, left: 60, top: 180, width: 600, height: 80, fontSize: '42px', zIndex: 2 },
                 suggestedPrice: { enabled: true, left: 60, top: 260, width: 500, height: 100, fontSize: '72px', zIndex: 2 },
-                image: { enabled: true, left: 60, top: 400, width: 600, height: 600, fontSize: '0px', zIndex: 1 },
-                condition: { enabled: true, left: 750, top: 400, width: 1100, height: 600, fontSize: '40px', zIndex: 1, itemSpacing: 30 }
+                productDescription: { enabled: true, left: 60, top: 340, width: 800, height: 80, fontSize: '32px', zIndex: 2 },
+                image: { enabled: true, left: 60, top: 450, width: 600, height: 600, fontSize: '0px', zIndex: 1 },
+                condition: { enabled: true, left: 750, top: 450, width: 1100, height: 600, fontSize: '40px', zIndex: 1, itemSpacing: 30 }
             };
 
             if (liveDisplaySettings.elements) {
@@ -712,6 +746,24 @@
                 suggestedPriceElement.style.display = 'none';
             }
 
+            // 产品介绍显示
+            const productDescriptionEl = document.getElementById('productDescription');
+            const descriptionConfig = getElementConfig('productDescription');
+            
+            if (descriptionConfig.enabled && p.product_description) {
+                productDescriptionEl.textContent = p.product_description;
+                productDescriptionEl.style.position = 'absolute';
+                productDescriptionEl.style.left = descriptionConfig.left + 'px';
+                productDescriptionEl.style.top = descriptionConfig.top + 'px';
+                productDescriptionEl.style.width = descriptionConfig.width + 'px';
+                productDescriptionEl.style.minHeight = descriptionConfig.height + 'px';
+                productDescriptionEl.style.zIndex = descriptionConfig.zIndex || 1;
+                productDescriptionEl.style.fontSize = descriptionConfig.fontSize || '32px';
+                productDescriptionEl.style.display = 'block';
+            } else {
+                productDescriptionEl.style.display = 'none';
+            }
+
             if (imageConfig.enabled) {
                 productImageContainer.style.position = 'absolute';
                 productImageContainer.style.left = imageConfig.left + 'px';
@@ -749,13 +801,21 @@
             pricesContainer.style.gap = (conditionConfig.itemSpacing || 30) + 'px';
             pricesContainer.style.display = conditionConfig.enabled ? 'flex' : 'none';
 
-            CONDITION_TYPES_CN.forEach((condition, index) => {
-                const info = p.inventory[condition];
+            // 使用系统配置中的状态类型
+            const conditionTypes = systemSettings.condition_types || [
+                { key: 'sealed', name: '原盒未拆', color: '#10b981' },
+                { key: 'opened', name: '拆盒无瑕', color: '#3b82f6' },
+                { key: 'boxless', name: '无盒无瑕', color: '#f59e0b' },
+                { key: 'flawed', name: '微瑕', color: '#ef4444' }
+            ];
+
+            conditionTypes.forEach((condition, index) => {
+                const info = p.inventory[condition.name];
                 if (!info) return;
 
                 const row = document.createElement('div');
                 row.className = 'price-row';
-                row.dataset.condition = condition;
+                row.dataset.condition = condition.name;
                 row.dataset.index = index;
 
                 if (info.stock <= 0) {
@@ -765,7 +825,7 @@
                 }
 
                 if (info.stock > 0 && info.stock > 2) {
-                    const bgColor = CONDITION_COLORS[condition] || '#667eea';
+                    const bgColor = condition.color || '#667eea';
                     row.style.background = `linear-gradient(135deg, ${bgColor} 0%, ${adjustColor(bgColor, -20)} 100%)`;
                 }
 
@@ -775,7 +835,7 @@
                 row.innerHTML = `
                     <div class="condition-info">
                         <div class="condition-number">${CONDITION_NUMBERS[index]}</div>
-                        <div class="condition-name" style="font-size:${conditionConfig.fontSize || '20px'}">${condition}</div>
+                        <div class="condition-name" style="font-size:${conditionConfig.fontSize || '20px'}">${condition.name}</div>
                     </div>
                     <div class="price-info">
                         ${info.suggested_price && priceChanged ?
@@ -833,10 +893,12 @@
                 }
             }
 
-            if (['q', 'w', 'e', 'r'].includes(e.key.toLowerCase())) {
+            if (['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'].includes(e.key.toLowerCase())) {
                 e.preventDefault();
-                const index = { 'q': 0, 'w': 1, 'e': 2, 'r': 3 }[e.key.toLowerCase()];
-                openPriceModal(CONDITION_TYPES_CN[index]);
+                const index = CONDITION_KEYS[e.key.toLowerCase()];
+                if (index !== undefined && CONDITION_TYPES_CN[index]) {
+                    openPriceModal(CONDITION_TYPES_CN[index]);
+                }
             }
 
             if (e.key === ' ' || e.key === 'Spacebar') {
@@ -1031,8 +1093,16 @@
             let info = `${p.common_name || p.name}，`;
 
             let hasStock = false;
-            CONDITION_TYPES_CN.forEach((condition, index) => {
-                const inv = p.inventory[condition];
+            // 使用系统配置中的状态类型
+            const conditionTypes = systemSettings.condition_types || [
+                { key: 'sealed', name: '原盒未拆' },
+                { key: 'opened', name: '拆盒无瑕' },
+                { key: 'boxless', name: '无盒无瑕' },
+                { key: 'flawed', name: '微瑕' }
+            ];
+            
+            conditionTypes.forEach((condition, index) => {
+                const inv = p.inventory[condition.name];
                 if (inv && inv.stock > 0) {
                     const price = inv.live_price || inv.suggested_price;
                     info += `${condition}，库存${inv.stock}件，价格${parseInt(price)}元。`;

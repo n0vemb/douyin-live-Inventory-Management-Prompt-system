@@ -97,9 +97,22 @@ require_once __DIR__ . '/layout.php';
         }
     }
 
+    let typeNames = { sealed: '原盒未拆', opened: '拆盒无瑕', boxless: '无盒无瑕', flawed: '微瑕' };
+
+    async function loadSettings() {
+        try {
+            const res = await fetch('../api/get_settings.php');
+            const data = await res.json();
+            if (data.success && data.settings && data.settings.condition_types) {
+                typeNames = Object.fromEntries(data.settings.condition_types.map(c => [c.key, c.name]));
+            }
+        } catch (e) {
+            console.log('使用默认状态名称');
+        }
+    }
+
     function renderSales(sales) {
         const tbody = document.getElementById('salesList');
-        const typeNames = { sealed: '原盒未拆', opened: '拆盒无瑕', boxless: '无盒无瑕', flawed: '微瑕' };
 
         if (!sales.length) {
             tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;padding:40px;">暂无销售记录</td></tr>';
@@ -125,7 +138,12 @@ require_once __DIR__ . '/layout.php';
     document.getElementById('startDate').value = firstDay.toISOString().split('T')[0];
 
     loadSessions();
-    loadSales();
+    async function initializePage() {
+        await loadSettings();
+        await loadSales();
+    }
+
+    initializePage();
     </script>
 </body>
 </html>

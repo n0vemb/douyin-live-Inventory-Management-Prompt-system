@@ -13,18 +13,18 @@ $pdo = getDB();
 $pdo->beginTransaction();
 
 try {
-    $stmt = $pdo->prepare('DELETE FROM sales_log WHERE product_id = ?');
-    $stmt->execute([$productId]);
-
+    // 删除没有外键约束的日志表数据
     $stmt = $pdo->prepare('DELETE FROM purchase_log WHERE product_id = ?');
     $stmt->execute([$productId]);
 
     $stmt = $pdo->prepare('DELETE FROM inventory_log WHERE product_id = ?');
     $stmt->execute([$productId]);
 
-    $stmt = $pdo->prepare('DELETE FROM inventory WHERE product_id = ?');
+    // 删除库存批次（会通过外键约束自动删除 live_inventory 和 outbound_log 相关数据）
+    $stmt = $pdo->prepare('DELETE FROM inventory_batches WHERE product_id = ?');
     $stmt->execute([$productId]);
 
+    // 删除商品（会通过外键约束自动删除 sales_log 相关数据）
     $stmt = $pdo->prepare('DELETE FROM products WHERE id = ?');
     $stmt->execute([$productId]);
 

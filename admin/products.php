@@ -43,6 +43,9 @@ require_once __DIR__ . '/layout.php';
                 <button class="btn btn-primary" onclick="openAddModal()" style="margin-left:20px;">
                     ➕ 添加商品
                 </button>
+                <button class="btn btn-success" onclick="openImportModal()" style="margin-left:10px;">
+                    📁 批量导入
+                </button>
             </div>
 
             <table>
@@ -96,6 +99,16 @@ require_once __DIR__ . '/layout.php';
                             <input type="number" step="0.01" class="form-input" id="qiandaoPrice">
                         </div>
                         <div class="form-group">
+                            <label class="form-label">品牌</label>
+                            <input type="text" class="form-input" id="productBrand">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">发售时间</label>
+                            <input type="date" class="form-input" id="releaseDate">
+                        </div>
+                        <div class="form-group">
                             <label class="form-label">商品图片</label>
                             <div style="display:flex; gap:10px;">
                                 <input type="text" class="form-input" id="imageUrl" placeholder="或手动输入URL">
@@ -108,6 +121,10 @@ require_once __DIR__ . '/layout.php';
                                 <img id="previewImg" src="" style="max-width:200px; max-height:200px; display:none; border-radius:8px;">
                             </div>
                         </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">产品介绍</label>
+                        <textarea class="form-input" id="productDescription" rows="3" placeholder="请输入产品详细介绍..."></textarea>
                     </div>
                     <div class="form-group">
                         <label class="form-label">备注</label>
@@ -143,32 +160,8 @@ require_once __DIR__ . '/layout.php';
                             <div>建议售价</div>
                         </div>
 
-                        <div style="display:grid; grid-template-columns:1.5fr 1fr 80px 1fr; gap:10px; align-items:center; padding:8px 0; border-bottom:1px solid #e2e8f0;">
-                            <div><span class="condition-badge condition-sealed">① 原盒未拆</span></div>
-                            <div><input type="number" step="0.01" class="form-input" id="price_sealed" placeholder="¥0" style="padding:8px; font-size:14px;"></div>
-                            <div><input type="number" min="0" class="form-input" id="qty_sealed" value="0" style="padding:8px; font-size:14px; text-align:center;"></div>
-                            <div><input type="number" step="0.01" class="form-input" id="sugg_sealed" placeholder="¥0" style="padding:8px; font-size:14px;"></div>
-                        </div>
-
-                        <div style="display:grid; grid-template-columns:1.5fr 1fr 80px 1fr; gap:10px; align-items:center; padding:8px 0; border-bottom:1px solid #e2e8f0;">
-                            <div><span class="condition-badge condition-opened">② 拆盒无瑕</span></div>
-                            <div><input type="number" step="0.01" class="form-input" id="price_opened" placeholder="¥0" style="padding:8px; font-size:14px;"></div>
-                            <div><input type="number" min="0" class="form-input" id="qty_opened" value="0" style="padding:8px; font-size:14px; text-align:center;"></div>
-                            <div><input type="number" step="0.01" class="form-input" id="sugg_opened" placeholder="¥0" style="padding:8px; font-size:14px;"></div>
-                        </div>
-
-                        <div style="display:grid; grid-template-columns:1.5fr 1fr 80px 1fr; gap:10px; align-items:center; padding:8px 0; border-bottom:1px solid #e2e8f0;">
-                            <div><span class="condition-badge condition-boxless">③ 无盒无瑕</span></div>
-                            <div><input type="number" step="0.01" class="form-input" id="price_boxless" placeholder="¥0" style="padding:8px; font-size:14px;"></div>
-                            <div><input type="number" min="0" class="form-input" id="qty_boxless" value="0" style="padding:8px; font-size:14px; text-align:center;"></div>
-                            <div><input type="number" step="0.01" class="form-input" id="sugg_boxless" placeholder="¥0" style="padding:8px; font-size:14px;"></div>
-                        </div>
-
-                        <div style="display:grid; grid-template-columns:1.5fr 1fr 80px 1fr; gap:10px; align-items:center; padding:8px 0;">
-                            <div><span class="condition-badge condition-flawed">④ 微瑕</span></div>
-                            <div><input type="number" step="0.01" class="form-input" id="price_flawed" placeholder="¥0" style="padding:8px; font-size:14px;"></div>
-                            <div><input type="number" min="0" class="form-input" id="qty_flawed" value="0" style="padding:8px; font-size:14px; text-align:center;"></div>
-                            <div><input type="number" step="0.01" class="form-input" id="sugg_flawed" placeholder="¥0" style="padding:8px; font-size:14px;"></div>
+                        <div id="purchaseConditionsContainer">
+                            <!-- 动态生成的状态输入框 -->
                         </div>
                     </div>
 
@@ -300,6 +293,59 @@ require_once __DIR__ . '/layout.php';
                         <button type="button" class="btn btn-secondary" onclick="closeModal('priceModal')">取消</button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- 批量导入模态框 -->
+        <div class="modal" id="importModal">
+            <div class="modal-content" style="max-width:600px;">
+                <div class="modal-header">
+                    <h3 class="modal-title">📁 批量导入商品</h3>
+                    <button class="modal-close" onclick="closeImportModal()">&times;</button>
+                </div>
+                
+                <div style="margin-bottom:20px;">
+                    <p style="color:#666; margin-bottom:15px;">
+                        支持 CSV 和 Excel (.xlsx) 格式文件。推荐使用 CSV 格式以确保最佳兼容性。
+                    </p>
+                    
+                    <div style="background:#f8fafc; padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid #e2e8f0;">
+                        <h4 style="margin-bottom:10px; color:#333;">📋 导入说明</h4>
+                        <ul style="margin:0; padding-left:20px; color:#666; font-size:14px; line-height:1.6;">
+                            <li><strong>推荐使用CSV格式</strong>：兼容性最好，处理速度最快</li>
+                            <li>Excel文件支持.xlsx格式（.xls格式请转换为.csv或.xlsx）</li>
+                            <li>商品名称为必填项</li>
+                            <li>条码不能重复</li>
+                            <li>支持批量导入各状态库存</li>
+                            <li>日期格式：YYYY-MM-DD</li>
+                            <li>价格格式：数字（如：299.00）</li>
+                        </ul>
+                    </div>
+                    
+                    <div style="text-align:center; margin-bottom:15px;">
+                        <button class="btn btn-secondary" onclick="downloadTemplate()">
+                            📥 下载导入模板
+                        </button>
+                    </div>
+                </div>
+
+                <form onsubmit="importProducts(); return false;">
+                    <div class="form-group">
+                        <label class="form-label">选择文件 *</label>
+                        <input type="file" id="importFile" accept=".xlsx,.xls,.csv" required class="form-input">
+                    </div>
+                    
+                    <div style="display:flex; gap:10px; margin-top:20px;">
+                        <button type="submit" class="btn btn-primary" style="flex:1;">
+                            🚀 开始导入
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="closeImportModal()">
+                            取消
+                        </button>
+                    </div>
+                </form>
+                
+                <div id="importResult" style="margin-top:15px;"></div>
             </div>
         </div>
     </div>
@@ -436,11 +482,20 @@ require_once __DIR__ . '/layout.php';
     function renderInventoryBadges(productId, inventory) {
         if (!inventory || Object.keys(inventory).length === 0) return '<span class="text-muted">暂无库存</span>';
 
-        const typeNames = { sealed: '原盒', opened: '拆盒', boxless: '无盒', flawed: '微瑕' };
-        const typeColors = { sealed: 'condition-sealed', opened: 'condition-opened', boxless: 'condition-boxless', flawed: 'condition-flawed' };
+        // 使用系统配置中的状态类型，如果没有则使用默认值
+        const typeNames = systemSettings.condition_types ? 
+            Object.fromEntries(systemSettings.condition_types.map(c => [c.key, c.name])) :
+            { sealed: '原盒未拆', opened: '拆盒无瑕', boxless: '无盒无瑕', flawed: '微瑕' };
+        
+        const typeColors = systemSettings.condition_types ? 
+            Object.fromEntries(systemSettings.condition_types.map(c => [c.key, `condition-${c.key}`])) :
+            { sealed: 'condition-sealed', opened: 'condition-opened', boxless: 'condition-boxless', flawed: 'condition-flawed' };
 
         const badges = [];
-        const types = ['sealed', 'opened', 'boxless', 'flawed'];
+        // 使用系统配置中的状态类型
+        const types = systemSettings.condition_types ? 
+            systemSettings.condition_types.map(c => c.key) :
+            ['sealed', 'opened', 'boxless', 'flawed'];
         
         types.forEach(type => {
             if (inventory[type]) {
@@ -473,7 +528,10 @@ require_once __DIR__ . '/layout.php';
             const data = await res.json();
             if (data.success) {
                 const inv = data.data.inventory;
-                const conditionNames = ['原盒未拆', '拆盒无瑕', '无盒无瑕', '微瑕'];
+                // 使用系统配置中的状态名称
+                const conditionNames = systemSettings.condition_types ? 
+                    systemSettings.condition_types.map(c => c.name) :
+                    ['原盒未拆', '拆盒无瑕', '无盒无瑕', '微瑕'];
                 
                 let totalQty = 0;
                 let totalValue = 0;
@@ -561,7 +619,7 @@ require_once __DIR__ . '/layout.php';
         showModal('productModal');
     }
 
-    function openPurchaseModal(productId) {
+    async function openPurchaseModal(productId) {
         const p = allProducts.find(x => x.id === productId);
         if (!p) return;
 
@@ -569,18 +627,28 @@ require_once __DIR__ . '/layout.php';
         document.getElementById('purchaseProductName').textContent = p.common_name || p.name;
         document.getElementById('purchaseProductBarcode').textContent = ' - ' + p.barcode;
 
-        ['sealed', 'opened', 'boxless', 'flawed'].forEach(type => {
-            document.getElementById('price_' + type).value = '';
-            document.getElementById('qty_' + type).value = '0';
-            document.getElementById('sugg_' + type).value = '';
+        // 确保状态输入框已渲染
+        await renderPurchaseConditions();
+
+        // 清空所有状态输入框
+        const conditionTypes = systemSettings.condition_types || [
+            { key: 'sealed', name: '原盒未拆' },
+            { key: 'opened', name: '拆盒无瑕' },
+            { key: 'boxless', name: '无盒无瑕' },
+            { key: 'flawed', name: '微瑕' }
+        ];
+
+        conditionTypes.forEach(condition => {
+            const priceEl = document.getElementById('price_' + condition.key);
+            const qtyEl = document.getElementById('qty_' + condition.key);
+            const suggEl = document.getElementById('sugg_' + condition.key);
+            
+            if (priceEl) priceEl.value = '';
+            if (qtyEl) qtyEl.value = '0';
+            if (suggEl) suggEl.value = '';
         });
 
-        if (p.qiandao_price) {
-            document.getElementById('sugg_sealed').value = (p.qiandao_price * 0.9).toFixed(2);
-            document.getElementById('sugg_opened').value = (p.qiandao_price * 0.8).toFixed(2);
-            document.getElementById('sugg_boxless').value = (p.qiandao_price * 0.7).toFixed(2);
-            document.getElementById('sugg_flawed').value = (p.qiandao_price * 0.5).toFixed(2);
-        }
+        // 不再自动填充建议售价，让用户手动输入
 
         document.getElementById('supplier').value = '';
         document.getElementById('purchaseRemark').value = '';
@@ -637,8 +705,11 @@ require_once __DIR__ . '/layout.php';
             name: document.getElementById('productName').value,
             common_name: document.getElementById('productCommonName').value || null,
             series: document.getElementById('productSeries').value || null,
+            brand: document.getElementById('productBrand').value || null,
             barcode: document.getElementById('productBarcode').value,
             qiandao_price: parseFloat(document.getElementById('qiandaoPrice').value) || null,
+            release_date: document.getElementById('releaseDate').value || null,
+            product_description: document.getElementById('productDescription').value || null,
             image_url: document.getElementById('imageUrl').value || null,
             remark: document.getElementById('productRemark').value || null
         };
@@ -679,24 +750,32 @@ require_once __DIR__ . '/layout.php';
         const supplier = document.getElementById('supplier').value || null;
         const remark = document.getElementById('purchaseRemark').value || null;
 
-        const conditions = ['sealed', 'opened', 'boxless', 'flawed'];
+        // 使用系统配置中的状态类型
+        const conditionTypes = systemSettings.condition_types || [
+            { key: 'sealed', name: '原盒未拆' },
+            { key: 'opened', name: '拆盒无瑕' },
+            { key: 'boxless', name: '无盒无瑕' },
+            { key: 'flawed', name: '微瑕' }
+        ];
+        
         const requests = [];
 
         try {
-            for (const conditionType of conditions) {
-            const qty = parseInt(document.getElementById('qty_' + conditionType).value) || 0;
-            const purchasePrice = parseFloat(document.getElementById('price_' + conditionType).value) || 0;
-            const suggestedPrice = parseFloat(document.getElementById('sugg_' + conditionType).value) || purchasePrice;
+            for (const condition of conditionTypes) {
+                const conditionType = condition.key;
+                const qty = parseInt(document.getElementById('qty_' + conditionType).value) || 0;
+                const purchasePrice = parseFloat(document.getElementById('price_' + conditionType).value) || 0;
+                const suggestedPrice = parseFloat(document.getElementById('sugg_' + conditionType).value) || purchasePrice;
 
-            if (qty > 0 && purchasePrice > 0) {
-                requests.push(
-                    fetch('../api/purchase_batch.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            product_id: productId,
-                            condition_type: conditionType,
-                            qty: qty,
+                if (qty > 0 && purchasePrice > 0) {
+                    requests.push(
+                        fetch('../api/purchase_batch.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                product_id: productId,
+                                condition_type: conditionType,
+                                qty: qty,
                             purchase_price: purchasePrice,
                             suggested_price: suggestedPrice,
                             supplier: supplier,
@@ -785,7 +864,10 @@ require_once __DIR__ . '/layout.php';
             const checkData = await checkRes.json();
 
             if (checkData.success && checkData.data) {
-                const typeNames = { sealed: '原盒未拆', opened: '拆盒无瑕', boxless: '无盒无瑕', flawed: '微瑕' };
+                // 使用系统配置中的状态类型
+                const typeNames = systemSettings.condition_types ? 
+                    Object.fromEntries(systemSettings.condition_types.map(c => [c.key, c.name])) :
+                    { sealed: '原盒未拆', opened: '拆盒无瑕', boxless: '无盒无瑕', flawed: '微瑕' };
                 const inventory = checkData.data.inventory[typeNames[conditionType]];
                 const currentQty = inventory?.stock || 0;
 
@@ -820,8 +902,62 @@ require_once __DIR__ . '/layout.php';
     }
 
     async function deleteProduct(id) {
-        if (!confirm('确定要删除这个商品吗？所有库存和销售记录也会被删除。')) return;
+        // 显示确认对话框
+        showDeleteConfirmDialog(id);
+    }
 
+    function showDeleteConfirmDialog(productId) {
+        // 创建确认对话框
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        `;
+        
+        dialog.innerHTML = `
+            <div style="background: white; padding: 30px; border-radius: 12px; max-width: 400px; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                <h3 style="margin-bottom: 15px; color: #333;">确认删除商品</h3>
+                <p style="color: #666; margin-bottom: 25px; line-height: 1.5;">
+                    确定要删除这个商品吗？<br>
+                    所有相关的库存和销售记录也会被删除，此操作不可恢复。
+                </p>
+                <div style="display: flex; gap: 10px;">
+                    <button id="cancelDelete" style="flex: 1; padding: 12px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer;">取消</button>
+                    <button id="confirmDelete" style="flex: 1; padding: 12px; border: none; background: #ef4444; color: white; border-radius: 6px; cursor: pointer;">确认删除</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+        
+        // 绑定事件
+        document.getElementById('cancelDelete').onclick = () => {
+            document.body.removeChild(dialog);
+        };
+        
+        document.getElementById('confirmDelete').onclick = () => {
+            document.body.removeChild(dialog);
+            performDelete(productId);
+        };
+        
+        // 点击背景关闭
+        dialog.onclick = (e) => {
+            if (e.target === dialog) {
+                document.body.removeChild(dialog);
+            }
+        };
+    }
+
+    async function performDelete(id) {
         try {
             const res = await fetch('../api/delete_product.php', {
                 method: 'POST',
@@ -830,18 +966,269 @@ require_once __DIR__ . '/layout.php';
             });
             const result = await res.json();
             if (result.success) {
-                alert('删除成功');
+                // 删除成功，直接刷新列表，不再提示
                 productDetails = {};
                 loadProducts();
             } else {
-                alert(result.error || '删除失败');
+                // 只在失败时显示错误
+                showErrorToast(result.error || '删除失败');
             }
         } catch (err) {
-            alert('删除失败');
+            showErrorToast('删除失败');
         }
     }
 
-    loadProducts();
+    function showErrorToast(message) {
+        // 创建错误提示
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ef4444;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            z-index: 10000;
+            font-size: 14px;
+        `;
+        toast.textContent = message;
+        
+        document.body.appendChild(toast);
+        
+        // 3秒后自动消失
+        setTimeout(() => {
+            if (document.body.contains(toast)) {
+                document.body.removeChild(toast);
+            }
+        }, 3000);
+    }
+
+    // 批量导入功能
+    function openImportModal() {
+        document.getElementById('importModal').style.display = 'flex';
+    }
+
+    function closeImportModal() {
+        document.getElementById('importModal').style.display = 'none';
+        document.getElementById('importFile').value = '';
+        document.getElementById('importResult').innerHTML = '';
+    }
+
+    async function importProducts() {
+        const fileInput = document.getElementById('importFile');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            alert('请选择要导入的文件');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('import_file', file);
+
+        try {
+            document.getElementById('importResult').innerHTML = '<div style="text-align:center; padding:20px;"><div style="color:#667eea;">正在导入，请稍候...</div></div>';
+            
+            const response = await fetch('../api/bulk_import_products.php', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                const { success_count, total_count, errors } = result.data;
+                let resultHtml = `
+                    <div style="padding:20px;">
+                        <div style="color:#10b981; font-size:18px; margin-bottom:15px;">
+                            ✅ 导入完成！成功导入 ${success_count} 个商品，共处理 ${total_count} 个商品
+                        </div>
+                `;
+                
+                if (errors && errors.length > 0) {
+                    resultHtml += `
+                        <div style="color:#ef4444; margin-bottom:15px;">
+                            <strong>导入错误：</strong>
+                            <ul style="margin:10px 0; padding-left:20px;">
+                    `;
+                    errors.forEach(error => {
+                        resultHtml += `<li>${error}</li>`;
+                    });
+                    resultHtml += `
+                            </ul>
+                        </div>
+                    `;
+                }
+                
+                resultHtml += `
+                    <div style="text-align:center; margin-top:20px;">
+                        <button class="btn btn-primary" onclick="closeImportModal(); loadProducts();">确定</button>
+                    </div>
+                </div>
+                `;
+                
+                document.getElementById('importResult').innerHTML = resultHtml;
+            } else {
+                document.getElementById('importResult').innerHTML = `
+                    <div style="padding:20px; color:#ef4444;">
+                        ❌ 导入失败：${result.message}
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('导入错误:', error);
+            let errorMessage = '网络错误';
+            
+            // 尝试从响应中获取具体错误信息
+            if (error.response) {
+                try {
+                    const errorData = await error.response.json();
+                    errorMessage = errorData.message || errorData.error || '服务器错误';
+                } catch (e) {
+                    errorMessage = `服务器错误 (${error.response.status})`;
+                }
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+            
+            document.getElementById('importResult').innerHTML = `
+                <div style="padding:20px; color:#ef4444;">
+                    ❌ 导入失败：${errorMessage}
+                </div>
+            `;
+        }
+    }
+
+    // 动态生成状态输入框
+    async function renderPurchaseConditions() {
+        try {
+            const res = await fetch('../api/get_settings.php');
+            const data = await res.json();
+            
+            let conditionTypes = [
+                { key: 'sealed', name: '原盒未拆', color: '#10b981' },
+                { key: 'opened', name: '拆盒无瑕', color: '#3b82f6' },
+                { key: 'boxless', name: '无盒无瑕', color: '#f59e0b' },
+                { key: 'flawed', name: '微瑕', color: '#ef4444' }
+            ];
+            
+            if (data.success && data.settings && data.settings.condition_types) {
+                conditionTypes = data.settings.condition_types;
+            }
+            
+            const container = document.getElementById('purchaseConditionsContainer');
+            container.innerHTML = '';
+            
+            conditionTypes.forEach((condition, index) => {
+                const number = index < 9 ? (index + 1).toString() : '0';
+                const borderStyle = index < conditionTypes.length - 1 ? 'border-bottom:1px solid #e2e8f0;' : '';
+                
+                const div = document.createElement('div');
+                div.style.cssText = `display:grid; grid-template-columns:1.5fr 1fr 80px 1fr; gap:10px; align-items:center; padding:8px 0; ${borderStyle}`;
+                div.innerHTML = `
+                    <div><span class="condition-badge condition-${condition.key}">${number} ${condition.name}</span></div>
+                    <div><input type="number" step="0.01" class="form-input" id="price_${condition.key}" placeholder="¥0" style="padding:8px; font-size:14px;"></div>
+                    <div><input type="number" min="0" class="form-input" id="qty_${condition.key}" value="0" style="padding:8px; font-size:14px; text-align:center;"></div>
+                    <div><input type="number" step="0.01" class="form-input" id="sugg_${condition.key}" placeholder="¥0" style="padding:8px; font-size:14px;"></div>
+                `;
+                container.appendChild(div);
+            });
+        } catch (error) {
+            console.error('加载状态配置失败:', error);
+        }
+    }
+
+    async function downloadTemplate() {
+        try {
+            // 获取系统配置
+            const res = await fetch('../api/get_settings.php');
+            const data = await res.json();
+            
+            let conditionTypes = [
+                { name: '原盒未拆', key: 'sealed' },
+                { name: '拆盒无瑕', key: 'opened' },
+                { name: '无盒无瑕', key: 'boxless' },
+                { name: '微瑕', key: 'flawed' }
+            ];
+            
+            if (data.success && data.settings && data.settings.condition_types) {
+                conditionTypes = data.settings.condition_types;
+            }
+            
+            // 构建表头
+            const headers = [
+                '商品名称', '常用名称', '系列', '品牌', '条码', '参考价', '发售时间', '产品介绍', '图片链接'
+            ];
+            
+            // 为每个状态添加数量、进价、售价列
+            conditionTypes.forEach(condition => {
+                headers.push(`${condition.name}数量`);
+                headers.push(`${condition.name}进价`);
+                headers.push(`${condition.name}售价`);
+            });
+            
+            // 添加最后的列
+            headers.push('供应商', '备注');
+            
+            // 构建示例数据行
+            const exampleRow = [
+                'LABUBU 秘境夜游', '小夜游', 'LABUBU', 'POP MART', '6901234567001', '299.00', '2024-01-15', 'LABUBU秘境夜游系列盲盒', ''
+            ];
+            
+            // 为每个状态添加示例数据
+            conditionTypes.forEach((condition, index) => {
+                const exampleQty = index === 0 ? '10' : (index === 1 ? '5' : (index === 2 ? '3' : '2'));
+                const examplePurchase = [180, 150, 120, 80][index] || '100';
+                const exampleSuggested = [280, 240, 200, 150][index] || '180';
+                exampleRow.push(exampleQty, examplePurchase + '.00', exampleSuggested + '.00');
+            });
+            
+            // 添加最后的示例数据
+            exampleRow.push('官方渠道', '');
+            
+            const templateData = [headers, exampleRow];
+            
+            // 创建CSV内容
+            const csvContent = templateData.map(row => row.join(',')).join('\n');
+            
+            // 创建下载链接
+            const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', '商品导入模板.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+        } catch (error) {
+            console.error('下载模板失败:', error);
+            alert('下载模板失败，请重试');
+        }
+    }
+
+    async function initializePage() {
+        // 加载系统设置
+        try {
+            const res = await fetch('../api/get_settings.php');
+            const data = await res.json();
+            if (data.success && data.settings) {
+                systemSettings = data.settings;
+            }
+        } catch (e) {
+            console.log('使用默认系统设置');
+        }
+        
+        // 渲染动态内容
+        await renderPurchaseConditions();
+        
+        // 加载产品列表
+        loadProducts();
+    }
+
+    initializePage();
     </script>
 </body>
 </html>

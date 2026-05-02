@@ -50,6 +50,7 @@ $result = [
     'id' => $product['id'],
     'name' => $product['name'],
     'common_name' => $product['common_name'] ?? null,
+    'product_description' => $product['product_description'] ?? null,
     'series' => $product['series'],
     'barcode' => $product['barcode'],
     'qiandao_price' => $product['qiandao_price'],

@@ -6,8 +6,11 @@ $input = json_decode(file_get_contents('php://input'), true);
 $name = $input['name'] ?? '';
 $commonName = $input['common_name'] ?? null;
 $series = $input['series'] ?? null;
+$brand = $input['brand'] ?? null;
 $barcode = trim($input['barcode'] ?? '');
 $qiandaoPrice = $input['qiandao_price'] ?? null;
+$releaseDate = $input['release_date'] ?? null;
+$productDescription = $input['product_description'] ?? null;
 $imageUrl = $input['image_url'] ?? null;
 $remark = $input['remark'] ?? null;
 
@@ -42,8 +45,8 @@ if (empty($barcode) && $barcode !== '0') {
     }
 }
 
-$stmt = $pdo->prepare('INSERT INTO products (name, common_name, series, barcode, qiandao_price, image_url, remark) VALUES (?, ?, ?, ?, ?, ?, ?)');
-$stmt->execute([$name, $commonName, $series, $barcode, $qiandaoPrice, $imageUrl, $remark]);
+$stmt = $pdo->prepare('INSERT INTO products (name, common_name, series, brand, barcode, qiandao_price, release_date, product_description, image_url, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+$stmt->execute([$name, $commonName, $series, $brand, $barcode, $qiandaoPrice, $releaseDate, $productDescription, $imageUrl, $remark]);
 $productId = $pdo->lastInsertId();
 
 $stmt = $pdo->prepare('SELECT * FROM products WHERE id = ?');

@@ -125,7 +125,19 @@ require_once __DIR__ . '/layout.php';
     </div>
 
     <script>
-    const conditionNames = { sealed: '原盒未拆', opened: '拆盒无瑕', boxless: '无盒无瑕', flawed: '微瑕' };
+    let conditionNames = { sealed: '原盒未拆', opened: '拆盒无瑕', boxless: '无盒无瑕', flawed: '微瑕' };
+
+    async function loadSettings() {
+        try {
+            const res = await fetch('../api/get_settings.php');
+            const data = await res.json();
+            if (data.success && data.settings && data.settings.condition_types) {
+                conditionNames = Object.fromEntries(data.settings.condition_types.map(c => [c.key, c.name]));
+            }
+        } catch (e) {
+            console.log('使用默认状态名称');
+        }
+    }
 
     async function loadStats() {
         try {
@@ -314,7 +326,12 @@ require_once __DIR__ . '/layout.php';
         `).join('');
     }
 
-    loadStats();
+    async function initializePage() {
+        await loadSettings();
+        await loadStats();
+    }
+
+    initializePage();
     </script>
     <style>
     @keyframes pulse {

@@ -47,8 +47,14 @@ function getDB() {
                 ]
             );
         } catch (PDOException $e) {
+            // 清理任何输出缓冲
+            if (ob_get_level()) {
+                ob_clean();
+            }
             http_response_code(500);
-            die(json_encode(['success' => false, 'error' => '数据库连接失败: ' . $e->getMessage()]));
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => '数据库连接失败: ' . $e->getMessage()]);
+            exit;
         }
     }
     return $pdo;

@@ -375,10 +375,12 @@ input:checked + .toggle-slider:before {
 </div>
 
 <script>
+console.log('Settings page JavaScript loaded');
 const elementLabels = {
     'productName': '商品名称',
     'commonName': '常用名',
     'suggestedPrice': '参考价',
+    'productDescription': '产品介绍',
     'image': '商品图片',
     'condition': '价格列表'
 };
@@ -387,6 +389,7 @@ const elementIcons = {
     'productName': '🏷️',
     'commonName': '📝',
     'suggestedPrice': '💰',
+    'productDescription': '📄',
     'image': '🖼️',
     'condition': '📊'
 };
@@ -404,8 +407,9 @@ const defaultSettings = {
             {type: 'productName', enabled: true, left: 60, top: 60, width: 900, height: 120, fontSize: '72px', zIndex: 2},
             {type: 'commonName', enabled: true, left: 60, top: 180, width: 600, height: 80, fontSize: '42px', zIndex: 2},
             {type: 'suggestedPrice', enabled: true, left: 60, top: 260, width: 500, height: 100, fontSize: '72px', zIndex: 2},
-            {type: 'image', enabled: true, left: 60, top: 400, width: 600, height: 600, fontSize: '0px', zIndex: 1},
-            {type: 'condition', enabled: true, left: 750, top: 400, width: 1100, height: 600, fontSize: '40px', zIndex: 1, itemSpacing: 30}
+            {type: 'productDescription', enabled: true, left: 60, top: 340, width: 800, height: 80, fontSize: '32px', zIndex: 2},
+            {type: 'image', enabled: true, left: 60, top: 450, width: 600, height: 600, fontSize: '0px', zIndex: 1},
+            {type: 'condition', enabled: true, left: 750, top: 450, width: 1100, height: 600, fontSize: '40px', zIndex: 1, itemSpacing: 30}
         ]
     }
 };
@@ -419,12 +423,14 @@ async function loadSettings() {
     try {
         const res = await fetch('../api/get_settings.php');
         const data = await res.json();
+        console.log('loadSettings - response:', data);
         if (data.success && data.settings) {
             savedSettings = JSON.parse(JSON.stringify(data.settings));
             tempSettings = JSON.parse(JSON.stringify(data.settings));
+            console.log('loadSettings - loaded settings:', tempSettings);
         }
     } catch(e) {
-        console.log(e);
+        console.log('loadSettings error:', e);
     }
     
     applySettings();
@@ -482,7 +488,17 @@ function renderElementList() {
     
     const elements = tempSettings.live_display.elements || defaultSettings.live_display.elements;
     
+    // 调试信息
+    console.log('renderElementList - elements:', elements);
+    console.log('renderElementList - tempSettings:', tempSettings);
+    console.log('renderElementList - defaultSettings:', defaultSettings);
+    console.log('renderElementList - productDescription config:', elements.find(item => item.type === 'productDescription'));
+    
+    console.log('renderElementList - about to render', elements.length, 'elements');
+    
     elements.forEach((item, index) => {
+        console.log(`renderElementList - rendering item ${index}:`, item.type, item);
+        
         const card = document.createElement('div');
         card.className = 'element-card' + 
             (selectedElementIndex === index ? ' selected' : '') +
@@ -508,6 +524,8 @@ function renderElementList() {
         `;
         container.appendChild(card);
     });
+    
+    console.log('renderElementList - completed rendering, container children:', container.children.length);
 }
 
 document.getElementById('elementList').addEventListener('click', function(e) {

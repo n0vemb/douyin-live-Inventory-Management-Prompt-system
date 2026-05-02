@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- 主机： localhost
--- 生成日期： 2026-05-02 01:49:15
+-- 生成日期： 2026-05-03 01:39:58
 -- 服务器版本： 5.7.44-log
 -- PHP 版本： 8.4.17
 
@@ -40,7 +40,8 @@ CREATE TABLE `broadcast_messages` (
 --
 
 INSERT INTO `broadcast_messages` (`id`, `session_id`, `message`, `msg_type`, `created_at`) VALUES
-(11, 9, '提示一下下单流程', 'announcement', '2026-05-02 01:10:11');
+(11, 9, '提示一下下单流程', 'announcement', '2026-05-02 01:10:11'),
+(12, 9, '15', 'announcement', '2026-05-02 02:04:55');
 
 -- --------------------------------------------------------
 
@@ -127,17 +128,18 @@ CREATE TABLE `inventory_batches` (
 --
 
 INSERT INTO `inventory_batches` (`id`, `product_id`, `condition_type`, `batch_no`, `purchase_price`, `suggested_price`, `total_qty`, `remaining_qty`, `supplier`, `remark`, `purchased_at`, `created_at`) VALUES
-(1, 6, 'sealed', 'B202604302256497010', 35.00, 42.00, 5, 2, '千岛', NULL, '2026-04-30 14:56:49', '2026-04-30 14:56:49'),
-(2, 6, 'opened', 'B202604302257141307', 28.00, 40.00, 2, 1, '老二', NULL, '2026-04-30 14:57:14', '2026-04-30 14:57:14'),
-(3, 1, 'boxless', 'B202604302257300476', 2.00, 254.15, 1, 1, NULL, NULL, '2026-04-30 14:57:30', '2026-04-30 14:57:30'),
-(4, 6, 'sealed', 'B202604302306577994', 40.00, 43.00, 1, 1, NULL, NULL, '2026-04-30 15:06:57', '2026-04-30 15:06:57'),
-(5, 6, 'flawed', 'B202604302343297042', 12.00, 15.00, 1, 1, NULL, NULL, '2026-04-30 15:43:29', '2026-04-30 15:43:29'),
-(6, 6, 'sealed', 'B202605011442199540', 35.00, 42.00, 10, 9, NULL, NULL, '2026-05-01 06:42:19', '2026-05-01 06:42:19'),
-(7, 5, 'sealed', 'B202605012021073987', 100.00, 197.10, 10, 10, NULL, NULL, '2026-05-01 12:21:07', '2026-05-01 12:21:07'),
-(8, 5, 'opened', 'B202605012021079406', 80.00, 175.20, 10, 10, NULL, NULL, '2026-05-01 12:21:07', '2026-05-01 12:21:07'),
-(9, 5, 'boxless', 'B202605012021073662', 60.00, 153.30, 10, 10, NULL, NULL, '2026-05-01 12:21:07', '2026-05-01 12:21:07'),
-(10, 5, 'flawed', 'B202605012021082989', 40.00, 109.50, 10, 10, NULL, NULL, '2026-05-01 12:21:08', '2026-05-01 12:21:08'),
-(11, 6, 'boxless', 'B202605020010376829', 32.00, 39.00, 10, 10, NULL, NULL, '2026-05-01 16:10:37', '2026-05-01 16:10:37');
+(20, 19, 'sealed', 'B202605030059567524', 42.00, 50.00, 1, 1, '千岛', '', '2026-05-02 16:59:56', '2026-05-02 16:59:56'),
+(21, 20, 'sealed', 'B202605030059568397', 52.00, 56.00, 1, 1, '千岛', '', '2026-05-02 16:59:56', '2026-05-02 16:59:56'),
+(22, 21, 'sealed', 'B202605030059566449', 36.00, 43.00, 1, 1, '千岛', '', '2026-05-02 16:59:56', '2026-05-02 16:59:56'),
+(23, 21, 'opened', 'B202605030059565804', 35.00, 42.00, 1, 1, '千岛', '', '2026-05-02 16:59:56', '2026-05-02 16:59:56'),
+(24, 22, 'sealed', 'B202605030059561409', 60.00, 69.00, 3, 3, '千岛', '', '2026-05-02 16:59:56', '2026-05-02 16:59:56'),
+(25, 22, 'opened', 'B202605030059567611', 59.00, 68.00, 1, 1, '千岛', '', '2026-05-02 16:59:56', '2026-05-02 16:59:56'),
+(26, 23, 'sealed', 'B202605030059562389', 49.00, 55.00, 3, 3, '千岛', '', '2026-05-02 16:59:56', '2026-05-02 16:59:56'),
+(27, 19, 'sealed', 'B202605030106135751', 42.00, 50.00, 10, 9, NULL, NULL, '2026-05-02 17:06:13', '2026-05-02 17:06:13'),
+(28, 19, 'sealed', 'B202605030106393845', 42.00, 50.00, 10, 10, '千岛', NULL, '2026-05-02 17:06:39', '2026-05-02 17:06:39'),
+(29, 19, 'sealed', 'B202605030106483423', 42.00, 50.00, 10, 10, '千岛', NULL, '2026-05-02 17:06:48', '2026-05-02 17:06:48'),
+(30, 19, 'sealed', 'B202605030109033245', 42.00, 50.00, 10, 10, NULL, NULL, '2026-05-02 17:09:03', '2026-05-02 17:09:03'),
+(31, 20, 'sealed', 'B202605030109530390', 52.00, 56.00, 10, 10, NULL, NULL, '2026-05-02 17:09:53', '2026-05-02 17:09:53');
 
 -- --------------------------------------------------------
 
@@ -158,37 +160,6 @@ CREATE TABLE `inventory_log` (
   `remark` text COMMENT '备注',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='库存变动日志';
-
---
--- 转存表中的数据 `inventory_log`
---
-
-INSERT INTO `inventory_log` (`id`, `product_id`, `condition_type`, `change_type`, `qty_change`, `before_qty`, `after_qty`, `price`, `live_session_id`, `remark`, `created_at`) VALUES
-(1, 6, 'sealed', 'purchase', 199, 0, 199, 1.00, NULL, NULL, '2026-04-30 13:47:09'),
-(5, 1, 'sealed', 'purchase', 1, 0, 1, NULL, NULL, '直播退还', '2026-04-30 14:23:08'),
-(6, 1, 'sealed', 'purchase', 1, 1, 2, NULL, NULL, '直播退还', '2026-04-30 14:23:08'),
-(7, 1, 'sealed', 'purchase', 1, 2, 3, NULL, NULL, '直播退还', '2026-04-30 14:23:09'),
-(8, 1, 'sealed', 'purchase', 1, 3, 4, NULL, NULL, '直播退还', '2026-04-30 14:23:09'),
-(9, 1, 'sealed', 'purchase', 1, 4, 5, NULL, NULL, '直播退还', '2026-04-30 14:23:09'),
-(10, 1, 'sealed', 'purchase', 1, 5, 6, NULL, NULL, '直播退还', '2026-04-30 14:23:10'),
-(11, 1, 'sealed', 'purchase', 1, 6, 7, NULL, NULL, '直播退还', '2026-04-30 14:23:11'),
-(12, 1, 'sealed', 'purchase', 1, 7, 8, NULL, NULL, '直播退还', '2026-04-30 14:23:11'),
-(13, 1, 'sealed', 'purchase', 1, 8, 9, NULL, NULL, '直播退还', '2026-04-30 14:23:12'),
-(14, 1, 'sealed', 'purchase', 1, 9, 10, NULL, NULL, '直播退还', '2026-04-30 14:23:12'),
-(15, 1, 'sealed', 'purchase', 1, 10, 11, NULL, NULL, '直播退还', '2026-04-30 14:23:12'),
-(16, 1, 'sealed', 'purchase', 1, 11, 12, NULL, NULL, '直播退还', '2026-04-30 14:23:13'),
-(17, 1, 'sealed', 'purchase', 1, 12, 13, NULL, NULL, '直播退还', '2026-04-30 14:23:13'),
-(18, 1, 'sealed', 'purchase', 1, 13, 14, NULL, NULL, '直播退还', '2026-04-30 14:23:13'),
-(19, 1, 'sealed', 'purchase', 1, 14, 15, NULL, NULL, '直播退还', '2026-04-30 14:23:13'),
-(20, 1, 'sealed', 'purchase', 1, 15, 16, NULL, NULL, '直播退还', '2026-04-30 14:23:14'),
-(24, 6, 'sealed', 'return', 1, 5, 6, NULL, 7, '直播退还', '2026-04-30 16:23:29'),
-(25, 6, 'opened', 'return', 1, 0, 1, NULL, 7, '直播退还', '2026-04-30 16:27:18'),
-(26, 6, 'opened', 'return', 1, 1, 2, NULL, 7, '直播退还', '2026-04-30 16:27:18'),
-(27, 6, 'flawed', 'return', 1, 0, 1, NULL, 7, '直播退还', '2026-04-30 16:27:19'),
-(28, 6, 'sealed', 'return', 1, 5, 6, NULL, 7, '直播退还', '2026-04-30 16:30:46'),
-(29, 6, 'sealed', 'return', 1, 11, 12, NULL, 8, '直播退还', '2026-05-01 16:03:44'),
-(30, 6, 'sealed', 'return', 1, 11, 12, NULL, 8, '直播退还', '2026-05-01 16:08:03'),
-(31, 6, 'sealed', 'return', 1, 11, 12, NULL, 9, '直播退还', '2026-05-01 17:03:55');
 
 -- --------------------------------------------------------
 
@@ -214,23 +185,13 @@ CREATE TABLE `live_inventory` (
 --
 
 INSERT INTO `live_inventory` (`id`, `live_session_id`, `product_id`, `condition_type`, `initial_stock`, `current_stock`, `suggested_price`, `live_price`, `created_at`, `updated_at`) VALUES
-(8, 7, 1, 'boxless', 1, 1, 254.15, NULL, '2026-04-30 16:12:33', '2026-04-30 16:12:33'),
-(9, 7, 6, 'sealed', 6, 6, 43.00, 43.00, '2026-04-30 16:12:33', '2026-04-30 16:30:46'),
-(10, 7, 6, 'opened', 2, 1, 40.00, 40.00, '2026-04-30 16:12:33', '2026-04-30 16:30:43'),
-(11, 7, 6, 'flawed', 1, 1, 15.00, 15.00, '2026-04-30 16:12:33', '2026-04-30 16:27:19'),
-(12, 8, 1, 'boxless', 1, 1, 254.15, NULL, '2026-05-01 12:20:25', '2026-05-01 12:20:25'),
-(13, 8, 6, 'sealed', 12, 12, 43.00, 43.00, '2026-05-01 12:20:25', '2026-05-01 16:08:03'),
-(14, 8, 6, 'opened', 1, 1, 40.00, NULL, '2026-05-01 12:20:25', '2026-05-01 12:20:25'),
-(15, 8, 6, 'flawed', 1, 1, 15.00, NULL, '2026-05-01 12:20:25', '2026-05-01 12:20:25'),
-(16, 9, 1, 'boxless', 1, 1, 254.15, NULL, '2026-05-01 16:11:00', '2026-05-01 16:11:00'),
-(17, 9, 5, 'sealed', 10, 10, 197.10, NULL, '2026-05-01 16:11:00', '2026-05-01 16:11:00'),
-(18, 9, 5, 'opened', 10, 10, 175.20, NULL, '2026-05-01 16:11:00', '2026-05-01 16:11:00'),
-(19, 9, 5, 'boxless', 10, 10, 153.30, NULL, '2026-05-01 16:11:00', '2026-05-01 16:11:00'),
-(20, 9, 5, 'flawed', 10, 10, 109.50, NULL, '2026-05-01 16:11:00', '2026-05-01 16:11:00'),
-(21, 9, 6, 'sealed', 12, 12, 43.00, 42.00, '2026-05-01 16:11:00', '2026-05-01 17:08:27'),
-(22, 9, 6, 'opened', 1, 1, 40.00, NULL, '2026-05-01 16:11:00', '2026-05-01 16:11:00'),
-(23, 9, 6, 'boxless', 10, 10, 39.00, NULL, '2026-05-01 16:11:00', '2026-05-01 16:11:00'),
-(24, 9, 6, 'flawed', 1, 1, 15.00, NULL, '2026-05-01 16:11:00', '2026-05-01 16:11:00');
+(25, 10, 19, 'sealed', 40, 40, 50.00, NULL, '2026-05-02 17:11:47', '2026-05-02 17:11:47'),
+(26, 10, 20, 'sealed', 11, 11, 56.00, NULL, '2026-05-02 17:11:47', '2026-05-02 17:11:47'),
+(27, 10, 21, 'sealed', 1, 1, 43.00, NULL, '2026-05-02 17:11:47', '2026-05-02 17:11:47'),
+(28, 10, 21, 'opened', 1, 1, 42.00, NULL, '2026-05-02 17:11:47', '2026-05-02 17:11:47'),
+(29, 10, 22, 'sealed', 3, 3, 69.00, NULL, '2026-05-02 17:11:47', '2026-05-02 17:11:47'),
+(30, 10, 22, 'opened', 1, 1, 68.00, NULL, '2026-05-02 17:11:47', '2026-05-02 17:11:47'),
+(31, 10, 23, 'sealed', 3, 3, 55.00, NULL, '2026-05-02 17:11:47', '2026-05-02 17:11:47');
 
 -- --------------------------------------------------------
 
@@ -254,9 +215,8 @@ CREATE TABLE `live_sessions` (
 --
 
 INSERT INTO `live_sessions` (`id`, `session_name`, `status`, `inventory_copied`, `started_at`, `ended_at`, `remark`, `created_at`) VALUES
-(7, '5月1日上午场', 'ended', 1, '2026-04-30 16:12:33', '2026-05-01 03:14:50', NULL, '2026-04-30 16:12:33'),
-(8, '5月1日晚间场', 'ended', 1, '2026-05-01 12:20:25', '2026-05-01 16:10:56', NULL, '2026-05-01 12:20:25'),
-(9, '5月2日上午场', 'active', 1, '2026-05-01 16:11:00', NULL, NULL, '2026-05-01 16:11:00');
+(9, '5月2日上午场', 'ended', 1, '2026-05-01 16:11:00', '2026-05-02 17:11:33', NULL, '2026-05-01 16:11:00'),
+(10, '5月3日上午场', 'active', 1, '2026-05-02 17:11:47', NULL, NULL, '2026-05-02 17:11:47');
 
 -- --------------------------------------------------------
 
@@ -283,11 +243,7 @@ CREATE TABLE `outbound_log` (
 --
 
 INSERT INTO `outbound_log` (`id`, `batch_id`, `product_id`, `condition_type`, `qty`, `outbound_price`, `live_session_id`, `order_no`, `outbound_batch_no`, `remark`, `outbound_at`) VALUES
-(1, 1, 6, 'sealed', 1, 42.00, NULL, NULL, NULL, '', '2026-05-01 06:01:49'),
-(2, 1, 6, 'sealed', 1, 42.00, NULL, NULL, NULL, '', '2026-05-01 06:17:51'),
-(3, 2, 6, 'opened', 1, 40.00, NULL, NULL, NULL, '', '2026-05-01 06:21:09'),
-(4, 1, 6, 'sealed', 1, 42.00, NULL, NULL, NULL, '', '2026-05-01 06:21:09'),
-(5, 6, 6, 'sealed', 1, 42.00, NULL, NULL, '20260501144402', '', '2026-05-01 06:44:02');
+(6, 27, 19, 'sealed', 1, 50.00, NULL, NULL, '20260503011102', '', '2026-05-02 17:11:02');
 
 -- --------------------------------------------------------
 
@@ -300,6 +256,9 @@ CREATE TABLE `products` (
   `name` varchar(255) NOT NULL COMMENT '商品名称',
   `common_name` varchar(255) DEFAULT NULL COMMENT '常用名称',
   `series` varchar(255) DEFAULT NULL COMMENT '系列名称',
+  `brand` varchar(255) DEFAULT NULL COMMENT '品牌',
+  `release_date` date DEFAULT NULL COMMENT '发售时间',
+  `product_description` text COMMENT '产品介绍',
   `barcode` varchar(100) NOT NULL COMMENT '条码',
   `qiandao_price` decimal(10,2) DEFAULT NULL COMMENT '千岛参考价',
   `image_url` varchar(500) DEFAULT NULL COMMENT '图片URL',
@@ -312,14 +271,12 @@ CREATE TABLE `products` (
 -- 转存表中的数据 `products`
 --
 
-INSERT INTO `products` (`id`, `name`, `common_name`, `series`, `barcode`, `qiandao_price`, `image_url`, `remark`, `created_at`, `updated_at`) VALUES
-(1, 'LABUBU 秘境夜游', NULL, 'LABUBU', '6901234567001', 299.00, 'uploads/img_20260430214820_69f35da42974f.png', NULL, '2026-04-30 12:53:53', '2026-04-30 13:48:21'),
-(2, 'SKULLPANDA 黑管家', NULL, 'SKULLPANDA', '6901234567002', 259.00, 'uploads/img_20260501150739_69f4513bbd7fc.jpg', NULL, '2026-04-30 12:53:53', '2026-05-01 07:07:41'),
-(3, 'HIRONO 周末日常', NULL, 'HIRONO', '6901234567003', 189.00, 'uploads/img_20260501150747_69f45143c10ec.jpg', NULL, '2026-04-30 12:53:53', '2026-05-01 07:07:49'),
-(4, 'MOLLY 职业系列', NULL, 'MOLLY', '6901234567004', 159.00, 'uploads/img_20260501150755_69f4514b961cc.jpg', NULL, '2026-04-30 12:53:53', '2026-05-01 07:07:56'),
-(5, 'DIMOO 海岸线', NULL, 'DIMOO', '6901234567005', 219.00, 'uploads/img_20260501150803_69f451531269d.jpg', NULL, '2026-04-30 12:53:53', '2026-05-01 07:08:04'),
-(6, '535486', '姥爷', NULL, '535486', NULL, 'uploads/img_20260430214614_69f35d2665f54.png', NULL, '2026-04-30 13:46:19', '2026-05-01 14:59:18'),
-(7, '时间使者', NULL, NULL, '123456', NULL, 'uploads/img_20260501013707_69f39343cc995.jpg', NULL, '2026-04-30 18:00:10', '2026-04-30 18:00:10');
+INSERT INTO `products` (`id`, `name`, `common_name`, `series`, `brand`, `release_date`, `product_description`, `barcode`, `qiandao_price`, `image_url`, `remark`, `created_at`, `updated_at`) VALUES
+(19, '天注定', '天注定', '温室芒草', 'Hirono', '1970-01-01', '', '6941448603060', 42.00, '', NULL, '2026-05-02 16:59:56', '2026-05-02 16:59:56'),
+(20, '循环', '循环', '温室芒草', 'Hirono', '1970-01-01', '', '6941448649387', 52.00, '', NULL, '2026-05-02 16:59:56', '2026-05-02 16:59:56'),
+(21, '过载', '过载', '温室芒草', 'Hirono', '1970-01-01', '学生党、备考党、加班党集合！这只小野温室芒草系列——过载，完全就是我们的真实写照！公式帽子、满满课表、堆积的资料，把压力拉满的状态精准还原，细节满满，共情力直接拉满！今天在姐姐家下单，现货秒发、所见所得，无瑕疵发货、一单包邮到家，没有各种游戏套路，直接选款下单。线下你抽一个99，隔壁今天走45，今天姐姐家45不开！要的话直接扣价43！听清楚，新品过载，今天43！一单包邮！这个今天只有2只，优先扣价发未拆袋的。', '6941448697461', 36.00, '', NULL, '2026-05-02 16:59:56', '2026-05-02 16:59:56'),
+(22, '温水青蛙', '温水青蛙', '温室芒草', 'Hirono', '1970-01-01', '', '6941448682072', 60.00, '', NULL, '2026-05-02 16:59:56', '2026-05-02 16:59:56'),
+(23, '重缚', '重缚', '温室芒草', 'Hirono', '1970-01-01', '小野温室芒草—重缚，懂小野的都知道这款有多厉害！\n整个身体被打印纸绷带缠绕、被工作日常困住，麻木又无奈的氛围感拉满，细节做工很棒，是系列里的热门爆款！感觉打工人一眼被戳中了！\n\n今天在姐姐家下单，现货秒发、所见所得，无瑕疵发货、一单包邮到家，没有各种游戏套路，直接选款下单。\n\n线下你抽一个99，隔壁今天走60算优惠了，今天姐姐家信号开播，60都不开！直接给你炸波新品福，来吧，大家准备好，\n这个今天只有3只，要的话，等我报价大家扣数字，我叫你们的名字再去拍。听清楚价格，重缚-今天开55！\n\n拆袋有盒，卡片齐全，无暇正品一单包！收到以后任何问题随时回来找我！好吧。', '6941448658985', 49.00, '', NULL, '2026-05-02 16:59:56', '2026-05-02 16:59:56');
 
 -- --------------------------------------------------------
 
@@ -343,18 +300,11 @@ CREATE TABLE `purchase_log` (
 --
 
 INSERT INTO `purchase_log` (`id`, `product_id`, `condition_type`, `purchase_price`, `qty`, `supplier`, `remark`, `purchased_at`) VALUES
-(1, 6, 'sealed', 1.00, 199, NULL, NULL, '2026-04-30 13:47:09'),
-(2, 6, 'sealed', 35.00, 5, '千岛', NULL, '2026-04-30 14:56:49'),
-(3, 6, 'opened', 28.00, 2, '老二', NULL, '2026-04-30 14:57:14'),
-(4, 1, 'boxless', 2.00, 1, NULL, NULL, '2026-04-30 14:57:30'),
-(5, 6, 'sealed', 40.00, 1, NULL, NULL, '2026-04-30 15:06:57'),
-(6, 6, 'flawed', 12.00, 1, NULL, NULL, '2026-04-30 15:43:29'),
-(7, 6, 'sealed', 35.00, 10, NULL, NULL, '2026-05-01 06:42:19'),
-(8, 5, 'sealed', 100.00, 10, NULL, NULL, '2026-05-01 12:21:07'),
-(9, 5, 'opened', 80.00, 10, NULL, NULL, '2026-05-01 12:21:07'),
-(10, 5, 'boxless', 60.00, 10, NULL, NULL, '2026-05-01 12:21:07'),
-(11, 5, 'flawed', 40.00, 10, NULL, NULL, '2026-05-01 12:21:08'),
-(12, 6, 'boxless', 32.00, 10, NULL, NULL, '2026-05-01 16:10:37');
+(13, 19, 'sealed', 42.00, 10, NULL, NULL, '2026-05-02 17:06:13'),
+(14, 19, 'sealed', 42.00, 10, '千岛', NULL, '2026-05-02 17:06:39'),
+(15, 19, 'sealed', 42.00, 10, '千岛', NULL, '2026-05-02 17:06:48'),
+(16, 19, 'sealed', 42.00, 10, NULL, NULL, '2026-05-02 17:09:03'),
+(17, 20, 'sealed', 52.00, 10, NULL, NULL, '2026-05-02 17:09:53');
 
 -- --------------------------------------------------------
 
@@ -371,21 +321,6 @@ CREATE TABLE `sales_log` (
   `live_session_id` int(10) UNSIGNED DEFAULT NULL COMMENT '直播场次ID',
   `sold_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '销售时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='销售记录表';
-
---
--- 转存表中的数据 `sales_log`
---
-
-INSERT INTO `sales_log` (`id`, `product_id`, `condition_type`, `sale_price`, `qty`, `live_session_id`, `sold_at`) VALUES
-(9, 6, 'sealed', 43.00, 1, 7, '2026-04-30 16:23:28'),
-(10, 6, 'flawed', 15.00, 1, 7, '2026-04-30 16:27:07'),
-(11, 6, 'opened', 40.00, 1, 7, '2026-04-30 16:27:07'),
-(12, 6, 'opened', 40.00, 1, 7, '2026-04-30 16:27:14'),
-(13, 6, 'sealed', 43.00, 1, 7, '2026-04-30 16:30:43'),
-(14, 6, 'opened', 40.00, 1, 7, '2026-04-30 16:30:43'),
-(15, 6, 'sealed', 43.00, 1, 8, '2026-05-01 16:02:52'),
-(16, 6, 'sealed', 43.00, 1, 8, '2026-05-01 16:08:02'),
-(17, 6, 'sealed', 43.00, 1, 9, '2026-05-01 17:03:53');
 
 -- --------------------------------------------------------
 
@@ -405,9 +340,9 @@ CREATE TABLE `system_settings` (
 --
 
 INSERT INTO `system_settings` (`id`, `setting_key`, `setting_value`, `updated_at`) VALUES
-(1, 'system_name', '直播销售系统', '2026-05-01 17:04:55'),
-(2, 'condition_types', '[{\"key\":\"sealed\",\"name\":\"原盒未拆\",\"color\":\"#10b981\"},{\"key\":\"opened\",\"name\":\"拆盒无瑕\",\"color\":\"#3b82f6\"},{\"key\":\"boxless\",\"name\":\"无盒无瑕\",\"color\":\"#f59e0b\"},{\"key\":\"flawed\",\"name\":\"微瑕\",\"color\":\"#ef4444\"}]', '2026-05-01 17:04:55'),
-(3, 'live_display', '{\"elements\":[{\"type\":\"image\",\"enabled\":true,\"left\":143.08361204013372,\"top\":217.39799331103703,\"width\":500,\"height\":500,\"fontSize\":\"0px\",\"zIndex\":1},{\"type\":\"productName\",\"enabled\":true,\"left\":700,\"top\":20,\"width\":300,\"height\":60,\"fontSize\":\"73px\",\"zIndex\":2},{\"type\":\"commonName\",\"enabled\":true,\"left\":1000,\"top\":20,\"width\":300,\"height\":50,\"fontSize\":\"68px\",\"zIndex\":2},{\"type\":\"suggestedPrice\",\"enabled\":true,\"left\":1070,\"top\":120,\"width\":500,\"height\":10,\"fontSize\":\"60px\",\"zIndex\":1},{\"type\":\"condition\",\"enabled\":true,\"left\":1000,\"top\":230,\"width\":550,\"height\":10,\"fontSize\":\"30px\",\"zIndex\":2,\"itemSpacing\":20}],\"containerWidth\":\"100%\",\"containerPadding\":\"20px\"}', '2026-05-01 17:04:55');
+(1, 'system_name', '直播销售系统', '2026-05-02 17:29:07'),
+(2, 'condition_types', '[{\"key\":\"sealed\",\"name\":\"未拆袋\",\"color\":\"#10b981\"},{\"key\":\"opened\",\"name\":\"已拆无瑕\",\"color\":\"#3b82f6\"},{\"key\":\"boxless\",\"name\":\"微瑕\",\"color\":\"#f59e0b\"}]', '2026-05-02 17:29:07'),
+(3, 'live_display', '{\"elements\":[{\"type\":\"image\",\"enabled\":true,\"left\":138.08361204013372,\"top\":122.39799331103703,\"width\":500,\"height\":500,\"fontSize\":\"0px\",\"zIndex\":1},{\"type\":\"productName\",\"enabled\":true,\"left\":635,\"top\":20,\"width\":300,\"height\":60,\"fontSize\":\"73px\",\"zIndex\":2},{\"type\":\"commonName\",\"enabled\":true,\"left\":940,\"top\":20,\"width\":300,\"height\":50,\"fontSize\":\"68px\",\"zIndex\":2},{\"type\":\"suggestedPrice\",\"enabled\":true,\"left\":1070,\"top\":120,\"width\":500,\"height\":10,\"fontSize\":\"60px\",\"zIndex\":1},{\"type\":\"condition\",\"enabled\":true,\"left\":0,\"top\":0,\"width\":1000,\"height\":10,\"fontSize\":\"30px\",\"zIndex\":2,\"itemSpacing\":20}],\"containerWidth\":\"100%\",\"containerPadding\":\"20px\"}', '2026-05-02 17:29:07');
 
 -- --------------------------------------------------------
 
@@ -528,7 +463,7 @@ ALTER TABLE `system_settings`
 -- 使用表AUTO_INCREMENT `broadcast_messages`
 --
 ALTER TABLE `broadcast_messages`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- 使用表AUTO_INCREMENT `inventory_backup`
@@ -540,55 +475,55 @@ ALTER TABLE `inventory_backup`
 -- 使用表AUTO_INCREMENT `inventory_batches`
 --
 ALTER TABLE `inventory_batches`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=32;
 
 --
 -- 使用表AUTO_INCREMENT `inventory_log`
 --
 ALTER TABLE `inventory_log`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=32;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=33;
 
 --
 -- 使用表AUTO_INCREMENT `live_inventory`
 --
 ALTER TABLE `live_inventory`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=32;
 
 --
 -- 使用表AUTO_INCREMENT `live_sessions`
 --
 ALTER TABLE `live_sessions`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- 使用表AUTO_INCREMENT `outbound_log`
 --
 ALTER TABLE `outbound_log`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- 使用表AUTO_INCREMENT `products`
 --
 ALTER TABLE `products`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
 
 --
 -- 使用表AUTO_INCREMENT `purchase_log`
 --
 ALTER TABLE `purchase_log`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
 -- 使用表AUTO_INCREMENT `sales_log`
 --
 ALTER TABLE `sales_log`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- 使用表AUTO_INCREMENT `system_settings`
 --
 ALTER TABLE `system_settings`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=142;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=154;
 
 -- --------------------------------------------------------
 
