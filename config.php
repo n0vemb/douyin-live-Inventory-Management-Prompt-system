@@ -8,7 +8,7 @@ function envOrDefault($key, $default = null) {
     }
     return $value;
 }
-
+#mysql数据库配置在这里，只要修改这里就好了
 define('DB_HOST', envOrDefault('PPMART_DB_HOST', 'localhost'));
 define('DB_USER', envOrDefault('PPMART_DB_USER', 'ppmart'));
 define('DB_PASS', envOrDefault('PPMART_DB_PASS', ''));
