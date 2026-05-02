@@ -1,0 +1,727 @@
+<?php $pageTitle = '系统配置'; $currentPage = 'settings'; ?>
+<?php include 'layout.php'; ?>
+
+<style>
+.config-section {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+}
+
+.element-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.element-card {
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.element-card:hover {
+    border-color: #667eea;
+    transform: translateY(-2px);
+}
+
+.element-card.selected {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.element-card.disabled {
+    opacity: 0.5;
+}
+
+.element-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.element-card-title {
+    font-weight: 600;
+    font-size: 16px;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.element-card-icon {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f2ff;
+    border-radius: 8px;
+    color: #667eea;
+    font-size: 16px;
+}
+
+.element-card-preview {
+    font-size: 13px;
+    color: #666;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.element-card-preview span {
+    display: inline-block;
+    margin-right: 10px;
+    color: #999;
+}
+
+.config-panel {
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 25px;
+}
+
+.config-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.config-panel-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+}
+
+.config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.config-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.config-item.full-width {
+    grid-column: 1 / -1;
+}
+
+.fine-tune-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 15px;
+}
+
+.fine-tune-btn {
+    border: 1px solid #d1d5db;
+    background: #fff;
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.fine-tune-btn:hover {
+    border-color: #667eea;
+    color: #667eea;
+}
+
+.config-label {
+    font-size: 13px;
+    color: #666;
+    font-weight: 500;
+}
+
+.config-input {
+    padding: 10px 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.config-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.toggle-switch {
+    position: relative;
+    width: 48px;
+    height: 26px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ddd;
+    transition: 0.3s;
+    border-radius: 26px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: #667eea;
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(22px);
+}
+
+.section-hint {
+    font-size: 13px;
+    color: #666;
+    background: #f8f9ff;
+    padding: 12px 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 3px solid #667eea;
+}
+
+.save-bar {
+    position: sticky;
+    bottom: 20px;
+    background: white;
+    border-radius: 12px;
+    padding: 15px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 -5px 30px rgba(0, 0, 0, 0.1);
+    margin-top: 20px;
+}
+
+.save-status {
+    font-size: 14px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.save-status.saving {
+    color: #f59e0b;
+}
+
+.save-status.saved {
+    color: #10b981;
+}
+
+.condition-type-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 10px;
+    background: #f9fafb;
+    border-radius: 8px;
+}
+
+.condition-type-row input[type="text"] {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.condition-type-row input[type="color"] {
+    width: 50px;
+    height: 40px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+</style>
+
+<div class="page-header">
+    <h1>系统配置</h1>
+    <p>配置系统名称、库存状态和直播页面布局</p>
+</div>
+
+<div class="card">
+    <h3 class="card-title">基本设置</h3>
+    <div class="form-group">
+        <label class="form-label">系统名称</label>
+        <input type="text" id="systemName" class="form-input" placeholder="泡泡玛特进销存">
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">库存状态</h3>
+    <div id="conditionTypesContainer"></div>
+    <button class="btn btn-secondary" onclick="addConditionType()">+ 添加状态</button>
+</div>
+
+<div class="card">
+    <h3 class="card-title">直播页面配置</h3>
+    <div class="section-hint">
+        💡 在浏览器中同时打开直播页面，调整配置后会实时更新！
+    </div>
+    
+    <div class="element-list" id="elementList"></div>
+    
+    <div class="config-panel" id="configPanel" style="display: none;">
+        <div class="config-panel-header">
+            <div class="config-panel-title" id="configPanelTitle">元素配置</div>
+        </div>
+
+        <div class="fine-tune-bar">
+            <span class="config-label">微调步长</span>
+            <select id="nudgeStep" class="config-input" style="width:90px;" onchange="onNudgeStepChange()">
+                <option value="1">1px</option>
+                <option value="5" selected>5px</option>
+                <option value="10">10px</option>
+                <option value="20">20px</option>
+            </select>
+            <button type="button" class="fine-tune-btn" onclick="nudgeElement('up')">↑ 上移</button>
+            <button type="button" class="fine-tune-btn" onclick="nudgeElement('down')">↓ 下移</button>
+            <button type="button" class="fine-tune-btn" onclick="nudgeElement('left')">← 左移</button>
+            <button type="button" class="fine-tune-btn" onclick="nudgeElement('right')">→ 右移</button>
+            <button type="button" class="fine-tune-btn" onclick="resizeElement('wider')">↔ 加宽</button>
+            <button type="button" class="fine-tune-btn" onclick="resizeElement('narrower')">↔ 变窄</button>
+            <button type="button" class="fine-tune-btn" onclick="resizeElement('taller')">↕ 增高</button>
+            <button type="button" class="fine-tune-btn" onclick="resizeElement('shorter')">↕ 降低</button>
+        </div>
+        
+        <div class="config-grid">
+            <div class="config-item">
+                <div class="config-label">显示</div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="configEnabled" onchange="updateElementConfig()">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="config-item">
+                <label class="config-label">左 (px)</label>
+                <input type="number" class="config-input" id="configLeft" oninput="updateElementConfig()" min="0">
+            </div>
+            <div class="config-item">
+                <label class="config-label">上 (px)</label>
+                <input type="number" class="config-input" id="configTop" oninput="updateElementConfig()" min="0">
+            </div>
+            <div class="config-item">
+                <label class="config-label">宽度 (px)</label>
+                <input type="number" class="config-input" id="configWidth" oninput="updateElementConfig()" min="10">
+            </div>
+            <div class="config-item">
+                <label class="config-label">高度 (px)</label>
+                <input type="number" class="config-input" id="configHeight" oninput="updateElementConfig()" min="10">
+            </div>
+            <div class="config-item" id="configFontSizeWrapper">
+                <label class="config-label">字号</label>
+                <input type="text" class="config-input" id="configFontSize" oninput="updateElementConfig()" placeholder="72px">
+            </div>
+            <div class="config-item">
+                <label class="config-label">层级</label>
+                <input type="number" class="config-input" id="configZIndex" oninput="updateElementConfig()" min="1" value="1">
+            </div>
+            <div class="config-item" id="configItemSpacingWrapper" style="display: none;">
+                <label class="config-label">价格项间距 (px)</label>
+                <input type="number" class="config-input" id="configItemSpacing" oninput="updateElementConfig()" min="0">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="save-bar">
+    <div class="save-status" id="saveStatus">
+        <span>•</span> 未保存修改
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <button class="btn btn-secondary" onclick="resetToSaved()">重置</button>
+        <button class="btn btn-primary" onclick="saveSettings()">保存配置</button>
+    </div>
+</div>
+
+<script>
+const elementLabels = {
+    'productName': '商品名称',
+    'commonName': '常用名',
+    'suggestedPrice': '参考价',
+    'image': '商品图片',
+    'condition': '价格列表'
+};
+
+const elementIcons = {
+    'productName': '🏷️',
+    'commonName': '📝',
+    'suggestedPrice': '💰',
+    'image': '🖼️',
+    'condition': '📊'
+};
+
+const defaultSettings = {
+    system_name: '🎪 泡泡玛特进销存',
+    condition_types: [
+        {key: 'sealed', name: '原盒未拆', color: '#10b981'},
+        {key: 'opened', name: '拆盒无瑕', color: '#3b82f6'},
+        {key: 'boxless', name: '无盒无瑕', color: '#f59e0b'},
+        {key: 'flawed', name: '微瑕', color: '#ef4444'}
+    ],
+    live_display: {
+        elements: [
+            {type: 'productName', enabled: true, left: 60, top: 60, width: 900, height: 120, fontSize: '72px', zIndex: 2},
+            {type: 'commonName', enabled: true, left: 60, top: 180, width: 600, height: 80, fontSize: '42px', zIndex: 2},
+            {type: 'suggestedPrice', enabled: true, left: 60, top: 260, width: 500, height: 100, fontSize: '72px', zIndex: 2},
+            {type: 'image', enabled: true, left: 60, top: 400, width: 600, height: 600, fontSize: '0px', zIndex: 1},
+            {type: 'condition', enabled: true, left: 750, top: 400, width: 1100, height: 600, fontSize: '40px', zIndex: 1, itemSpacing: 30}
+        ]
+    }
+};
+
+let savedSettings = JSON.parse(JSON.stringify(defaultSettings));
+let tempSettings = JSON.parse(JSON.stringify(defaultSettings));
+let selectedElementIndex = null;
+let nudgeStep = 5;
+
+async function loadSettings() {
+    try {
+        const res = await fetch('../api/get_settings.php');
+        const data = await res.json();
+        if (data.success && data.settings) {
+            savedSettings = JSON.parse(JSON.stringify(data.settings));
+            tempSettings = JSON.parse(JSON.stringify(data.settings));
+        }
+    } catch(e) {
+        console.log(e);
+    }
+    
+    applySettings();
+}
+
+function applySettings() {
+    document.getElementById('systemName').value = tempSettings.system_name || '';
+    renderConditionTypes();
+    renderElementList();
+    updateSaveStatus(false);
+}
+
+function renderConditionTypes() {
+    const container = document.getElementById('conditionTypesContainer');
+    container.innerHTML = '';
+    
+    (tempSettings.condition_types || []).forEach((condition, index) => {
+        const div = document.createElement('div');
+        div.className = 'condition-type-row';
+        div.innerHTML = `
+            <input type="text" class="form-input" placeholder="状态名称" value="${condition.name}" onchange="updateConditionType(${index}, 'name', this.value)">
+            <input type="color" value="${condition.color}" onchange="updateConditionType(${index}, 'color', this.value)" style="width:80px; height:42px;">
+            <button class="btn btn-secondary" onclick="deleteConditionType(${index})">删除</button>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function addConditionType() {
+    const newKey = 'custom_' + Date.now();
+    if (!tempSettings.condition_types) tempSettings.condition_types = [];
+    tempSettings.condition_types.push({key: newKey, name: '新状态', color: '#667eea'});
+    renderConditionTypes();
+    updateSaveStatus(true);
+}
+
+function updateConditionType(index, field, value) {
+    if (tempSettings.condition_types && tempSettings.condition_types[index]) {
+        tempSettings.condition_types[index][field] = value;
+        updateSaveStatus(true);
+    }
+}
+
+function deleteConditionType(index) {
+    if (tempSettings.condition_types) {
+        tempSettings.condition_types.splice(index, 1);
+        renderConditionTypes();
+        updateSaveStatus(true);
+    }
+}
+
+function renderElementList() {
+    const container = document.getElementById('elementList');
+    container.innerHTML = '';
+    
+    const elements = tempSettings.live_display.elements || defaultSettings.live_display.elements;
+    
+    elements.forEach((item, index) => {
+        const card = document.createElement('div');
+        card.className = 'element-card' + 
+            (selectedElementIndex === index ? ' selected' : '') +
+            (!item.enabled ? ' disabled' : '');
+        card.dataset.index = index;
+        
+        card.innerHTML = `
+            <div class="element-card-header">
+                <div class="element-card-title">
+                    <span class="element-card-icon">${elementIcons[item.type] || '📦'}</span>
+                    ${elementLabels[item.type] || item.type}
+                </div>
+                <label class="toggle-switch" onclick="event.stopPropagation()">
+                    <input type="checkbox" ${item.enabled ? 'checked' : ''} onchange="toggleElementEnabled(${index})">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="element-card-preview">
+                <span>左: ${item.left}</span>
+                <span>上: ${item.top}</span>
+                <span>${item.width}×${item.height}</span>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+document.getElementById('elementList').addEventListener('click', function(e) {
+    try {
+        const card = e.target.closest('.element-card');
+        if (!card) return;
+        if (e.target.closest('.toggle-switch')) return;
+        
+        const index = parseInt(card.dataset.index);
+        if (!isNaN(index)) {
+            selectElement(index);
+        }
+    } catch (e) {
+        console.error('elementList click error:', e);
+    }
+});
+
+function selectElement(index) {
+    try {
+        selectedElementIndex = index;
+        const elements = tempSettings.live_display.elements || defaultSettings.live_display.elements;
+        const item = elements[index];
+        
+        const panel = document.getElementById('configPanel');
+        panel.style.display = 'block';
+        
+        document.getElementById('configPanelTitle').textContent = elementLabels[item.type] || item.type;
+        document.getElementById('configEnabled').checked = item.enabled;
+        document.getElementById('configLeft').value = item.left;
+        document.getElementById('configTop').value = item.top;
+        document.getElementById('configWidth').value = item.width;
+        document.getElementById('configHeight').value = item.height;
+        document.getElementById('configFontSize').value = item.fontSize || '';
+        document.getElementById('configZIndex').value = item.zIndex || 1;
+        
+        document.getElementById('configFontSizeWrapper').style.display = 
+            (item.type === 'image') ? 'none' : 'flex';
+        
+        document.getElementById('configItemSpacingWrapper').style.display = 
+            (item.type === 'condition') ? 'flex' : 'none';
+        document.getElementById('configItemSpacing').value = item.itemSpacing || 30;
+        
+        renderElementList();
+    } catch (e) {
+        console.error('selectElement error:', e);
+    }
+}
+
+function toggleElementEnabled(index) {
+    const elements = tempSettings.live_display.elements || defaultSettings.live_display.elements;
+    elements[index].enabled = !elements[index].enabled;
+    renderElementList();
+    updateElementConfig();
+    updateSaveStatus(true);
+    
+    if (selectedElementIndex === index) {
+        document.getElementById('configEnabled').checked = elements[index].enabled;
+    }
+}
+
+function updateElementConfig() {
+    if (selectedElementIndex === null) return;
+    
+    const elements = tempSettings.live_display.elements || defaultSettings.live_display.elements;
+    const item = elements[selectedElementIndex];
+    
+    item.enabled = document.getElementById('configEnabled').checked;
+    item.left = parseInt(document.getElementById('configLeft').value) || 0;
+    item.top = parseInt(document.getElementById('configTop').value) || 0;
+    item.width = parseInt(document.getElementById('configWidth').value) || 100;
+    item.height = parseInt(document.getElementById('configHeight').value) || 50;
+    item.fontSize = document.getElementById('configFontSize').value;
+    item.zIndex = parseInt(document.getElementById('configZIndex').value) || 1;
+    
+    if (item.type === 'condition') {
+        item.itemSpacing = parseInt(document.getElementById('configItemSpacing').value) || 30;
+    }
+    
+    // Save to localStorage for live page to pick up
+    localStorage.setItem('ppmart_temp_config', JSON.stringify(tempSettings));
+    
+    renderElementList();
+    updateSaveStatus(true);
+}
+
+function updateConfigPanelValues(item) {
+    document.getElementById('configEnabled').checked = item.enabled;
+    document.getElementById('configLeft').value = item.left;
+    document.getElementById('configTop').value = item.top;
+    document.getElementById('configWidth').value = item.width;
+    document.getElementById('configHeight').value = item.height;
+    document.getElementById('configFontSize').value = item.fontSize || '';
+    document.getElementById('configZIndex').value = item.zIndex || 1;
+    document.getElementById('configItemSpacing').value = item.itemSpacing || 30;
+}
+
+function onNudgeStepChange() {
+    nudgeStep = parseInt(document.getElementById('nudgeStep').value) || 5;
+}
+
+function nudgeElement(direction) {
+    if (selectedElementIndex === null) return;
+    const elements = tempSettings.live_display.elements || defaultSettings.live_display.elements;
+    const item = elements[selectedElementIndex];
+    const step = nudgeStep;
+
+    if (direction === 'up') item.top = Math.max(0, (item.top || 0) - step);
+    if (direction === 'down') item.top = Math.max(0, (item.top || 0) + step);
+    if (direction === 'left') item.left = Math.max(0, (item.left || 0) - step);
+    if (direction === 'right') item.left = Math.max(0, (item.left || 0) + step);
+
+    updateConfigPanelValues(item);
+    localStorage.setItem('ppmart_temp_config', JSON.stringify(tempSettings));
+    renderElementList();
+    updateSaveStatus(true);
+}
+
+function resizeElement(mode) {
+    if (selectedElementIndex === null) return;
+    const elements = tempSettings.live_display.elements || defaultSettings.live_display.elements;
+    const item = elements[selectedElementIndex];
+    const step = nudgeStep;
+
+    if (mode === 'wider') item.width = Math.max(10, (item.width || 0) + step);
+    if (mode === 'narrower') item.width = Math.max(10, (item.width || 0) - step);
+    if (mode === 'taller') item.height = Math.max(10, (item.height || 0) + step);
+    if (mode === 'shorter') item.height = Math.max(10, (item.height || 0) - step);
+
+    updateConfigPanelValues(item);
+    localStorage.setItem('ppmart_temp_config', JSON.stringify(tempSettings));
+    renderElementList();
+    updateSaveStatus(true);
+}
+
+function updateSaveStatus(hasChanges) {
+    const status = document.getElementById('saveStatus');
+    if (hasChanges) {
+        status.innerHTML = '<span style="color:#f59e0b;">•</span> 有未保存的修改';
+        status.className = 'save-status';
+    } else {
+        status.innerHTML = '<span style="color:#10b981;">✓</span> 已保存';
+        status.className = 'save-status saved';
+    }
+}
+
+function resetToSaved() {
+    tempSettings = JSON.parse(JSON.stringify(savedSettings));
+    selectedElementIndex = null;
+    document.getElementById('configPanel').style.display = 'none';
+    localStorage.removeItem('ppmart_temp_config');
+    applySettings();
+}
+
+async function saveSettings() {
+    try {
+        tempSettings.system_name = document.getElementById('systemName').value;
+        
+        const saveBtn = document.querySelector('.save-bar .btn.btn-primary');
+        saveBtn.textContent = '保存中...';
+        saveBtn.disabled = true;
+        
+        const res = await fetch('../api/save_settings.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({settings: tempSettings})
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            savedSettings = JSON.parse(JSON.stringify(tempSettings));
+            localStorage.removeItem('ppmart_temp_config');
+            updateSaveStatus(false);
+            
+            saveBtn.textContent = '已保存!';
+            setTimeout(() => {
+                saveBtn.textContent = '保存配置';
+                saveBtn.disabled = false;
+            }, 1500);
+        } else {
+            alert('保存失败: ' + data.error);
+            saveBtn.textContent = '保存配置';
+            saveBtn.disabled = false;
+        }
+    } catch(e) {
+        alert('保存失败');
+        console.error(e);
+    }
+}
+
+document.getElementById('systemName').addEventListener('input', () => {
+    tempSettings.system_name = document.getElementById('systemName').value;
+    updateSaveStatus(true);
+});
+
+document.addEventListener('keydown', (e) => {
+    if (selectedElementIndex === null) return;
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')) return;
+
+    const step = e.shiftKey ? nudgeStep * 5 : nudgeStep;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        const prev = nudgeStep;
+        nudgeStep = step;
+        if (e.key === 'ArrowUp') nudgeElement('up');
+        if (e.key === 'ArrowDown') nudgeElement('down');
+        if (e.key === 'ArrowLeft') nudgeElement('left');
+        if (e.key === 'ArrowRight') nudgeElement('right');
+        nudgeStep = prev;
+    }
+});
+
+loadSettings();
+    </script>
+</body>
+</html>
