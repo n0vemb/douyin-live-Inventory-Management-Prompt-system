@@ -35,8 +35,27 @@ if (empty($liveInventory)) {
 }
 
 $inventoryData = [];
+$conditionMap = [];
+try {
+    $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types'");
+    $stmt->execute();
+    $result = $stmt->fetch();
+    if ($result && $result['setting_value']) {
+        $conditionTypes = json_decode($result['setting_value'], true);
+        if ($conditionTypes && is_array($conditionTypes)) {
+            foreach ($conditionTypes as $ct) {
+                $conditionMap[$ct['key']] = $ct['name'];
+            }
+        }
+    }
+} catch (Exception $e) {}
+
+if (empty($conditionMap)) {
+    $conditionMap = CONDITION_TYPES;
+}
+
 foreach ($liveInventory as $inv) {
-    $conditionName = CONDITION_TYPES[$inv['condition_type']] ?? $inv['condition_type'];
+    $conditionName = $conditionMap[$inv['condition_type']] ?? $inv['condition_type'];
     $inventoryData[$conditionName] = [
         'stock' => $inv['current_stock'],
         'initial_stock' => $inv['initial_stock'],

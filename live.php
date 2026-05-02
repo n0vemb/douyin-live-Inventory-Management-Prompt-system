@@ -70,20 +70,16 @@
             position: relative;
             overflow: hidden;
         }
-        .product-header {
-            position: absolute;
-        }
         .product-name {
-            font-size: 48px;
+            position: absolute;
+            font-size: 72px;
             font-weight: bold;
             color: #333;
-            margin-bottom: 10px;
         }
         .product-series {
-            display: inline;
-            font-size: 32px;
+            position: absolute;
+            font-size: 48px;
             color: #667eea;
-            margin-left: 15px;
         }
         .product-common-name {
             font-size: 28px;
@@ -101,14 +97,14 @@
         }
         .product-description {
             font-size: 32px;
-            color: #666;
-            margin: 20px 0;
+            color: #fff;
             line-height: 1.4;
-            max-width: 800px;
             padding: 15px;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.5);
             border-radius: 10px;
             border-left: 4px solid #667eea;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .product-content {
@@ -389,12 +385,14 @@
 
     <div class="product-display" id="productDisplay">
         <div class="broadcaster-view">
-            <!-- 商品名称区域 -->
-            <div class="product-header" id="productNameElement">
-                <div class="product-name">
-                    <span id="productName"></span>
-                    <span class="product-series" id="productSeries"></span>
-                </div>
+            <!-- 商品名称 -->
+            <div class="product-name" id="productNameElement">
+                <span id="productName"></span>
+            </div>
+            
+            <!-- 商品系列 -->
+            <div class="product-series" id="productSeriesElement">
+                <span id="productSeries"></span>
             </div>
             
             <!-- 常用名称 -->
@@ -496,6 +494,28 @@
                         });
                     }
                     if (systemSettings.live_display) {
+                        // 确保有 productSeries 元素
+                        if (systemSettings.live_display.elements) {
+                            const hasProductSeries = systemSettings.live_display.elements.some(e => e.type === 'productSeries');
+                            if (!hasProductSeries) {
+                                const productNameIndex = systemSettings.live_display.elements.findIndex(e => e.type === 'productName');
+                                const productName = systemSettings.live_display.elements[productNameIndex];
+                                if (productName) {
+                                    const productSeries = {
+                                        type: 'productSeries',
+                                        enabled: true,
+                                        left: productName.left,
+                                        top: productName.top + productName.height + 10,
+                                        width: 600,
+                                        height: 60,
+                                        fontSize: '48px',
+                                        zIndex: 2
+                                    };
+                                    systemSettings.live_display.elements.splice(productNameIndex + 1, 0, productSeries);
+                                }
+                            }
+                        }
+                        
                         liveDisplaySettings = systemSettings.live_display;
                         applyLiveDisplaySettings();
                     }
@@ -508,11 +528,12 @@
 
         function getElementConfig(type) {
             const defaultConfigs = {
-                productName: { enabled: true, left: 60, top: 60, width: 900, height: 120, fontSize: '72px', zIndex: 2 },
-                commonName: { enabled: true, left: 60, top: 180, width: 600, height: 80, fontSize: '42px', zIndex: 2 },
-                suggestedPrice: { enabled: true, left: 60, top: 260, width: 500, height: 100, fontSize: '72px', zIndex: 2 },
-                productDescription: { enabled: true, left: 60, top: 340, width: 800, height: 80, fontSize: '32px', zIndex: 2 },
-                image: { enabled: true, left: 60, top: 450, width: 600, height: 600, fontSize: '0px', zIndex: 1 },
+                productName: { enabled: true, left: 60, top: 60, width: 900, height: 80, fontSize: '72px', zIndex: 2 },
+                productSeries: { enabled: true, left: 60, top: 150, width: 600, height: 60, fontSize: '48px', zIndex: 2 },
+                commonName: { enabled: true, left: 60, top: 220, width: 600, height: 80, fontSize: '42px', zIndex: 2 },
+                suggestedPrice: { enabled: true, left: 60, top: 310, width: 500, height: 100, fontSize: '72px', zIndex: 2 },
+                productDescription: { enabled: true, left: 60, top: 430, width: 800, height: 80, fontSize: '32px', zIndex: 2 },
+                image: { enabled: true, left: 60, top: 540, width: 600, height: 600, fontSize: '0px', zIndex: 1 },
                 condition: { enabled: true, left: 750, top: 450, width: 1100, height: 600, fontSize: '40px', zIndex: 1, itemSpacing: 30 }
             };
 
@@ -688,6 +709,7 @@
 
             const productNameElement = document.getElementById('productNameElement');
             const productNameEl = document.getElementById('productName');
+            const productSeriesElement = document.getElementById('productSeriesElement');
             const productSeriesEl = document.getElementById('productSeries');
             const productCommonNameEl = document.getElementById('productCommonName');
             const suggestedPriceElement = document.getElementById('suggestedPriceElement');
@@ -696,6 +718,7 @@
             const pricesContainer = document.getElementById('pricesContainer');
 
             const productNameConfig = getElementConfig('productName');
+            const productSeriesConfig = getElementConfig('productSeries');
             const commonNameConfig = getElementConfig('commonName');
             const suggestedPriceConfig = getElementConfig('suggestedPrice');
             const imageConfig = getElementConfig('image');
@@ -703,17 +726,30 @@
 
             if (productNameConfig.enabled) {
                 productNameEl.textContent = p.name;
-                productSeriesEl.textContent = p.series ? `【${p.series}】` : '';
                 productNameElement.style.position = 'absolute';
                 productNameElement.style.left = productNameConfig.left + 'px';
                 productNameElement.style.top = productNameConfig.top + 'px';
                 productNameElement.style.width = productNameConfig.width + 'px';
                 productNameElement.style.minHeight = productNameConfig.height + 'px';
                 productNameElement.style.zIndex = productNameConfig.zIndex || 1;
-                productNameEl.style.fontSize = productNameConfig.fontSize || '36px';
+                productNameElement.style.fontSize = productNameConfig.fontSize || '72px';
                 productNameElement.style.display = 'block';
             } else {
                 productNameElement.style.display = 'none';
+            }
+
+            if (productSeriesConfig.enabled && p.series) {
+                productSeriesEl.textContent = p.series;
+                productSeriesElement.style.position = 'absolute';
+                productSeriesElement.style.left = productSeriesConfig.left + 'px';
+                productSeriesElement.style.top = productSeriesConfig.top + 'px';
+                productSeriesElement.style.width = productSeriesConfig.width + 'px';
+                productSeriesElement.style.minHeight = productSeriesConfig.height + 'px';
+                productSeriesElement.style.zIndex = productSeriesConfig.zIndex || 1;
+                productSeriesElement.style.fontSize = productSeriesConfig.fontSize || '48px';
+                productSeriesElement.style.display = 'block';
+            } else {
+                productSeriesElement.style.display = 'none';
             }
 
             if (commonNameConfig.enabled && p.common_name) {
@@ -851,13 +887,13 @@
                 `;
 
                 row.addEventListener('click', (e) => {
-                    sellItem(condition);
+                    sellItem(condition.name);
                 });
 
                 row.addEventListener('mousedown', (e) => {
                     if (e.button === 1) {
                         e.preventDefault();
-                        addItem(condition);
+                        addItem(condition.name);
                     }
                 });
 
@@ -988,11 +1024,21 @@
         }
 
         function getConditionKey(conditionName) {
+            // 从 systemSettings 中获取状态映射
+            if (systemSettings && systemSettings.condition_types) {
+                const condition = systemSettings.condition_types.find(c => c.name === conditionName);
+                if (condition) {
+                    return condition.key;
+                }
+            }
+            // 降级到默认映射
             const map = {
                 '原盒未拆': 'sealed',
                 '拆盒无瑕': 'opened',
                 '无盒无瑕': 'boxless',
-                '微瑕': 'flawed'
+                '微瑕': 'flawed',
+                '未拆袋': 'sealed',
+                '已拆无瑕': 'opened'
             };
             return map[conditionName] || conditionName;
         }
@@ -1149,19 +1195,39 @@
                     if (hash !== lastConfigHash) {
                         lastConfigHash = hash;
                         const newSettings = JSON.parse(tempConfig);
-                        if (newSettings && newSettings.live_display) {
-                            liveDisplaySettings = newSettings.live_display;
-                            if (newSettings.condition_types) {
-                                CONDITION_TYPES_CN = newSettings.condition_types.map(c => c.name);
+                        if (newSettings) {
+                            if (newSettings.live_display) {
+                                liveDisplaySettings = newSettings.live_display;
                             }
-                            if (currentProduct) {
-                                displayProduct();
+                            if (newSettings.condition_types) {
+                                systemSettings.condition_types = newSettings.condition_types;
+                                CONDITION_TYPES_CN = newSettings.condition_types.map(c => c.name);
+                                CONDITION_COLORS = {};
+                                CONDITION_KEYS_EN = {};
+                                CONDITION_KEYS = {};
+                                newSettings.condition_types.forEach((c, index) => {
+                                    CONDITION_COLORS[c.name] = c.color;
+                                    CONDITION_KEYS_EN[c.key] = index;
+                                    if (index < 9) {
+                                        CONDITION_KEYS[(index + 1).toString()] = index;
+                                    } else {
+                                        CONDITION_KEYS['0'] = index;
+                                    }
+                                    const letterKeys = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'];
+                                    if (index < 10) {
+                                        CONDITION_KEYS[letterKeys[index]] = index;
+                                    }
+                                });
                             }
                             if (newSettings.system_name) {
+                                systemSettings.system_name = newSettings.system_name;
                                 const standbyTitle = document.getElementById('standbyTitle');
                                 if (standbyTitle) {
                                     standbyTitle.textContent = newSettings.system_name;
                                 }
+                            }
+                            if (currentProduct) {
+                                displayProduct();
                             }
                         }
                     }

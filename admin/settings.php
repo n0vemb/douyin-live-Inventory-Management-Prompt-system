@@ -378,6 +378,7 @@ input:checked + .toggle-slider:before {
 console.log('Settings page JavaScript loaded');
 const elementLabels = {
     'productName': '商品名称',
+    'productSeries': '商品系列',
     'commonName': '常用名',
     'suggestedPrice': '参考价',
     'productDescription': '产品介绍',
@@ -387,6 +388,7 @@ const elementLabels = {
 
 const elementIcons = {
     'productName': '🏷️',
+    'productSeries': '📦',
     'commonName': '📝',
     'suggestedPrice': '💰',
     'productDescription': '📄',
@@ -404,11 +406,12 @@ const defaultSettings = {
     ],
     live_display: {
         elements: [
-            {type: 'productName', enabled: true, left: 60, top: 60, width: 900, height: 120, fontSize: '72px', zIndex: 2},
-            {type: 'commonName', enabled: true, left: 60, top: 180, width: 600, height: 80, fontSize: '42px', zIndex: 2},
-            {type: 'suggestedPrice', enabled: true, left: 60, top: 260, width: 500, height: 100, fontSize: '72px', zIndex: 2},
-            {type: 'productDescription', enabled: true, left: 60, top: 340, width: 800, height: 80, fontSize: '32px', zIndex: 2},
-            {type: 'image', enabled: true, left: 60, top: 450, width: 600, height: 600, fontSize: '0px', zIndex: 1},
+            {type: 'productName', enabled: true, left: 60, top: 60, width: 900, height: 80, fontSize: '72px', zIndex: 2},
+            {type: 'productSeries', enabled: true, left: 60, top: 150, width: 600, height: 60, fontSize: '48px', zIndex: 2},
+            {type: 'commonName', enabled: true, left: 60, top: 220, width: 600, height: 80, fontSize: '42px', zIndex: 2},
+            {type: 'suggestedPrice', enabled: true, left: 60, top: 310, width: 500, height: 100, fontSize: '72px', zIndex: 2},
+            {type: 'productDescription', enabled: true, left: 60, top: 430, width: 800, height: 80, fontSize: '32px', zIndex: 2},
+            {type: 'image', enabled: true, left: 60, top: 540, width: 600, height: 600, fontSize: '0px', zIndex: 1},
             {type: 'condition', enabled: true, left: 750, top: 450, width: 1100, height: 600, fontSize: '40px', zIndex: 1, itemSpacing: 30}
         ]
     }
@@ -427,6 +430,31 @@ async function loadSettings() {
         if (data.success && data.settings) {
             savedSettings = JSON.parse(JSON.stringify(data.settings));
             tempSettings = JSON.parse(JSON.stringify(data.settings));
+            
+            // 确保有 productSeries 元素
+            if (tempSettings.live_display && tempSettings.live_display.elements) {
+                const hasProductSeries = tempSettings.live_display.elements.some(e => e.type === 'productSeries');
+                if (!hasProductSeries) {
+                    // 找到 productName 的位置，在它后面插入 productSeries
+                    const productNameIndex = tempSettings.live_display.elements.findIndex(e => e.type === 'productName');
+                    const productName = tempSettings.live_display.elements[productNameIndex];
+                    if (productName) {
+                        // 基于 productName 的位置创建 productSeries
+                        const productSeries = {
+                            type: 'productSeries',
+                            enabled: true,
+                            left: productName.left,
+                            top: productName.top + productName.height + 10,
+                            width: 600,
+                            height: 60,
+                            fontSize: '48px',
+                            zIndex: 2
+                        };
+                        tempSettings.live_display.elements.splice(productNameIndex + 1, 0, productSeries);
+                    }
+                }
+            }
+            
             console.log('loadSettings - loaded settings:', tempSettings);
         }
     } catch(e) {

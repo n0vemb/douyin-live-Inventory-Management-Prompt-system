@@ -223,6 +223,7 @@ require_once __DIR__ . '/layout.php';
                                 <th>售价</th>
                                 <th>库存</th>
                                 <th>入库时间</th>
+                                <th>操作</th>
                             </tr>
                         </thead>
                         <tbody id="stockDetailBatches"></tbody>
@@ -296,6 +297,51 @@ require_once __DIR__ . '/layout.php';
             </div>
         </div>
 
+        <!-- 编辑批次模态框 -->
+        <div class="modal" id="editBatchModal">
+            <div class="modal-content" style="max-width:500px;">
+                <div class="modal-header">
+                    <h3 class="modal-title" id="editBatchModalTitle">编辑批次</h3>
+                    <button class="modal-close" onclick="closeModal('editBatchModal')">&times;</button>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <strong style="font-size:18px;" id="editBatchProductName"></strong>
+                    <span style="color:#666;" id="editBatchConditionName"></span>
+                </div>
+                <div style="background:#f8fafc; padding:12px; border-radius:8px; margin-bottom:15px;">
+                    <div style="font-size:14px; color:#666;">批次号</div>
+                    <div id="editBatchNo" style="font-size:18px; font-family:monospace;"></div>
+                </div>
+                <form id="editBatchForm" onsubmit="saveEditBatch(event)">
+                    <input type="hidden" id="editBatchId">
+                    <input type="hidden" id="editBatchProductId">
+                    <input type="hidden" id="editBatchConditionType">
+                    <div class="form-group">
+                        <label class="form-label">库存数量 *</label>
+                        <input type="number" class="form-input" id="editBatchQty" required>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">采购进价 *</label>
+                            <input type="number" step="0.01" class="form-input" id="editBatchPurchasePrice" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">建议售价 *</label>
+                            <input type="number" step="0.01" class="form-input" id="editBatchSuggestedPrice" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">备注</label>
+                        <textarea class="form-input" id="editBatchRemark" rows="2"></textarea>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:20px;">
+                        <button type="submit" class="btn btn-primary" style="flex:1;">保存修改</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('editBatchModal')">取消</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <!-- 批量导入模态框 -->
         <div class="modal" id="importModal">
             <div class="modal-content" style="max-width:600px;">
@@ -353,6 +399,7 @@ require_once __DIR__ . '/layout.php';
     <script>
     let allProducts = [];
     let productDetails = {};
+    let currentProductDetailId = null;
 
     async function loadProducts() {
         try {
@@ -515,6 +562,16 @@ require_once __DIR__ . '/layout.php';
     }
 
     async function showStockDetail(productId, productName) {
+        currentProductDetailId = productId;
+        
+        // 如果没有传入 productName，从 allProducts 中获取
+        if (!productName || productName === '') {
+            const p = allProducts.find(x => x.id === productId);
+            if (p) {
+                productName = p.common_name || p.name;
+            }
+        }
+        
         document.getElementById('stockDetailTitle').textContent = `${productName} - 库存详情`;
         document.getElementById('stockDetailProductName').textContent = productName;
 
@@ -561,6 +618,11 @@ require_once __DIR__ . '/layout.php';
                                     <td>¥${parseFloat(batch.suggested_price).toFixed(2)}</td>
                                     <td>${batch.remaining_qty}</td>
                                     <td>${batch.purchased_at}</td>
+                                    <td>
+                                        <button class="btn btn-secondary btn-sm" onclick="openEditBatchModal(${productId}, '${batch.condition_type}', ${batch.batch_id})">
+                                            ✏️ 编辑
+                                        </button>
+                                    </td>
                                 </tr>
                             `;
                         });
@@ -897,6 +959,101 @@ require_once __DIR__ . '/layout.php';
                 }
             }
         } catch (err) {
+            alert('修改失败');
+        }
+    }
+
+    async function openEditBatchModal(productId, conditionType, batchId) {
+        const p = allProducts.find(x => x.id === productId);
+        if (!p) return;
+
+        document.getElementById('editBatchProductId').value = productId;
+        document.getElementById('editBatchConditionType').value = conditionType;
+        document.getElementById('editBatchProductName').textContent = p.common_name || p.name;
+        
+        // 加载商品详情获取批次信息和状态名称
+        try {
+            const res = await fetch('../api/get_product.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product_id: productId })
+            });
+            const data = await res.json();
+            if (data.success && data.data) {
+                // 从商品实际 inventory 中找状态名称
+                let conditionName = conditionType;
+                Object.entries(data.data.inventory).forEach(([name, inv]) => {
+                    if (inv.batches && inv.batches.some(b => b.condition_type === conditionType)) {
+                        conditionName = name;
+                    }
+                });
+                document.getElementById('editBatchConditionName').textContent = ' - ' + conditionName;
+                
+                // 找到对应的批次
+                let targetBatch = null;
+                Object.values(data.data.inventory).forEach(inv => {
+                    if (inv.batches) {
+                        const batch = inv.batches.find(b => b.batch_id === batchId);
+                        if (batch) targetBatch = batch;
+                    }
+                });
+                
+                if (targetBatch) {
+                    document.getElementById('editBatchId').value = batchId;
+                    document.getElementById('editBatchNo').textContent = targetBatch.batch_no;
+                    document.getElementById('editBatchQty').value = targetBatch.remaining_qty;
+                    document.getElementById('editBatchPurchasePrice').value = targetBatch.purchase_price;
+                    document.getElementById('editBatchSuggestedPrice').value = targetBatch.suggested_price;
+                    document.getElementById('editBatchRemark').value = targetBatch.remark || '';
+                }
+            }
+        } catch (err) {
+            console.error(err);
+        }
+
+        showModal('editBatchModal');
+    }
+
+    async function saveEditBatch(e) {
+        e.preventDefault();
+
+        const batchId = parseInt(document.getElementById('editBatchId').value);
+        const productId = parseInt(document.getElementById('editBatchProductId').value);
+        const conditionType = document.getElementById('editBatchConditionType').value;
+        const qty = parseInt(document.getElementById('editBatchQty').value);
+        const purchasePrice = parseFloat(document.getElementById('editBatchPurchasePrice').value);
+        const suggestedPrice = parseFloat(document.getElementById('editBatchSuggestedPrice').value);
+        const remark = document.getElementById('editBatchRemark').value;
+
+        try {
+            const res = await fetch('../api/update_batch.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    batch_id: batchId,
+                    product_id: productId,
+                    condition_type: conditionType,
+                    qty: qty,
+                    purchase_price: purchasePrice,
+                    suggested_price: suggestedPrice,
+                    remark: remark
+                })
+            });
+            const result = await res.json();
+            
+            if (result.success) {
+                alert('批次修改成功');
+                closeModal('editBatchModal');
+                // 重新加载产品详情
+                if (currentProductDetailId) {
+                    showStockDetail(currentProductDetailId, '');
+                }
+                loadProducts();
+            } else {
+                alert(result.error || '修改失败');
+            }
+        } catch (err) {
+            console.error(err);
             alert('修改失败');
         }
     }

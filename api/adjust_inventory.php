@@ -20,10 +20,6 @@ $pdo = getDB();
 $pdo->beginTransaction();
 
 try {
-    $allowedTypes = ['sealed', 'opened', 'boxless', 'flawed'];
-    if (!in_array($conditionType, $allowedTypes, true)) {
-        throw new RuntimeException('无效的状态类型');
-    }
 
     $stmt = $pdo->prepare('SELECT SUM(remaining_qty) FROM inventory_batches WHERE product_id = ? AND condition_type = ?');
     $stmt->execute([$productId, $conditionType]);
