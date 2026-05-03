@@ -504,9 +504,12 @@ require_once __DIR__ . '/layout.php';
                                     <span style="font-size:18px; font-weight:bold;">批次号: ${batch.batch_no || '-'}</span>
                                     <span style="margin-left:15px; opacity:0.9;">${batch.outbound_at}</span>
                                 </div>
-                                <div style="text-align:right;">
-                                    <div style="font-size:12px; opacity:0.9;">共 ${batch.total_qty} 件</div>
-                                    <div style="font-size:20px; font-weight:bold;">¥${batch.total_amount.toFixed(2)}</div>
+                                <div style="display:flex; align-items:center; gap:15px;">
+                                    <div style="text-align:right;">
+                                        <div style="font-size:12px; opacity:0.9;">共 ${batch.total_qty} 件</div>
+                                        <div style="font-size:20px; font-weight:bold;">¥${batch.total_amount.toFixed(2)}</div>
+                                    </div>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteOutbound(&quot;${batch.batch_no}&quot;)" style="background:rgba(255,255,255,0.2); color:white; border:1px solid rgba(255,255,255,0.3);">🗑️ 删除</button>
                                 </div>
                             </div>
                             <table style="margin:0;">
@@ -563,6 +566,33 @@ require_once __DIR__ . '/layout.php';
 
     function closeHistoryModal() {
         document.getElementById('historyModal').classList.remove('show');
+    }
+
+    async function deleteOutbound(batchNo) {
+        if (!confirm("确定要删除出库批次 " + batchNo + " 吗？\n\n删除后库存将自动恢复，此操作不可撤销！")) {
+            return;
+        }
+
+        try {
+            const res = await fetch('../api/delete_outbound.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ batch_no: batchNo })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                alert('删除成功！库存已恢复。');
+                closeHistoryModal();
+                loadStockOverview();
+                showOutboundList();
+            } else {
+                alert('删除失败: ' + (data.error || '未知错误'));
+            }
+        } catch (err) {
+            console.error(err);
+            alert('删除失败');
+        }
     }
 
     loadStockOverview();
