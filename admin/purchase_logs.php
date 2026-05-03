@@ -404,24 +404,21 @@ require_once __DIR__ . '/layout.php';
         }
     }
 
-    function saveFabricTemplate() {
+    async function saveFabricTemplate() {
         if (!fabricCanvas) return;
 
-        const defaultName = currentTemplateIndex !== '' ? labelTemplates[currentTemplateIndex]?.name : '新模板';
+        const defaultName = currentTemplateIndex !== '' && labelTemplates[currentTemplateIndex]?.name ? labelTemplates[currentTemplateIndex].name : '新模板';
         const name = prompt('请输入模板名称：', defaultName);
         if (!name) return;
 
         const widthMm = parseInt(document.getElementById('canvasWidth').value) || 60;
         const heightMm = parseInt(document.getElementById('canvasHeight').value) || 40;
 
-        // 所有尺寸都转换为 mm 单位保存
-        // fontSize 需要考虑缩放比例，这样预览/打印时才能匹配编辑器中的显示效果
         const elements = fabricCanvas.getObjects().map(obj => {
             const xMm = obj.left / fabricScale / MM_TO_PX;
             const yMm = obj.top / fabricScale / MM_TO_PX;
             const widthMmVal = obj.getScaledWidth() / fabricScale / MM_TO_PX;
             const heightMmVal = obj.getScaledHeight() / fabricScale / MM_TO_PX;
-            // 等效 fontSize = 原始 fontSize * scaleY（考虑垂直缩放）
             const effectiveFontSizeMm = (obj.fontSize * (obj.scaleY || 1)) / fabricScale / MM_TO_PX;
 
             return {
@@ -446,82 +443,82 @@ require_once __DIR__ . '/layout.php';
             elements: elements
         };
 
-        // 检查是否有同名模板，如果有则替换，否则新增
-        if (currentTemplateIndex !== '' && labelTemplates[currentTemplateIndex]) {
-            labelTemplates[currentTemplateIndex] = template;
-        } else {
-            const existingIndex = labelTemplates.findIndex(t => t.name === name);
-            if (existingIndex !== -1) {
-                labelTemplates[existingIndex] = template;
-                currentTemplateIndex = existingIndex;
+        try {
+            const res = await fetch('../api/save_label_template.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, config: template })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                await loadTemplates();
+                const newIndex = labelTemplates.findIndex(t => t.name === name);
+                if (newIndex !== -1) {
+                    currentTemplateIndex = newIndex;
+                    document.getElementById('labelTemplate').value = newIndex;
+                }
+                alert('模板保存成功！');
+                closeEditor();
             } else {
-                labelTemplates.push(template);
-                currentTemplateIndex = labelTemplates.length - 1;
+                alert('保存失败: ' + (data.error || '未知错误'));
             }
+        } catch (err) {
+            console.error('保存模板失败:', err);
+            alert('保存失败，请重试');
         }
-
-        saveTemplates();
-        loadTemplates();
-
-        if (currentTemplateIndex !== '') {
-            document.getElementById('labelTemplate').value = currentTemplateIndex;
-        }
-
-        alert('模板保存成功');
-        closeEditor();
     }
-
-
 
     function loadTemplates() {
-        const saved = localStorage.getItem('labelTemplates');
-        if (saved) {
-            labelTemplates = JSON.parse(saved);
-        } else {
-            // 默认模板 - 所有尺寸单位为 mm
-            labelTemplates = [
-                {
-                    name: '热敏60mm',
-                    canvasWidth: 60,
-                    canvasHeight: 40,
-                    paperType: 'continuous',
-                    density: 'normal',
-                    elements: [
-                        { type: 'barcode', x: 5, y: 2, width: 50, height: 15, fontSize: 4 },
-                        { type: 'barcodeText', x: 5, y: 19, width: 50, height: 4, fontSize: 2.5, align: 'center' },
-                        { type: 'name', x: 5, y: 25, width: 50, height: 5, fontSize: 3, fontWeight: 'bold', align: 'center' },
-                        { type: 'price', x: 5, y: 32, width: 50, height: 6, fontSize: 4, fontWeight: 'bold', color: '#e53e3e', align: 'center' }
-                    ]
-                },
-                {
-                    name: '小标签40mm',
-                    canvasWidth: 40,
-                    canvasHeight: 30,
-                    paperType: 'continuous',
-                    density: 'normal',
-                    elements: [
-                        { type: 'barcode', x: 3, y: 2, width: 34, height: 12, fontSize: 3 },
-                        { type: 'barcodeText', x: 3, y: 15, width: 34, height: 3, fontSize: 2, align: 'center' },
-                        { type: 'name', x: 3, y: 20, width: 34, height: 4, fontSize: 2.5, fontWeight: 'bold', align: 'center' },
-                        { type: 'price', x: 3, y: 25, width: 34, height: 4, fontSize: 3, fontWeight: 'bold', color: '#e53e3e', align: 'center' }
-                    ]
+        fetch('../api/get_label_templates.php')
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.templates && data.templates.length > 0) {
+                    labelTemplates = data.templates;
+                } else {
+                    labelTemplates = [
+                        {
+                            name: '热敏60mm',
+                            canvasWidth: 60,
+                            canvasHeight: 40,
+                            paperType: 'continuous',
+                            density: 'normal',
+                            elements: [
+                                { type: 'barcode', x: 5, y: 2, width: 50, height: 15, fontSize: 4 },
+                                { type: 'barcodeText', x: 5, y: 19, width: 50, height: 4, fontSize: 2.5, align: 'center' },
+                                { type: 'name', x: 5, y: 25, width: 50, height: 5, fontSize: 3, fontWeight: 'bold', align: 'center' },
+                                { type: 'price', x: 5, y: 32, width: 50, height: 6, fontSize: 4, fontWeight: 'bold', color: '#e53e3e', align: 'center' }
+                            ]
+                        },
+                        {
+                            name: '小标签40mm',
+                            canvasWidth: 40,
+                            canvasHeight: 30,
+                            paperType: 'continuous',
+                            density: 'normal',
+                            elements: [
+                                { type: 'barcode', x: 3, y: 2, width: 34, height: 12, fontSize: 3 },
+                                { type: 'barcodeText', x: 3, y: 15, width: 34, height: 3, fontSize: 2, align: 'center' },
+                                { type: 'name', x: 3, y: 20, width: 34, height: 4, fontSize: 2.5, fontWeight: 'bold', align: 'center' },
+                                { type: 'price', x: 3, y: 25, width: 34, height: 4, fontSize: 3, fontWeight: 'bold', color: '#e53e3e', align: 'center' }
+                            ]
+                        }
+                    ];
                 }
-            ];
-            saveTemplates();
-        }
 
-        const select = document.getElementById('labelTemplate');
-        select.innerHTML = '<option value="">选择模板...</option>';
-        labelTemplates.forEach((template, index) => {
-            const opt = document.createElement('option');
-            opt.value = index;
-            opt.textContent = template.name;
-            select.appendChild(opt);
-        });
-    }
-
-    function saveTemplates() {
-        localStorage.setItem('labelTemplates', JSON.stringify(labelTemplates));
+                const select = document.getElementById('labelTemplate');
+                select.innerHTML = '<option value="">选择模板...</option>';
+                labelTemplates.forEach((template, index) => {
+                    const opt = document.createElement('option');
+                    opt.value = index;
+                    opt.textContent = template.name;
+                    select.appendChild(opt);
+                });
+            })
+            .catch(err => {
+                console.error('加载模板失败:', err);
+                labelTemplates = [];
+            });
     }
 
     function openEditor() {
