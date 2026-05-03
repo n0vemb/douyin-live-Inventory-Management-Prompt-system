@@ -123,30 +123,6 @@ require_once __DIR__ . '/layout.php';
             </div>
         </div>
 
-        <div class="modal" id="priceModal">
-            <div class="modal-content" style="max-width:400px;">
-                <div class="modal-header">
-                    <h3 class="modal-title">💰 修改价格</h3>
-                    <button class="modal-close" onclick="closePriceModal()">&times;</button>
-                </div>
-                <div style="margin-bottom:15px;">
-                    <strong id="priceProductName"></strong>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">出库售价</label>
-                    <input type="number" step="0.01" class="form-input" id="editOutboundPrice" style="font-size:24px; text-align:center;">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">数量</label>
-                    <input type="number" min="1" class="form-input" id="editOutboundQty" style="font-size:24px; text-align:center;">
-                </div>
-                <div style="display:flex; gap:10px; margin-top:20px;">
-                    <button class="btn btn-primary" style="flex:1;" onclick="updateCartItem()">确认</button>
-                    <button class="btn btn-secondary" onclick="closePriceModal()">取消</button>
-                </div>
-            </div>
-        </div>
-
         <div class="modal" id="historyModal">
             <div class="modal-content" style="max-width:1000px; max-height:80vh; overflow-y:auto;">
                 <div class="modal-header">
@@ -160,7 +136,6 @@ require_once __DIR__ . '/layout.php';
 
     <script>
     let cart = [];
-    let currentEditIndex = null;
     let stockData = [];
     let pendingStock = null;
     let scanTimer = null;
@@ -493,21 +468,27 @@ require_once __DIR__ . '/layout.php';
             if (data.success) {
                 const container = document.getElementById('historyList');
                 const outboundList = data.data.outbound || [];
-                
+
                 if (!outboundList.length) {
                     container.innerHTML = '<div style="text-align:center;color:#999;padding:60px;font-size:18px;">暂无出库记录</div>';
                 } else {
-                    container.innerHTML = outboundList.map(batch => `
+                    container.innerHTML = outboundList.map(batch => {
+                        const profit = batch.total_amount - batch.total_cost;
+                        return `
                         <div style="margin-bottom:25px; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden;">
                             <div style="background:linear-gradient(135deg, #667eea, #764ba2); color:white; padding:15px 20px; display:flex; justify-content:space-between; align-items:center;">
                                 <div>
-                                    <span style="font-size:18px; font-weight:bold;">批次号: ${batch.batch_no || '-'}</span>
-                                    <span style="margin-left:15px; opacity:0.9;">${batch.outbound_at}</span>
+                                    <span style="font-size:18px; font-weight:bold;">${batch.outbound_at}</span>
                                 </div>
                                 <div style="display:flex; align-items:center; gap:15px;">
                                     <div style="text-align:right;">
                                         <div style="font-size:12px; opacity:0.9;">共 ${batch.total_qty} 件</div>
-                                        <div style="font-size:20px; font-weight:bold;">¥${batch.total_amount.toFixed(2)}</div>
+                                        <div style="font-size:18px; font-weight:bold;">
+                                            <div>销售额: ¥${batch.total_amount.toFixed(2)}</div>
+                                            <div style="font-size:14px; ${profit >= 0 ? 'color:#dfffe3;' : 'color:#ffdfe3;'}">
+                                                盈利: ${profit >= 0 ? '+' : ''}¥${profit.toFixed(2)}
+                                            </div>
+                                        </div>
                                     </div>
                                     <button class="btn btn-sm btn-danger" onclick="deleteOutbound(&quot;${batch.batch_no}&quot;)" style="background:rgba(255,255,255,0.2); color:white; border:1px solid rgba(255,255,255,0.3);">🗑️ 删除</button>
                                 </div>
@@ -518,12 +499,16 @@ require_once __DIR__ . '/layout.php';
                                         <th>商品</th>
                                         <th>状态</th>
                                         <th>数量</th>
+                                        <th>进价</th>
                                         <th>售价</th>
+                                        <th>盈利</th>
                                         <th>金额</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${batch.items.map(item => `
+                                    ${batch.items.map(item => {
+                                        const itemProfit = (item.outbound_price - item.batch_purchase_price) * item.qty;
+                                        return `
                                         <tr>
                                             <td>
                                                 <strong>${item.common_name || item.product_name || '-'}</strong>
@@ -531,10 +516,12 @@ require_once __DIR__ . '/layout.php';
                                             </td>
                                             <td><span class="condition-badge condition-${item.condition_type}">${getConditionName(item.condition_type)}</span></td>
                                             <td>${item.qty}</td>
+                                            <td>¥${parseFloat(item.batch_purchase_price).toFixed(2)}</td>
                                             <td>¥${parseFloat(item.outbound_price).toFixed(2)}</td>
+                                            <td style="${itemProfit >= 0 ? 'color:#10b981;' : 'color:#ef4444;'} font-weight:bold;">${itemProfit >= 0 ? '+' : ''}¥${itemProfit.toFixed(2)}</td>
                                             <td style="font-weight:bold;">¥${(parseFloat(item.outbound_price) * item.qty).toFixed(2)}</td>
                                         </tr>
-                                    `).join('')}
+                                    `}).join('')}
                                 </tbody>
                             </table>
                             ${batch.order_no || batch.remark ? `
@@ -544,7 +531,7 @@ require_once __DIR__ . '/layout.php';
                                 </div>
                             ` : ''}
                         </div>
-                    `).join('');
+                    `}).join('');
                 }
                 document.getElementById('historyModal').classList.add('show');
             }

@@ -29,12 +29,14 @@ try {
                 'remark' => $record['remark'],
                 'items' => [],
                 'total_qty' => 0,
-                'total_amount' => 0
+                'total_amount' => 0,
+                'total_cost' => 0
             ];
         }
         $grouped[$batchNo]['items'][] = $record;
         $grouped[$batchNo]['total_qty'] += $record['qty'];
         $grouped[$batchNo]['total_amount'] += $record['qty'] * $record['outbound_price'];
+        $grouped[$batchNo]['total_cost'] += $record['qty'] * $record['batch_purchase_price'];
     }
 
     $outbound = array_values($grouped);
