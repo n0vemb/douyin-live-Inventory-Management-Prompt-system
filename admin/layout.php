@@ -327,14 +327,26 @@
     <div class="container">
     <script>
     (function() {
-        fetch('../api/get_settings.php')
-            .then(r => r.json())
-            .then(data => {
-                const settings = data.settings || data.data;
-                if (data.success && settings && settings.system_name) {
-                    document.getElementById('headerTitle').textContent = settings.system_name;
-                }
-            })
-            .catch(() => {});
+        function updateHeaderTitle() {
+            const headerEl = document.getElementById('headerTitle');
+            if (!headerEl) return;
+            
+            fetch('../api/get_settings.php')
+                .then(r => r.json())
+                .then(data => {
+                    const settings = data.settings || data.data;
+                    if (data.success && settings && settings.system_name) {
+                        headerEl.textContent = settings.system_name;
+                    }
+                })
+                .catch(() => {});
+        }
+        
+        // 页面加载完成后更新标题
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', updateHeaderTitle);
+        } else {
+            updateHeaderTitle();
+        }
     })();
     </script>
