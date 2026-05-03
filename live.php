@@ -417,10 +417,12 @@
 
     <div class="operation-toast" id="operationToast"></div>
 
-    <div class="keyboard-hint" id="keyboardHint">
-        <div><kbd>Num 1</kbd>-<kbd>4</kbd> 小键盘减库存 | <kbd>Shift</kbd>+<kbd>Num 1</kbd>-<kbd>4</kbd> 加库存</div>
-        <div>左键点击减库存 | 中键点击加库存</div>
-        <div><kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd> 修改对应价格 | <kbd>Space</kbd> 关闭</div>
+    <div class="keyboard-hint" id="keyboardHint" style="font-size: 12px; padding: 12px 12px; width: auto; max-width: 500px;">
+    <div><kbd>Num 1</kbd>-<kbd>4</kbd> 小键盘减库存</div>
+    <div><kbd>Shift</kbd>+<kbd>Num 1</kbd>-<kbd>4</kbd> 加库存</div>
+    <div>左键点击减库存|中键点击加库存</div>
+    <div><kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd> 修改对应价格</div>
+    <div><kbd>Space</kbd> 关闭</div>
     </div>
 
     <div class="broadcast-overlay" id="broadcastOverlay">
@@ -1094,7 +1096,12 @@
                 if (data.success) {
                     showToast(`✅ ${currentPriceChangeCondition} 改为 ¥${newPrice.toFixed(2)}`);
                     speak(`${currentPriceChangeCondition}价格改为${parseInt(newPrice)}元`);
-                    currentProduct.inventory[currentPriceChangeCondition].live_price = newPrice;
+                    const info = currentProduct.inventory[currentPriceChangeCondition];
+                    if (newPrice == info.suggested_price) {
+                        info.live_price = null;
+                    } else {
+                        info.live_price = newPrice;
+                    }
                     displayProduct();
                     closePriceModal();
                 } else {

@@ -656,29 +656,48 @@ require_once __DIR__ . '/layout.php';
         showModal('productModal');
     }
 
-    function editProduct(id) {
-        const p = allProducts.find(x => x.id === id);
-        if (!p) return;
+    async function editProduct(id) {
+        try {
+            const res = await fetch('../api/get_product.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product_id: id })
+            });
+            
+            const data = await res.json();
+            if (!data.success) {
+                alert('获取商品信息失败');
+                return;
+            }
+            
+            const p = data.data;
 
-        document.getElementById('modalTitle').textContent = '编辑商品';
-        document.getElementById('productId').value = p.id;
-        document.getElementById('productName').value = p.name;
-        document.getElementById('productCommonName').value = p.common_name || '';
-        document.getElementById('productSeries').value = p.series || '';
-        document.getElementById('productBarcode').value = p.barcode;
-        document.getElementById('productBarcode').setAttribute('required', 'required');
-        document.getElementById('qiandaoPrice').value = p.qiandao_price || '';
-        document.getElementById('imageUrl').value = p.image_url || '';
-        document.getElementById('productRemark').value = p.remark || '';
+            document.getElementById('modalTitle').textContent = '编辑商品';
+            document.getElementById('productId').value = p.id;
+            document.getElementById('productName').value = p.name;
+            document.getElementById('productCommonName').value = p.common_name || '';
+            document.getElementById('productSeries').value = p.series || '';
+            document.getElementById('productBarcode').value = p.barcode;
+            document.getElementById('productBarcode').setAttribute('required', 'required');
+            document.getElementById('qiandaoPrice').value = p.qiandao_price || '';
+            document.getElementById('productBrand').value = p.brand || '';
+            document.getElementById('releaseDate').value = p.release_date || '';
+            document.getElementById('productDescription').value = p.product_description || '';
+            document.getElementById('imageUrl').value = p.image_url || '';
+            document.getElementById('productRemark').value = p.remark || '';
 
-        if (p.image_url) {
-            document.getElementById('previewImg').src = '../' + p.image_url;
-            document.getElementById('previewImg').style.display = 'block';
-        } else {
-            document.getElementById('previewImg').style.display = 'none';
+            if (p.image_url) {
+                document.getElementById('previewImg').src = '../' + p.image_url;
+                document.getElementById('previewImg').style.display = 'block';
+            } else {
+                document.getElementById('previewImg').style.display = 'none';
+            }
+
+            showModal('productModal');
+        } catch (err) {
+            console.error(err);
+            alert('获取商品信息失败');
         }
-
-        showModal('productModal');
     }
 
     async function openPurchaseModal(productId) {

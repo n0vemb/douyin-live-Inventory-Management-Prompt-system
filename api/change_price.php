@@ -30,7 +30,14 @@ if (!$inventory) {
     error('库存记录不存在');
 }
 
-$stmt = $pdo->prepare('UPDATE live_inventory SET live_price = ? WHERE id = ?');
-$stmt->execute([$newPrice, $inventory['id']]);
+// 如果新价格等于建议价格，将live_price设置为null而不是重复
+if ($newPrice == $inventory['suggested_price']) {
+    $stmt = $pdo->prepare('UPDATE live_inventory SET live_price = NULL WHERE id = ?');
+    $stmt->execute([$inventory['id']]);
+} else {
+    $stmt = $pdo->prepare('UPDATE live_inventory SET live_price = ? WHERE id = ?');
+    $stmt->execute([$newPrice, $inventory['id']]);
+}
 
 success(['data' => ['new_price' => $newPrice]]);
+?>
