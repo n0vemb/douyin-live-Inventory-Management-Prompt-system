@@ -316,7 +316,7 @@
         <nav class="header-nav">
             <a href="index.php" <?= ($currentPage ?? '') === 'index' ? 'class="active"' : '' ?>>首页</a>
             <a href="products.php" <?= ($currentPage ?? '') === 'products' ? 'class="active"' : '' ?>>商品管理</a>
-            <a href="purchase_logs.php" <?= ($currentPage ?? '') === 'purchase_logs' ? 'class="active"' : '' ?>>入库查询</a>
+            <a href="purchase_logs.php" <?= ($currentPage ?? '') === 'purchase_logs' ? 'class="active"' : '' ?>>标签打印</a>
             <a href="outbound.php" <?= ($currentPage ?? '') === 'outbound' ? 'class="active"' : '' ?>>商品出库</a>
             <a href="sales.php" <?= ($currentPage ?? '') === 'sales' ? 'class="active"' : '' ?>>直播销售记录</a>
             <a href="sessions.php" <?= ($currentPage ?? '') === 'sessions' ? 'class="active"' : '' ?>>直播场次</a>
