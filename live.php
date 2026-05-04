@@ -555,7 +555,9 @@
     <input type="text" id="barcodeInput" autocomplete="off">
 
     <div class="standby" id="standbyScreen">
-        <div class="standby-icon">🎪</div>
+        <div class="standby-icon" id="standbyIcon" style="display:none;">
+            <img id="standbyLogo" src="" alt="" style="max-width:100px; max-height:100px; border-radius:16px;">
+        </div>
         <h1 id="standbyTitle">直播辅助系统</h1>
         <p>请扫描商品条码...</p>
         <div class="live-status" id="liveSessionInfo">准备中</div>
@@ -701,6 +703,15 @@
                         applyLiveDisplaySettings();
                     }
                     document.querySelector('.standby h1').textContent = systemSettings.system_name || '直播辅助系统';
+                    // 显示系统 logo
+                    const standbyIcon = document.getElementById('standbyIcon');
+                    const standbyLogo = document.getElementById('standbyLogo');
+                    if (systemSettings.logo_path) {
+                        standbyLogo.src = systemSettings.logo_path;
+                        standbyIcon.style.display = 'flex';
+                    } else {
+                        standbyIcon.style.display = 'none';
+                    }
                 }
             } catch (e) {
                 console.log('使用默认设置', e);
@@ -1412,6 +1423,17 @@
                                 const standbyTitle = document.getElementById('standbyTitle');
                                 if (standbyTitle) {
                                     standbyTitle.textContent = newSettings.system_name;
+                                }
+                            }
+                            if (newSettings.logo_path !== undefined) {
+                                systemSettings.logo_path = newSettings.logo_path;
+                                const standbyIcon = document.getElementById('standbyIcon');
+                                const standbyLogo = document.getElementById('standbyLogo');
+                                if (newSettings.logo_path) {
+                                    standbyLogo.src = newSettings.logo_path;
+                                    standbyIcon.style.display = 'flex';
+                                } else {
+                                    standbyIcon.style.display = 'none';
                                 }
                             }
                             if (currentProduct) {

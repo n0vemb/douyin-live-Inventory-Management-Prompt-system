@@ -71,7 +71,9 @@ require_once __DIR__ . '/layout.php';
                     <button class="btn btn-sm period-btn" data-period="month" onclick="switchPeriod('month')">按月</button>
                 </div>
             </div>
-            <canvas id="salesChart" height="300"></canvas>
+            <div style="position:relative; height:300px;">
+                <canvas id="salesChart"></canvas>
+            </div>
         </div>
 
         <style>
