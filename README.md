@@ -124,6 +124,7 @@ Bug FIx：
 #### 基本设置
 
 - 系统名称自定义
+- Logo 配置（支持上传图片/SVG，或输入图片 URL）
 
 #### 库存状态管理
 
@@ -256,7 +257,7 @@ Bug FIx：
 
 ```
 GET /api/get_settings.php
-Response: { success: true, settings: { system_name, condition_types, live_display } }
+Response: { success: true, settings: { system_name, logo_path, condition_types, live_display } }
 ```
 
 ### 保存系统配置
@@ -347,6 +348,15 @@ CONDITION_KEYS    // 快捷键映射
 ***
 
 ## 更新日志
+
+### v2.1
+
+- 新增 Logo 配置：支持上传图片/SVG 或 URL，在管理后台头部显示
+- 新增一键统一改价：在库存详情中按状态批量更新所有批次售价
+- 优化弹窗样式：统一弹窗宽度，修复深色模式下取消按钮看不清的问题
+- 优化系统配置页：系统名称与 Logo 设置合并为一行
+- 修复系统名称未从数据库读取的问题
+- 直播页左上角查询状态优化
 
 ### v2.0
 

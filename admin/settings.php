@@ -131,12 +131,19 @@
 }
 
 .fine-tune-btn {
-    border: 1px solid var(--border);
-    background: var(--bg-surface);
+    border: 1px solid var(--text-tertiary);
+    background: transparent;
     border-radius: 8px;
     padding: 6px 10px;
     cursor: pointer;
     font-size: 13px;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+}
+.fine-tune-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
 }
 
 .fine-tune-btn:hover {

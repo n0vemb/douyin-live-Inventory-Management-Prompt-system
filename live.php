@@ -329,20 +329,18 @@
             background: var(--bg-elevated);
             border: 1px solid var(--border);
             color: var(--text);
-            padding: 20px 30px;
-            border-radius: 12px;
-            font-size: 24px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 14px;
             z-index: 1000;
             display: none;
             box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            opacity: 0;
+            transition: opacity 0.2s;
         }
         .operation-toast.show {
             display: block;
-            animation: fadeInOut 1.5s ease-in-out;
-        }
-        @keyframes fadeInOut {
-            0%, 100% { opacity: 0; transform: scale(0.9); }
-            15%, 85% { opacity: 1; transform: scale(1); }
+            opacity: 1;
         }
 
         .price-modal {
@@ -558,7 +556,7 @@
 
     <div class="standby" id="standbyScreen">
         <div class="standby-icon">🎪</div>
-        <h1 id="standbyTitle">泡泡玛特直播辅助系统</h1>
+        <h1 id="standbyTitle">直播辅助系统</h1>
         <p>请扫描商品条码...</p>
         <div class="live-status" id="liveSessionInfo">准备中</div>
         <div style="margin-top:20px; font-size:14px; opacity:0.7;">按 <kbd style="background:rgba(255,255,255,0.3);padding:5px 10px;border-radius:5px;">F11</kbd> 全屏效果更佳</div>
@@ -859,7 +857,7 @@
         }
 
         function scanProduct(barcode) {
-            showToast('🔍 查询中...');
+            showToast('🟢查询中');
 
             fetch('api/scan_product_live.php', {
                 method: 'POST',
