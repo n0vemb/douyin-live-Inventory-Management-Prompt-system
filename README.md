@@ -6,6 +6,8 @@
 
 特别说明： 创建直播时自动复制现有库存加入直播可用库存。在直播中产生的销售仅影响直播库存，不影响实际库存，在商品页面出库后才会影响真实库存。
 
+<img width="3232" height="2160" alt="Frame 103" src="https://github.com/user-attachments/assets/e0f29cb6-6c85-4348-bfd7-da3f4a34669d" />
+
 <br />
 
 **to do list:**
