@@ -895,7 +895,7 @@ require_once __DIR__ . '/layout.php';
     }
 
     // 生成条码的通用函数，带容错
-    function renderBarcode(svg, barcode, height, showText = true) {
+    function renderBarcode(svg, barcode, height) {
         const format = detectBarcodeFormat(barcode);
         const formats = [format, 'CODE128', 'CODE39'];
 
@@ -903,12 +903,10 @@ require_once __DIR__ . '/layout.php';
             try {
                 JsBarcode(svg, barcode, {
                     format: formats[i],
-                    displayValue: showText,
+                    displayValue: false,
                     width: 2,
                     height: height,
-                    margin: 0,
-                    fontSize: 12,
-                    textMargin: 2
+                    margin: 0
                 });
                 return true;
             } catch (e) {
@@ -1060,23 +1058,19 @@ waitForJsBarcode(function() {
             try {
                 JsBarcode(svg, barcode, {
                     format: format,
-                    displayValue: true,
+                    displayValue: false,
                     width: 2,
                     height: heightMm * 3.78 * 0.9,
-                    margin: 0,
-                    fontSize: 12,
-                    textMargin: 2
+                    margin: 0
                 });
             } catch (e) {
                 try {
                     JsBarcode(svg, barcode, {
                         format: 'CODE128',
-                        displayValue: true,
+                        displayValue: false,
                         width: 2,
                         height: heightMm * 3.78 * 0.9,
-                        margin: 0,
-                        fontSize: 12,
-                        textMargin: 2
+                        margin: 0
                     });
                 } catch (e2) {
                     placeholder.innerHTML = '<span style="font-family:monospace; font-size:3mm;">' + barcode + '</span>';

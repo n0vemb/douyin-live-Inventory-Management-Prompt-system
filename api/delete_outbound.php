@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../includes/common.php';
+require_once __DIR__ . '/../config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('HTTP/1.1 405 Method Not Allowed');
@@ -16,17 +16,19 @@ try {
         exit;
     }
 
+    $pdo = getDB();
+
     // 开始事务
     $pdo->beginTransaction();
 
     // 1. 找出该出库批次的所有记录
     $stmt = $pdo->prepare("
-        SELECT 
+        SELECT
             o.id as outbound_id,
             o.batch_id,
             o.qty
-        FROM outbound o
-        WHERE o.batch_no = ?
+        FROM outbound_log o
+        WHERE o.outbound_batch_no = ?
     ");
     $stmt->execute([$batchNo]);
     $outbounds = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -40,7 +42,7 @@ try {
     // 2. 恢复库存
     foreach ($outbounds as $outbound) {
         $updateStmt = $pdo->prepare("
-            UPDATE purchase_logs
+            UPDATE inventory_batches
             SET remaining_qty = remaining_qty + ?
             WHERE id = ?
         ");
@@ -52,8 +54,8 @@ try {
 
     // 3. 删除出库记录
     $deleteStmt = $pdo->prepare("
-        DELETE FROM outbound
-        WHERE batch_no = ?
+        DELETE FROM outbound_log
+        WHERE outbound_batch_no = ?
     ");
     $deleteStmt->execute([$batchNo]);
 

@@ -9,7 +9,11 @@ $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 100;
 
 $pdo = getDB();
 
-$sql = 'SELECT s.*, p.name as product_name, p.barcode, p.series FROM sales_log s LEFT JOIN products p ON s.product_id = p.id WHERE 1=1';
+$sql = 'SELECT s.*, p.name as product_name, p.barcode, p.series, b.purchase_price as batch_purchase_price 
+        FROM sales_log s 
+        LEFT JOIN products p ON s.product_id = p.id 
+        LEFT JOIN inventory_batches b ON s.batch_id = b.id 
+        WHERE 1=1';
 $params = [];
 
 if (!empty($productId)) {
@@ -43,7 +47,10 @@ $stmt->bindValue($paramIndex, max(1, $limit), PDO::PARAM_INT);
 $stmt->execute();
 $sales = $stmt->fetchAll();
 
-$summarySql = 'SELECT SUM(sale_price * qty) as total_amount, SUM(qty) as total_qty FROM sales_log WHERE 1=1';
+$summarySql = 'SELECT SUM(sale_price * qty) as total_amount, SUM(qty) as total_qty, SUM((sale_price - b.purchase_price) * qty) as total_profit
+        FROM sales_log s 
+        LEFT JOIN inventory_batches b ON s.batch_id = b.id 
+        WHERE 1=1';
 $summaryParams = [];
 if (!empty($productId)) {
     $summarySql .= ' AND product_id = ?';
