@@ -92,7 +92,7 @@ require_once __DIR__ . '/layout.php';
 
         <!-- 可视化编辑器模态框 -->
         <div class="modal" id="editorModal">
-            <div class="modal-content modal-wide" style="max-height:95vh;"><!-- 编辑器 -->
+            <div class="modal-content modal-full" style="max-height:95vh;"><!-- 编辑器 -->
                 <div class="modal-header">
                     <h3 class="modal-title">✏️ 标签可视化编辑器</h3>
                     <button class="modal-close" onclick="closeEditor()">&times;</button>

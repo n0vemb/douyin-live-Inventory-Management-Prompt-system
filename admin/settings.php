@@ -384,6 +384,34 @@ input:checked + .toggle-slider:before {
                 <label class="config-label">价格项间距 (px)</label>
                 <input type="number" class="config-input" id="configItemSpacing" oninput="updateElementConfig()" min="0">
             </div>
+            <div class="config-item" id="configColorWrapper" style="display: none;">
+                <label class="config-label">文字颜色</label>
+                <input type="color" class="config-input" id="configColor" onchange="updateElementConfig()" style="height:42px; padding:4px;">
+            </div>
+            <div class="config-item" id="configStatusFontSizeWrapper" style="display: none;">
+                <label class="config-label">状态字号</label>
+                <input type="text" class="config-input" id="configStatusFontSize" oninput="updateElementConfig()" placeholder="28px">
+            </div>
+            <div class="config-item" id="configStatusColorWrapper" style="display: none;">
+                <label class="config-label">状态颜色</label>
+                <input type="color" class="config-input" id="configStatusColor" onchange="updateElementConfig()" style="height:42px; padding:4px;">
+            </div>
+            <div class="config-item" id="configPriceFontSizeWrapper" style="display: none;">
+                <label class="config-label">价格字号</label>
+                <input type="text" class="config-input" id="configPriceFontSize" oninput="updateElementConfig()" placeholder="46px">
+            </div>
+            <div class="config-item" id="configPriceColorWrapper" style="display: none;">
+                <label class="config-label">价格颜色</label>
+                <input type="color" class="config-input" id="configPriceColor" onchange="updateElementConfig()" style="height:42px; padding:4px;">
+            </div>
+            <div class="config-item" id="configPriceOffsetWrapper" style="display: none;">
+                <label class="config-label">价格偏移 (px)</label>
+                <input type="number" class="config-input" id="configPriceOffset" oninput="updateElementConfig()" min="-500" max="500" value="0">
+            </div>
+            <div class="config-item" id="configStockOffsetWrapper" style="display: none;">
+                <label class="config-label">库存偏移 (px)</label>
+                <input type="number" class="config-input" id="configStockOffset" oninput="updateElementConfig()" min="-500" max="500" value="0">
+            </div>
         </div>
     </div>
 </div>
@@ -433,10 +461,10 @@ const defaultSettings = {
             {type: 'productName', enabled: true, left: 60, top: 60, width: 900, height: 80, fontSize: '72px', zIndex: 2},
             {type: 'productSeries', enabled: true, left: 60, top: 150, width: 600, height: 60, fontSize: '48px', zIndex: 2},
             {type: 'commonName', enabled: true, left: 60, top: 220, width: 600, height: 80, fontSize: '42px', zIndex: 2},
-            {type: 'suggestedPrice', enabled: true, left: 60, top: 310, width: 500, height: 100, fontSize: '72px', zIndex: 2},
+            {type: 'suggestedPrice', enabled: true, left: 60, top: 310, width: 500, height: 100, fontSize: '72px', zIndex: 2, color: '#e8e8ed'},
             {type: 'productDescription', enabled: true, left: 60, top: 430, width: 800, height: 80, fontSize: '32px', zIndex: 2},
             {type: 'image', enabled: true, left: 60, top: 540, width: 600, height: 600, fontSize: '0px', zIndex: 1},
-            {type: 'condition', enabled: true, left: 750, top: 450, width: 1100, height: 600, fontSize: '40px', zIndex: 1, itemSpacing: 30}
+            {type: 'condition', enabled: true, left: 750, top: 450, width: 1100, height: 600, fontSize: '40px', zIndex: 1, itemSpacing: 30, statusFontSize: '28px', statusColor: '#9d9daf', priceFontSize: '46px', priceColor: '#34d399', priceOffsetX: 0, stockOffsetX: 0}
         ]
     }
 };
@@ -621,10 +649,35 @@ function selectElement(index) {
         document.getElementById('configFontSizeWrapper').style.display = 
             (item.type === 'image') ? 'none' : 'flex';
         
-        document.getElementById('configItemSpacingWrapper').style.display = 
+        document.getElementById('configItemSpacingWrapper').style.display =
             (item.type === 'condition') ? 'flex' : 'none';
         document.getElementById('configItemSpacing').value = item.itemSpacing || 30;
-        
+
+        document.getElementById('configColorWrapper').style.display =
+            (item.type === 'suggestedPrice') ? 'flex' : 'none';
+        document.getElementById('configColor').value = item.color || '#e8e8ed';
+
+        const isCondition = item.type === 'condition';
+        document.getElementById('configStatusFontSizeWrapper').style.display = isCondition ? 'flex' : 'none';
+        document.getElementById('configStatusColorWrapper').style.display = isCondition ? 'flex' : 'none';
+        document.getElementById('configPriceFontSizeWrapper').style.display = isCondition ? 'flex' : 'none';
+        document.getElementById('configPriceColorWrapper').style.display = isCondition ? 'flex' : 'none';
+
+        if (isCondition) {
+            document.getElementById('configStatusFontSize').value = item.statusFontSize || '28px';
+            document.getElementById('configStatusColor').value = item.statusColor || '#9d9daf';
+            document.getElementById('configPriceFontSize').value = item.priceFontSize || '46px';
+            document.getElementById('configPriceColor').value = item.priceColor || '#34d399';
+        }
+
+        document.getElementById('configPriceOffsetWrapper').style.display = isCondition ? 'flex' : 'none';
+        document.getElementById('configStockOffsetWrapper').style.display = isCondition ? 'flex' : 'none';
+
+        if (isCondition) {
+            document.getElementById('configPriceOffset').value = item.priceOffsetX || 0;
+            document.getElementById('configStockOffset').value = item.stockOffsetX || 0;
+        }
+
         renderElementList();
     } catch (e) {
         console.error('selectElement error:', e);
@@ -660,7 +713,20 @@ function updateElementConfig() {
     if (item.type === 'condition') {
         item.itemSpacing = parseInt(document.getElementById('configItemSpacing').value) || 30;
     }
-    
+
+    if (item.type === 'suggestedPrice') {
+        item.color = document.getElementById('configColor').value;
+    }
+
+    if (item.type === 'condition') {
+        item.statusFontSize = document.getElementById('configStatusFontSize').value;
+        item.statusColor = document.getElementById('configStatusColor').value;
+        item.priceFontSize = document.getElementById('configPriceFontSize').value;
+        item.priceColor = document.getElementById('configPriceColor').value;
+        item.priceOffsetX = parseInt(document.getElementById('configPriceOffset').value) || 0;
+        item.stockOffsetX = parseInt(document.getElementById('configStockOffset').value) || 0;
+    }
+
     // Save to localStorage for live page to pick up
     localStorage.setItem('ppmart_temp_config', JSON.stringify(tempSettings));
     
@@ -677,6 +743,13 @@ function updateConfigPanelValues(item) {
     document.getElementById('configFontSize').value = item.fontSize || '';
     document.getElementById('configZIndex').value = item.zIndex || 1;
     document.getElementById('configItemSpacing').value = item.itemSpacing || 30;
+    document.getElementById('configColor').value = item.color || '#e8e8ed';
+    document.getElementById('configStatusFontSize').value = item.statusFontSize || '28px';
+    document.getElementById('configStatusColor').value = item.statusColor || '#9d9daf';
+    document.getElementById('configPriceFontSize').value = item.priceFontSize || '46px';
+    document.getElementById('configPriceColor').value = item.priceColor || '#34d399';
+    document.getElementById('configPriceOffset').value = item.priceOffsetX || 0;
+    document.getElementById('configStockOffset').value = item.stockOffsetX || 0;
 }
 
 function onNudgeStepChange() {

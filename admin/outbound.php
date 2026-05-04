@@ -139,6 +139,7 @@ require_once __DIR__ . '/layout.php';
     let stockData = [];
     let pendingStock = null;
     let scanTimer = null;
+    let conditionNameMap = { sealed: '原盒未拆', opened: '拆盒无瑕', boxless: '无盒无瑕', flawed: '微瑕' };
 
     document.getElementById('scanInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
@@ -541,14 +542,20 @@ require_once __DIR__ . '/layout.php';
         }
     }
 
+    async function loadConditionSettings() {
+        try {
+            const res = await fetch('../api/get_settings.php');
+            const data = await res.json();
+            if (data.success && data.settings && data.settings.condition_types) {
+                conditionNameMap = Object.fromEntries(data.settings.condition_types.map(c => [c.key, c.name]));
+            }
+        } catch (e) {
+            console.log('使用默认状态名称');
+        }
+    }
+
     function getConditionName(type) {
-        const map = {
-            'sealed': '全新未拆',
-            'opened': '已拆未玩',
-            'boxless': '无盒',
-            'flawed': '有瑕疵'
-        };
-        return map[type] || type;
+        return conditionNameMap[type] || type;
     }
 
     function closeHistoryModal() {
@@ -582,6 +589,7 @@ require_once __DIR__ . '/layout.php';
         }
     }
 
+    loadConditionSettings();
     loadStockOverview();
     document.getElementById('scanInput').focus();
     </script>

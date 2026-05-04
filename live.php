@@ -712,10 +712,10 @@
                 productName: { enabled: true, left: 60, top: 60, width: 900, height: 80, fontSize: '72px', zIndex: 2 },
                 productSeries: { enabled: true, left: 60, top: 150, width: 600, height: 60, fontSize: '48px', zIndex: 2 },
                 commonName: { enabled: true, left: 60, top: 220, width: 600, height: 80, fontSize: '42px', zIndex: 2 },
-                suggestedPrice: { enabled: true, left: 60, top: 310, width: 500, height: 100, fontSize: '72px', zIndex: 2 },
+                suggestedPrice: { enabled: true, left: 60, top: 310, width: 500, height: 100, fontSize: '72px', zIndex: 2, color: '#e8e8ed' },
                 productDescription: { enabled: true, left: 60, top: 430, width: 800, height: 80, fontSize: '32px', zIndex: 2 },
                 image: { enabled: true, left: 60, top: 540, width: 600, height: 600, fontSize: '0px', zIndex: 1 },
-                condition: { enabled: true, left: 750, top: 450, width: 1100, height: 600, fontSize: '40px', zIndex: 1, itemSpacing: 30 }
+                condition: { enabled: true, left: 750, top: 450, width: 1100, height: 600, fontSize: '40px', zIndex: 1, itemSpacing: 30, statusFontSize: '28px', statusColor: '#9d9daf', priceFontSize: '46px', priceColor: '#34d399', priceOffsetX: 0, stockOffsetX: 0 }
             };
 
             if (liveDisplaySettings.elements) {
@@ -744,7 +744,7 @@
 
             const productName = document.querySelector('.product-name');
             const productCommonName = document.getElementById('productCommonName');
-            const qiandaoPrice = document.querySelector('.qiandao-price');
+            const qiandaoPrice = document.getElementById('qiandaoPrice');
 
             if (liveDisplaySettings.elements) {
                 liveDisplaySettings.elements.forEach(el => {
@@ -757,6 +757,7 @@
                     }
                     if (el.type === 'suggestedPrice' && el.enabled) {
                         qiandaoPrice.style.fontSize = el.fontSize || '48px';
+                        qiandaoPrice.style.color = el.color || '#e8e8ed';
                     }
                 });
             }
@@ -957,6 +958,7 @@
                 suggestedPriceElement.style.minHeight = suggestedPriceConfig.height + 'px';
                 suggestedPriceElement.style.zIndex = suggestedPriceConfig.zIndex || 1;
                 suggestedPriceElement.style.fontSize = suggestedPriceConfig.fontSize || '28px';
+                qiandaoPriceEl.style.color = suggestedPriceConfig.color || '#e8e8ed';
                 suggestedPriceElement.style.display = 'flex';
                 suggestedPriceElement.style.alignItems = 'center';
             } else {
@@ -1041,27 +1043,27 @@
                     row.classList.add('low-stock');
                 }
 
-                if (info.stock > 0 && info.stock > 2) {
-                    const bgColor = condition.color || '#667eea';
-                    row.style.background = `linear-gradient(135deg, ${bgColor} 0%, ${adjustColor(bgColor, -20)} 100%)`;
-                }
-
                 const livePrice = info.live_price || info.suggested_price;
                 const priceChanged = info.live_price && info.live_price !== info.suggested_price;
+
+                if (info.stock > 0 && priceChanged) {
+                    row.style.background = 'linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(217, 119, 6, 0.08))';
+                    row.style.borderColor = 'rgba(251, 191, 36, 0.3)';
+                }
 
                 row.innerHTML = `
                     <div class="condition-info">
                         <div class="condition-number">${CONDITION_NUMBERS[index]}</div>
-                        <div class="condition-name" style="font-size:${conditionConfig.fontSize || '20px'}">${condition.name}</div>
+                        <div class="condition-name" style="font-size:${conditionConfig.statusFontSize || '28px'};color:${conditionConfig.statusColor || '#9d9daf'}">${condition.name}</div>
                     </div>
-                    <div class="price-info">
+                    <div class="price-info" style="transform:translateX(${conditionConfig.priceOffsetX || 0}px)">
                         ${info.suggested_price && priceChanged ?
                             `<div class="suggested-price">¥${parseFloat(info.suggested_price).toFixed(2)}</div>` : ''}
-                        <div class="live-price ${priceChanged ? 'changed' : ''}">
+                        <div class="live-price ${priceChanged ? 'changed' : ''}" style="font-size:${conditionConfig.priceFontSize || '46px'};color:${priceChanged ? '#fbbf24' : (conditionConfig.priceColor || '#34d399')}">
                             ¥${parseFloat(livePrice || 0).toFixed(2)}
                         </div>
                     </div>
-                    <div class="stock-info">
+                    <div class="stock-info" style="transform:translateX(${conditionConfig.stockOffsetX || 0}px)">
                         <div class="stock-number">${info.stock}</div>
                         <div class="stock-label">库存</div>
                     </div>

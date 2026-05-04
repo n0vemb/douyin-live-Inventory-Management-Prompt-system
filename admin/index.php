@@ -1,4 +1,6 @@
 <?php
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 $pageTitle = '数据概览';
 $currentPage = 'index';
 require_once __DIR__ . '/layout.php';
@@ -33,7 +35,7 @@ require_once __DIR__ . '/layout.php';
             <div style="background:linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); padding:24px; border-radius:16px; color:white; box-shadow:0 4px 15px rgba(6,182,212,0.25);">
                 <div style="font-size:42px; font-weight:bold; margin-bottom:6px;" id="todayProfit">-</div>
                 <div style="font-size:16px; opacity:0.9; display:flex; align-items:center; gap:6px;">
-                    <span>�</span> 今日盈利
+                    <span>📈</span> 今日盈利
                 </div>
             </div>
             <div style="background:linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); padding:24px; border-radius:16px; color:white; box-shadow:0 4px 15px rgba(139,92,246,0.25);">
@@ -58,286 +60,163 @@ require_once __DIR__ . '/layout.php';
                     </div>
                 </div>
             </div>
-            <div style="flex:1; min-width:280px;">
-                <div style="background:var(--bg-surface); border-radius:12px; padding:18px;">
-                    <div style="font-size:16px; font-weight:600; color:var(--text); margin-bottom:12px; display:flex; align-items:center; gap:8px;">
-                        <span>🎬</span> 当前直播
-                    </div>
-                    <div id="liveSession">
-                        <div style="text-align:center; color:var(--text-tertiary); padding:20px;">暂无进行中的直播</div>
-                    </div>
+        </div>
+
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+                <div class="card-title" style="margin:0;">📈 销售趋势</div>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-sm period-btn active" data-period="day" onclick="switchPeriod('day')">按日</button>
+                    <button class="btn btn-sm period-btn" data-period="week" onclick="switchPeriod('week')">按周</button>
+                    <button class="btn btn-sm period-btn" data-period="month" onclick="switchPeriod('month')">按月</button>
                 </div>
             </div>
+            <canvas id="salesChart" height="300"></canvas>
         </div>
 
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(400px, 1fr)); gap:20px;">
-            <div class="card">
-                <div class="card-title">📦 最近入库</div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>时间</th>
-                            <th>商品</th>
-                            <th>状态</th>
-                            <th>数量</th>
-                            <th>进价</th>
-                        </tr>
-                    </thead>
-                    <tbody id="recentPurchase"></tbody>
-                </table>
-            </div>
-
-            <div class="card">
-                <div class="card-title">💰 最近出库</div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>时间</th>
-                            <th>商品</th>
-                            <th>状态</th>
-                            <th>售价</th>
-                            <th>盈利</th>
-                        </tr>
-                    </thead>
-                    <tbody id="recentOutbound"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="card" style="margin-top:20px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <div class="card-title" style="margin:0;">⚠️ 低库存商品</div>
-                <a href="products.php" style="color:var(--primary); text-decoration:none; font-size:14px;">查看全部 →</a>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>商品</th>
-                        <th>状态</th>
-                        <th>库存</th>
-                        <th>建议售价</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody id="lowStockList"></tbody>
-            </table>
-        </div>
+        <style>
+        .period-btn { background:var(--bg-hover); border:1px solid var(--border); color:var(--text-secondary); cursor:pointer; padding:8px 16px; border-radius:6px; font-size:14px; transition:all 0.2s; }
+        .period-btn.active { background:var(--primary); border-color:var(--primary); color:#fff; }
+        .period-btn:hover:not(.active) { border-color:var(--primary); color:var(--primary); }
+        </style>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script>
-    let conditionNames = { sealed: '原盒未拆', opened: '拆盒无瑕', boxless: '无盒无瑕', flawed: '微瑕' };
+    let salesChart = null;
+    let currentPeriod = 'day';
 
-    async function loadSettings() {
+    function switchPeriod(period) {
+        currentPeriod = period;
+        document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === period));
+        loadTrend();
+    }
+
+    async function loadTrend() {
         try {
-            const res = await fetch('../api/get_settings.php');
+            const days = currentPeriod === 'month' ? 365 : 60;
+            const res = await fetch(`../api/sales_trend.php?period=${currentPeriod}&days=${days}`);
             const data = await res.json();
-            if (data.success && data.settings && data.settings.condition_types) {
-                conditionNames = Object.fromEntries(data.settings.condition_types.map(c => [c.key, c.name]));
-            }
+            if (!data.success) return;
+
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            if (salesChart) salesChart.destroy();
+
+            salesChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.data.labels,
+                    datasets: [
+                        {
+                            label: '销售额',
+                            data: data.data.amounts,
+                            backgroundColor: 'rgba(94, 92, 230, 0.7)',
+                            borderColor: 'rgba(94, 92, 230, 1)',
+                            borderWidth: 1,
+                            borderRadius: 4,
+                            yAxisID: 'y',
+                            order: 2
+                        },
+                        {
+                            label: '销量',
+                            data: data.data.qtys,
+                            type: 'line',
+                            borderColor: '#34d399',
+                            backgroundColor: 'rgba(52, 211, 153, 0.1)',
+                            pointBackgroundColor: '#34d399',
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            tension: 0.3,
+                            fill: true,
+                            yAxisID: 'y1',
+                            order: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { color: '#9d9daf', font: { size: 13 }, usePointStyle: true, padding: 20 }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(18,18,26,0.95)',
+                            titleColor: '#e8e8ed',
+                            bodyColor: '#9d9daf',
+                            borderColor: '#2a2a3a',
+                            borderWidth: 1,
+                            padding: 12,
+                            cornerRadius: 8,
+                            callbacks: {
+                                label: function(ctx) {
+                                    if (ctx.dataset.label === '销售额') return '销售额: ¥' + parseFloat(ctx.raw).toFixed(2);
+                                    return '销量: ' + ctx.raw + ' 件';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(42,42,58,0.5)', drawBorder: false },
+                            ticks: { color: '#6b6b80', font: { size: 11 } }
+                        },
+                        y: {
+                            position: 'left',
+                            grid: { color: 'rgba(42,42,58,0.3)', drawBorder: false },
+                            ticks: {
+                                color: '#6b6b80',
+                                font: { size: 11 },
+                                callback: function(v) { return '¥' + v; }
+                            }
+                        },
+                        y1: {
+                            position: 'right',
+                            grid: { display: false },
+                            ticks: {
+                                color: '#6b6b80',
+                                font: { size: 11 },
+                                callback: function(v) { return v + '件'; }
+                            }
+                        }
+                    }
+                }
+            });
         } catch (e) {
-            console.log('使用默认状态名称');
+            console.error('trend err:', e);
         }
     }
 
     async function loadStats() {
         try {
-            const [productsRes, stockRes, outboundRes, salesRes] = await Promise.all([
+            const [productsRes, stockRes, salesRes] = await Promise.all([
                 fetch('../api/list_products.php'),
                 fetch('../api/stock_overview.php'),
-                fetch('../api/list_outbound.php'),
                 fetch('../api/sales_summary.php')
             ]);
-            const productsData = await productsRes.json();
-            const stockData = await stockRes.json();
-            const outboundData = await outboundRes.json();
-            const salesData = await salesRes.json();
 
-            document.getElementById('totalProducts').textContent = productsData.data.products.length;
-            document.getElementById('totalStock').textContent = stockData.data.total_qty;
+            let productsData, stockData, salesData;
+            try { productsData = await productsRes.json(); } catch (e) { productsData = { data: { products: [] } }; }
+            try { stockData = await stockRes.json(); } catch (e) { stockData = { data: {} }; }
+            try { salesData = await salesRes.json(); } catch (e) { salesData = { data: {} }; }
+
+            const products = productsData.data && Array.isArray(productsData.data.products) ? productsData.data.products : [];
+
+            document.getElementById('totalProducts').textContent = products.length;
+            document.getElementById('totalStock').textContent = stockData.data.total_qty || 0;
             document.getElementById('stockValue').textContent = '¥' + parseFloat(stockData.data.total_value || 0).toLocaleString();
             document.getElementById('todaySales').textContent = '¥' + (salesData.data.today_sales_amount || 0).toLocaleString();
             document.getElementById('todayProfit').textContent = '¥' + (salesData.data.today_profit || 0).toLocaleString();
             document.getElementById('monthProfit').textContent = '¥' + (salesData.data.month_profit || 0).toLocaleString();
-
-            let lowStockList = [];
-            let lowStockCount = 0;
-            productsData.data.products.forEach(p => {
-                if (p.inventory_summary) {
-                    Object.keys(p.inventory_summary).forEach(type => {
-                        const item = p.inventory_summary[type];
-                        const qty = item.total_stock || 0;
-                        if (qty > 0 && qty <= 2) {
-                            lowStockCount++;
-                            lowStockList.push({
-                                product_id: p.id,
-                                product_name: p.common_name || p.name,
-                                official_name: p.name,
-                                condition_type: type,
-                                condition_name: conditionNames[type] || type,
-                                qty: qty,
-                                suggested_price: item.suggested_price
-                            });
-                        }
-                    });
-                }
-            });
-            document.getElementById('lowStock').textContent = lowStockCount;
-
-            renderRecentPurchase(productsData.data.products);
-            renderRecentOutbound(outboundData.data.outbound.slice(0, 10));
-            renderLowStockList(lowStockList);
-            loadCurrentLiveSession(productsData.data.products);
-
         } catch (err) {
             console.error(err);
         }
     }
 
-    async function loadCurrentLiveSession(products) {
-        try {
-            const sessionsRes = await fetch('../api/list_sessions.php');
-            const sessionsData = await sessionsRes.json();
-            const sessionList = Array.isArray(sessionsData.data)
-                ? sessionsData.data
-                : (sessionsData.data && Array.isArray(sessionsData.data.sessions) ? sessionsData.data.sessions : []);
-            const activeSessions = sessionList.filter(s => s.status === 'active');
-            const div = document.getElementById('liveSession');
-            
-            if (activeSessions.length > 0) {
-                const session = activeSessions[0];
-                const sessionName = session.session_name || session.name || `场次 #${session.id}`;
-                div.innerHTML = `
-                    <div style="background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.2); padding:16px; border-radius:8px;">
-                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                            <div style="display:flex; align-items:center; gap:8px;">
-                                <div style="width:10px; height:10px; background:var(--success); border-radius:50%; animation:pulse 1.5s infinite;"></div>
-                                <span style="font-weight:600; color:var(--success);">正在直播中</span>
-                            </div>
-                            <span style="font-size:12px; color:var(--text-secondary);">${session.started_at}</span>
-                        </div>
-                        <div style="font-size:18px; font-weight:700; color:var(--text); margin-bottom:4px;">${sessionName}</div>
-                        <div style="font-size:13px; color:var(--text-secondary); margin-bottom:12px;">
-                            📺 场次 ID: ${session.id}
-                        </div>
-                        <a href="../live.php?session_id=${session.id}" target="_blank" style="display:block; width:100%; background:linear-gradient(135deg, #10b981, #059669); color:white; text-align:center; padding:10px; border-radius:6px; text-decoration:none; font-weight:600;">
-                            进入直播间 →
-                        </a>
-                    </div>
-                `;
-            } else {
-                div.innerHTML = `
-                    <div style="text-align:center; color:var(--text-tertiary); padding:20px;">
-                        <div style="font-size:48px; margin-bottom:10px;">🎬</div>
-                        <div style="margin-bottom:10px;">暂无进行中的直播</div>
-                        <a href="sessions.php" style="color:var(--primary); text-decoration:none; font-size:14px;">创建直播场次 →</a>
-                    </div>
-                `;
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    }
-
-    function renderRecentPurchase(products) {
-        const tbody = document.getElementById('recentPurchase');
-        if (!products.length) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);">暂无数据</td></tr>';
-            return;
-        }
-
-        let recentBatches = [];
-        products.forEach(p => {
-            if (p.batches) {
-                p.batches.forEach(b => {
-                    recentBatches.push({
-                        product_name: p.common_name || p.name,
-                        condition_type: b.condition_type,
-                        condition_name: conditionNames[b.condition_type] || b.condition_type,
-                        qty: b.total_qty,
-                        purchase_price: b.purchase_price,
-                        purchased_at: b.purchased_at
-                    });
-                });
-            }
-        });
-        
-        recentBatches.sort((a, b) => b.purchased_at.localeCompare(a.purchased_at));
-        recentBatches = recentBatches.slice(0, 10);
-
-        if (!recentBatches.length) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);">暂无入库记录</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = recentBatches.map(b => `
-            <tr>
-                <td>${b.purchased_at.split(' ')[0]}</td>
-                <td>${b.product_name}</td>
-                <td><span class="condition-badge condition-${b.condition_type}">${b.condition_name}</span></td>
-                <td style="font-weight:600;">${b.qty}</td>
-                <td style="color:var(--danger); font-weight:600;">¥${parseFloat(b.purchase_price).toFixed(2)}</td>
-            </tr>
-        `).join('');
-    }
-
-    function renderRecentOutbound(outbound) {
-        const tbody = document.getElementById('recentOutbound');
-        if (!outbound.length) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);">暂无数据</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = outbound.map(o => {
-            const profit = o.batch_purchase_price ? 
-                (parseFloat(o.outbound_price) - parseFloat(o.batch_purchase_price)) * parseInt(o.qty) : 0;
-            const profitClass = profit >= 0 ? 'color:var(--success)' : 'color:var(--danger)';
-            return `
-                <tr>
-                    <td>${o.outbound_at.split(' ')[0]}</td>
-                    <td>${o.product_name || o.common_name || '-'}</td>
-                    <td><span class="condition-badge condition-${o.condition_type}">${conditionNames[o.condition_type] || o.condition_type}</span></td>
-                    <td style="color:var(--success); font-weight:600;">¥${parseFloat(o.outbound_price).toFixed(2)}</td>
-                    <td style="font-weight:700; ${profitClass};">¥${profit.toFixed(2)}</td>
-                </tr>
-            `;
-        }).join('');
-    }
-
-    function renderLowStockList(stockList) {
-        const tbody = document.getElementById('lowStockList');
-        if (!stockList.length) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary); padding:30px;">🎉 暂无低库存商品</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = stockList.slice(0, 15).map(s => `
-            <tr style="background:var(--danger-light);">
-                <td>
-                    <strong>${s.product_name}</strong>
-                    ${s.official_name !== s.product_name ? `<br><span style="font-size:12px; color:var(--text-tertiary);">${s.official_name}</span>` : ''}
-                </td>
-                <td><span class="condition-badge condition-${s.condition_type}">${s.condition_name}</span></td>
-                <td style="color:var(--danger); font-weight:800; font-size:18px;">${s.qty}</td>
-                <td>¥${parseFloat(s.suggested_price).toFixed(2)}</td>
-                <td>
-                    <a href="products.php" style="color:var(--primary); text-decoration:none; font-size:14px; font-weight:600;">立即补货</a>
-                </td>
-            </tr>
-        `).join('');
-    }
-
-    async function initializePage() {
-        await loadSettings();
-        await loadStats();
-    }
-
-    initializePage();
+    loadStats();
+    loadTrend();
     </script>
-    <style>
-    @keyframes pulse {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.6; transform: scale(1.3); }
-    }
-    </style>
 </body>
 </html>
