@@ -26,6 +26,9 @@ try {
     if (isset($settings['live_display'])) {
         $formatted['live_display'] = $settings['live_display'];
     }
+    if (isset($settings['logo_path'])) {
+        $formatted['logo_path'] = $settings['logo_path'];
+    }
     // Keep both keys for backward compatibility with existing pages.
     success([
         'settings' => $formatted,

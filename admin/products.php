@@ -140,20 +140,20 @@ require_once __DIR__ . '/layout.php';
 
         <!-- 采购入库模态框 -->
         <div class="modal" id="purchaseModal">
-            <div class="modal-content" style="max-width:650px;">
+            <div class="modal-content">
                 <div class="modal-header">
                     <h3 class="modal-title" id="purchaseModalTitle">采购入库</h3>
                     <button class="modal-close" onclick="closeModal('purchaseModal')">&times;</button>
                 </div>
                 <div style="margin-bottom:15px;">
                     <strong style="font-size:18px;" id="purchaseProductName"></strong>
-                    <span style="color:#666;" id="purchaseProductBarcode"></span>
+                    <span style="color:var(--text-secondary);" id="purchaseProductBarcode"></span>
                 </div>
                 <form id="purchaseForm" onsubmit="savePurchase(event)">
                     <input type="hidden" id="purchaseProductId">
 
-                    <div style="background:#f8fafc; padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid #e2e8f0;">
-                        <div style="display:grid; grid-template-columns:1.5fr 1fr 80px 1fr; gap:10px; font-weight:bold; margin-bottom:10px; color:#64748b; font-size:12px;">
+                    <div style="background:var(--bg-hover); padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid var(--border);">
+                        <div style="display:grid; grid-template-columns:1.5fr 1fr 80px 1fr; gap:10px; font-weight:bold; margin-bottom:10px; color:var(--text-secondary); font-size:12px;">
                             <div>商品状态</div>
                             <div>采购单价</div>
                             <div>数量</div>
@@ -185,7 +185,7 @@ require_once __DIR__ . '/layout.php';
 
         <!-- 库存详情模态框 -->
         <div class="modal" id="stockDetailModal">
-            <div class="modal-content" style="max-width:700px; max-height:80vh; overflow-y:auto;">
+            <div class="modal-content modal-wide" style="max-height:80vh; overflow-y:auto;">
                 <div class="modal-header">
                     <h3 class="modal-title" id="stockDetailTitle">库存详情</h3>
                     <button class="modal-close" onclick="closeModal('stockDetailModal')">&times;</button>
@@ -195,13 +195,13 @@ require_once __DIR__ . '/layout.php';
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:20px;">
-                    <div style="background:#f8fafc; padding:15px; border-radius:8px;">
-                        <div style="font-size:14px; color:#666;">总库存</div>
-                        <div id="stockDetailTotalQty" style="font-size:32px; font-weight:bold; color:#10b981;">-</div>
+                    <div style="background:var(--bg-hover); padding:15px; border-radius:8px;">
+                        <div style="font-size:14px; color:var(--text-secondary);">总库存</div>
+                        <div id="stockDetailTotalQty" style="font-size:32px; font-weight:bold; color:var(--success);">-</div>
                     </div>
-                    <div style="background:#f8fafc; padding:15px; border-radius:8px;">
-                        <div style="font-size:14px; color:#666;">库存价值</div>
-                        <div id="stockDetailTotalValue" style="font-size:32px; font-weight:bold; color:#ef4444;">¥-</div>
+                    <div style="background:var(--bg-hover); padding:15px; border-radius:8px;">
+                        <div style="font-size:14px; color:var(--text-secondary);">库存价值</div>
+                        <div id="stockDetailTotalValue" style="font-size:32px; font-weight:bold; color:var(--danger);">¥-</div>
                     </div>
                 </div>
 
@@ -234,14 +234,14 @@ require_once __DIR__ . '/layout.php';
 
         <!-- 库存调整模态框 -->
         <div class="modal" id="adjustModal">
-            <div class="modal-content" style="max-width:450px;">
+            <div class="modal-content"><!-- 库存调整 -->
                 <div class="modal-header">
                     <h3 class="modal-title" id="adjustModalTitle">调整库存</h3>
                     <button class="modal-close" onclick="closeModal('adjustModal')">&times;</button>
                 </div>
                 <div style="margin-bottom:15px;">
                     <strong style="font-size:18px;" id="adjustProductName"></strong>
-                    <span style="color:#666;" id="adjustConditionName"></span>
+                    <span style="color:var(--text-secondary);" id="adjustConditionName"></span>
                 </div>
                 <div class="form-group">
                     <label class="form-label">当前库存: <span id="currentQty">0</span></label>
@@ -267,14 +267,14 @@ require_once __DIR__ . '/layout.php';
 
         <!-- 编辑库存价格模态框 -->
         <div class="modal" id="priceModal">
-            <div class="modal-content" style="max-width:450px;">
+            <div class="modal-content"><!-- 修改价格 -->
                 <div class="modal-header">
                     <h3 class="modal-title" id="priceModalTitle">修改价格</h3>
                     <button class="modal-close" onclick="closeModal('priceModal')">&times;</button>
                 </div>
                 <div style="margin-bottom:15px;">
                     <strong style="font-size:18px;" id="priceProductName"></strong>
-                    <span style="color:#666;" id="priceConditionName"></span>
+                    <span style="color:var(--text-secondary);" id="priceConditionName"></span>
                 </div>
                 <form id="priceForm" onsubmit="savePrice(event)">
                     <input type="hidden" id="priceProductId">
@@ -299,17 +299,17 @@ require_once __DIR__ . '/layout.php';
 
         <!-- 编辑批次模态框 -->
         <div class="modal" id="editBatchModal">
-            <div class="modal-content" style="max-width:500px;">
+            <div class="modal-content"><!-- 编辑批次 -->
                 <div class="modal-header">
                     <h3 class="modal-title" id="editBatchModalTitle">编辑批次</h3>
                     <button class="modal-close" onclick="closeModal('editBatchModal')">&times;</button>
                 </div>
                 <div style="margin-bottom:15px;">
                     <strong style="font-size:18px;" id="editBatchProductName"></strong>
-                    <span style="color:#666;" id="editBatchConditionName"></span>
+                    <span style="color:var(--text-secondary);" id="editBatchConditionName"></span>
                 </div>
-                <div style="background:#f8fafc; padding:12px; border-radius:8px; margin-bottom:15px;">
-                    <div style="font-size:14px; color:#666;">批次号</div>
+                <div style="background:var(--bg-hover); padding:12px; border-radius:8px; margin-bottom:15px;">
+                    <div style="font-size:14px; color:var(--text-secondary);">批次号</div>
                     <div id="editBatchNo" style="font-size:18px; font-family:monospace;"></div>
                 </div>
                 <form id="editBatchForm" onsubmit="saveEditBatch(event)">
@@ -344,20 +344,20 @@ require_once __DIR__ . '/layout.php';
 
         <!-- 批量导入模态框 -->
         <div class="modal" id="importModal">
-            <div class="modal-content" style="max-width:600px;">
+            <div class="modal-content"><!-- 批量导入 -->
                 <div class="modal-header">
                     <h3 class="modal-title">📁 批量导入商品</h3>
                     <button class="modal-close" onclick="closeImportModal()">&times;</button>
                 </div>
                 
                 <div style="margin-bottom:20px;">
-                    <p style="color:#666; margin-bottom:15px;">
+                    <p style="color:var(--text-secondary); margin-bottom:15px;">
                         支持 CSV 和 Excel (.xlsx) 格式文件。推荐使用 CSV 格式以确保最佳兼容性。
                     </p>
                     
-                    <div style="background:#f8fafc; padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid #e2e8f0;">
-                        <h4 style="margin-bottom:10px; color:#333;">📋 导入说明</h4>
-                        <ul style="margin:0; padding-left:20px; color:#666; font-size:14px; line-height:1.6;">
+                    <div style="background:var(--bg-hover); padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid var(--border);">
+                        <h4 style="margin-bottom:10px; color:var(--text);">📋 导入说明</h4>
+                        <ul style="margin:0; padding-left:20px; color:var(--text-secondary); font-size:14px; line-height:1.6;">
                             <li><strong>推荐使用CSV格式</strong>：兼容性最好，处理速度最快</li>
                             <li>Excel文件支持.xlsx格式（.xls格式请转换为.csv或.xlsx）</li>
                             <li>商品名称为必填项</li>
@@ -465,7 +465,7 @@ require_once __DIR__ . '/layout.php';
     function renderProducts(products) {
         const tbody = document.getElementById('productList');
         if (!products.length) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#999;padding:40px;">暂无商品，点击上方"添加商品"创建</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无商品，点击上方"添加商品"创建</td></tr>';
             return;
         }
 
@@ -475,7 +475,7 @@ require_once __DIR__ . '/layout.php';
                 : '<span style="font-size:24px;">📦</span>';
 
             const nameDisplay = p.common_name 
-                ? `<strong>${p.common_name}</strong><br><span style="font-size:12px;color:#999;">${p.name}</span>`
+                ? `<strong>${p.common_name}</strong><br><span style="font-size:12px;color:var(--text-tertiary);">${p.name}</span>`
                 : `<strong>${p.name}</strong>`;
 
             const inventoryHtml = renderInventoryBadges(p.id, p.inventory_summary);
@@ -486,16 +486,16 @@ require_once __DIR__ . '/layout.php';
             return `
                 <tr>
                     <td>${imageHtml}</td>
-                    <td><code style="background:#f3f4f6;padding:4px 8px;border-radius:4px;">${p.barcode}</code></td>
+                    <td><code style="background:var(--bg-hover);padding:4px 8px;border-radius:4px;">${p.barcode}</code></td>
                     <td>${nameDisplay}</td>
                     <td>${p.series || '-'}</td>
-                    <td style="font-size:18px;font-weight:bold;color:#ef4444;">${p.qiandao_price ? '¥' + parseFloat(p.qiandao_price).toFixed(2) : '-'}</td>
+                    <td style="font-size:18px;font-weight:bold;color:var(--danger);">${p.qiandao_price ? '¥' + parseFloat(p.qiandao_price).toFixed(2) : '-'}</td>
                     <td style="cursor:pointer;" onclick="showStockDetail(${p.id}, '${p.common_name || p.name}')">
                         ${inventoryHtml}
-                        <div style="font-size:12px;color:#666;margin-top:5px;">点击查看详情 ▼</div>
+                        <div style="font-size:12px;color:var(--text-secondary);margin-top:5px;">点击查看详情 ▼</div>
                     </td>
                     <td style="font-weight:bold; ${stockClass}; font-size:18px;">${totalStock}</td>
-                    <td style="font-weight:bold; color:#10b981;">¥${totalValue.toFixed(0)}</td>
+                    <td style="font-weight:bold; color:var(--success);">¥${totalValue.toFixed(0)}</td>
                     <td>
                         <div style="display:flex; gap:4px; flex-wrap:wrap;">
                             <button class="btn btn-sm btn-primary" onclick="editProduct(${p.id})">编辑</button>
@@ -586,16 +586,18 @@ require_once __DIR__ . '/layout.php';
             if (data.success) {
                 const inv = data.data.inventory;
                 // 使用系统配置中的状态名称
-                const conditionNames = systemSettings.condition_types ? 
+                const conditionNames = systemSettings.condition_types ?
                     systemSettings.condition_types.map(c => c.name) :
                     ['原盒未拆', '拆盒无瑕', '无盒无瑕', '微瑕'];
-                
+                const conditionTypeList = systemSettings.condition_types || [];
+
                 let totalQty = 0;
                 let totalValue = 0;
                 let distributionHtml = '';
                 let batchesHtml = '';
 
-                conditionNames.forEach(name => {
+                conditionTypeList.forEach(ct => {
+                    const name = ct.name;
                     if (inv[name]) {
                         const qty = inv[name].stock;
                         const value = inv[name].suggested_price * qty;
@@ -603,9 +605,14 @@ require_once __DIR__ . '/layout.php';
                         totalValue += value;
 
                         distributionHtml += `
-                            <div style="background:#f3f4f6; padding:12px 16px; border-radius:8px; min-width:140px;">
-                                <div style="font-size:14px; color:#666;">${name}</div>
-                                <div style="font-size:20px; font-weight:bold; color:#10b981;">${qty}</div>
+                            <div style="background:var(--bg-hover); padding:12px 16px; border-radius:8px; min-width:160px;">
+                                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                    <div>
+                                        <div style="font-size:14px; color:var(--text-secondary);">${name}</div>
+                                        <div style="font-size:20px; font-weight:bold; color:var(--success);">${qty}</div>
+                                    </div>
+                                    <button class="btn btn-sm btn-secondary" onclick="unifyPrice(${productId}, '${ct.key}')" title="统一修改此状态所有批次的售价">💰 改价</button>
+                                </div>
                             </div>
                         `;
 
@@ -632,13 +639,53 @@ require_once __DIR__ . '/layout.php';
                 document.getElementById('stockDetailTotalQty').textContent = totalQty;
                 document.getElementById('stockDetailTotalValue').textContent = '¥' + totalValue.toLocaleString();
                 document.getElementById('stockDetailDistribution').innerHTML = distributionHtml;
-                document.getElementById('stockDetailBatches').innerHTML = batchesHtml || '<tr><td colspan="6" style="text-align:center;color:#999;">暂无批次记录</td></tr>';
+                document.getElementById('stockDetailBatches').innerHTML = batchesHtml || '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary);">暂无批次记录</td></tr>';
             }
         } catch (err) {
             console.error(err);
         }
 
         showModal('stockDetailModal');
+    }
+
+    async function unifyPrice(productId, conditionType) {
+        const p = allProducts.find(x => x.id === productId);
+        const productName = p ? (p.common_name || p.name) : '';
+
+        const input = prompt(`请输入「${productName}」新的统一售价：`);
+        if (input === null || input === '') return;
+
+        const price = parseFloat(input);
+        if (isNaN(price) || price <= 0) {
+            alert('请输入有效的价格');
+            return;
+        }
+
+        if (!confirm(`确定将所有「${productName}」的售价统一修改为 ¥${price.toFixed(2)} 吗？`)) return;
+
+        try {
+            const res = await fetch('../api/purchase.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    product_id: productId,
+                    condition_type: conditionType,
+                    suggested_price: price,
+                    remark: '一键统一改价'
+                })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                alert(`✅ 售价已统一为 ¥${price.toFixed(2)}，共更新 ${data.data.updated_batches} 个批次`);
+                showStockDetail(productId, productName);
+                loadProducts();
+            } else {
+                alert('修改失败: ' + data.error);
+            }
+        } catch (err) {
+            alert('修改失败: ' + err.message);
+        }
     }
 
     function generateBarcode() {
@@ -1099,16 +1146,16 @@ require_once __DIR__ . '/layout.php';
         `;
         
         dialog.innerHTML = `
-            <div style="background: white; padding: 30px; border-radius: 12px; max-width: 400px; text-align: center;">
+            <div style="background: var(--bg-surface); padding: 30px; border-radius: 12px; max-width: 400px; text-align: center;">
                 <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
-                <h3 style="margin-bottom: 15px; color: #333;">确认删除商品</h3>
-                <p style="color: #666; margin-bottom: 25px; line-height: 1.5;">
+                <h3 style="margin-bottom: 15px; color: var(--text);">确认删除商品</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 25px; line-height: 1.5;">
                     确定要删除这个商品吗？<br>
                     所有相关的库存和销售记录也会被删除，此操作不可恢复。
                 </p>
                 <div style="display: flex; gap: 10px;">
-                    <button id="cancelDelete" style="flex: 1; padding: 12px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer;">取消</button>
-                    <button id="confirmDelete" style="flex: 1; padding: 12px; border: none; background: #ef4444; color: white; border-radius: 6px; cursor: pointer;">确认删除</button>
+                    <button id="cancelDelete" class="btn btn-secondary" style="flex:1;">取消</button>
+                    <button id="confirmDelete" style="flex: 1; padding: 12px; border: none; background: var(--danger); color: white; border-radius: 6px; cursor: pointer;">确认删除</button>
                 </div>
             </div>
         `;
@@ -1161,7 +1208,7 @@ require_once __DIR__ . '/layout.php';
             position: fixed;
             top: 20px;
             right: 20px;
-            background: #ef4444;
+            background: var(--danger);
             color: white;
             padding: 15px 20px;
             border-radius: 8px;
@@ -1204,7 +1251,7 @@ require_once __DIR__ . '/layout.php';
         formData.append('import_file', file);
 
         try {
-            document.getElementById('importResult').innerHTML = '<div style="text-align:center; padding:20px;"><div style="color:#667eea;">正在导入，请稍候...</div></div>';
+            document.getElementById('importResult').innerHTML = '<div style="text-align:center; padding:20px;"><div style="color:var(--primary);">正在导入，请稍候...</div></div>';
             
             const response = await fetch('../api/bulk_import_products.php', {
                 method: 'POST',
@@ -1217,14 +1264,14 @@ require_once __DIR__ . '/layout.php';
                 const { success_count, total_count, errors } = result.data;
                 let resultHtml = `
                     <div style="padding:20px;">
-                        <div style="color:#10b981; font-size:18px; margin-bottom:15px;">
+                        <div style="color:var(--success); font-size:18px; margin-bottom:15px;">
                             ✅ 导入完成！成功导入 ${success_count} 个商品，共处理 ${total_count} 个商品
                         </div>
                 `;
                 
                 if (errors && errors.length > 0) {
                     resultHtml += `
-                        <div style="color:#ef4444; margin-bottom:15px;">
+                        <div style="color:var(--danger); margin-bottom:15px;">
                             <strong>导入错误：</strong>
                             <ul style="margin:10px 0; padding-left:20px;">
                     `;
@@ -1247,7 +1294,7 @@ require_once __DIR__ . '/layout.php';
                 document.getElementById('importResult').innerHTML = resultHtml;
             } else {
                 document.getElementById('importResult').innerHTML = `
-                    <div style="padding:20px; color:#ef4444;">
+                    <div style="padding:20px; color:var(--danger);">
                         ❌ 导入失败：${result.message}
                     </div>
                 `;
@@ -1269,7 +1316,7 @@ require_once __DIR__ . '/layout.php';
             }
             
             document.getElementById('importResult').innerHTML = `
-                <div style="padding:20px; color:#ef4444;">
+                <div style="padding:20px; color:var(--danger);">
                     ❌ 导入失败：${errorMessage}
                 </div>
             `;
@@ -1298,7 +1345,7 @@ require_once __DIR__ . '/layout.php';
             
             conditionTypes.forEach((condition, index) => {
                 const number = index < 9 ? (index + 1).toString() : '0';
-                const borderStyle = index < conditionTypes.length - 1 ? 'border-bottom:1px solid #e2e8f0;' : '';
+                const borderStyle = index < conditionTypes.length - 1 ? 'border-bottom:1px solid var(--border);' : '';
                 
                 const div = document.createElement('div');
                 div.style.cssText = `display:grid; grid-template-columns:1.5fr 1fr 80px 1fr; gap:10px; align-items:center; padding:8px 0; ${borderStyle}`;

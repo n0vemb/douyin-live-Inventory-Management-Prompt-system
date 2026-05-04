@@ -33,7 +33,7 @@ try {
         exit;
     }
 
-    $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
 
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     $mime = finfo_file($finfo, $file['tmp_name']);
@@ -61,7 +61,8 @@ try {
         'image/jpeg' => 'jpg',
         'image/png' => 'png',
         'image/gif' => 'gif',
-        'image/webp' => 'webp'
+        'image/webp' => 'webp',
+        'image/svg+xml' => 'svg'
     ];
     $ext = $extMap[$mime] ?? 'jpg';
 

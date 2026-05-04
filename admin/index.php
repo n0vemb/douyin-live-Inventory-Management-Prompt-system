@@ -46,8 +46,8 @@ require_once __DIR__ . '/layout.php';
 
         <div style="display:flex; gap:20px; margin-bottom:25px; flex-wrap:wrap;">
             <div style="flex:1; min-width:280px;">
-                <div style="background:#fff; border-radius:12px; padding:18px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-                    <div style="font-size:16px; font-weight:600; color:#374151; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+                <div style="background:var(--bg-surface); border-radius:12px; padding:18px;">
+                    <div style="font-size:16px; font-weight:600; color:var(--text); margin-bottom:12px; display:flex; align-items:center; gap:8px;">
                         <span>⚡</span> 快捷操作
                     </div>
                     <div style="display:flex; flex-wrap:wrap; gap:10px;">
@@ -59,12 +59,12 @@ require_once __DIR__ . '/layout.php';
                 </div>
             </div>
             <div style="flex:1; min-width:280px;">
-                <div style="background:#fff; border-radius:12px; padding:18px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-                    <div style="font-size:16px; font-weight:600; color:#374151; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+                <div style="background:var(--bg-surface); border-radius:12px; padding:18px;">
+                    <div style="font-size:16px; font-weight:600; color:var(--text); margin-bottom:12px; display:flex; align-items:center; gap:8px;">
                         <span>🎬</span> 当前直播
                     </div>
                     <div id="liveSession">
-                        <div style="text-align:center; color:#999; padding:20px;">暂无进行中的直播</div>
+                        <div style="text-align:center; color:var(--text-tertiary); padding:20px;">暂无进行中的直播</div>
                     </div>
                 </div>
             </div>
@@ -107,7 +107,7 @@ require_once __DIR__ . '/layout.php';
         <div class="card" style="margin-top:20px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                 <div class="card-title" style="margin:0;">⚠️ 低库存商品</div>
-                <a href="products.php" style="color:#667eea; text-decoration:none; font-size:14px;">查看全部 →</a>
+                <a href="products.php" style="color:var(--primary); text-decoration:none; font-size:14px;">查看全部 →</a>
             </div>
             <table>
                 <thead>
@@ -207,16 +207,16 @@ require_once __DIR__ . '/layout.php';
                 const session = activeSessions[0];
                 const sessionName = session.session_name || session.name || `场次 #${session.id}`;
                 div.innerHTML = `
-                    <div style="background:#f0fdf4; border:1px solid #a7f3d0; padding:16px; border-radius:8px;">
+                    <div style="background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.2); padding:16px; border-radius:8px;">
                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
                             <div style="display:flex; align-items:center; gap:8px;">
-                                <div style="width:10px; height:10px; background:#10b981; border-radius:50%; animation:pulse 1.5s infinite;"></div>
-                                <span style="font-weight:600; color:#065f46;">正在直播中</span>
+                                <div style="width:10px; height:10px; background:var(--success); border-radius:50%; animation:pulse 1.5s infinite;"></div>
+                                <span style="font-weight:600; color:var(--success);">正在直播中</span>
                             </div>
-                            <span style="font-size:12px; color:#666;">${session.started_at}</span>
+                            <span style="font-size:12px; color:var(--text-secondary);">${session.started_at}</span>
                         </div>
-                        <div style="font-size:18px; font-weight:700; color:#111827; margin-bottom:4px;">${sessionName}</div>
-                        <div style="font-size:13px; color:#666; margin-bottom:12px;">
+                        <div style="font-size:18px; font-weight:700; color:var(--text); margin-bottom:4px;">${sessionName}</div>
+                        <div style="font-size:13px; color:var(--text-secondary); margin-bottom:12px;">
                             📺 场次 ID: ${session.id}
                         </div>
                         <a href="../live.php?session_id=${session.id}" target="_blank" style="display:block; width:100%; background:linear-gradient(135deg, #10b981, #059669); color:white; text-align:center; padding:10px; border-radius:6px; text-decoration:none; font-weight:600;">
@@ -226,10 +226,10 @@ require_once __DIR__ . '/layout.php';
                 `;
             } else {
                 div.innerHTML = `
-                    <div style="text-align:center; color:#999; padding:20px;">
+                    <div style="text-align:center; color:var(--text-tertiary); padding:20px;">
                         <div style="font-size:48px; margin-bottom:10px;">🎬</div>
                         <div style="margin-bottom:10px;">暂无进行中的直播</div>
-                        <a href="sessions.php" style="color:#667eea; text-decoration:none; font-size:14px;">创建直播场次 →</a>
+                        <a href="sessions.php" style="color:var(--primary); text-decoration:none; font-size:14px;">创建直播场次 →</a>
                     </div>
                 `;
             }
@@ -241,7 +241,7 @@ require_once __DIR__ . '/layout.php';
     function renderRecentPurchase(products) {
         const tbody = document.getElementById('recentPurchase');
         if (!products.length) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999;">暂无数据</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);">暂无数据</td></tr>';
             return;
         }
 
@@ -265,7 +265,7 @@ require_once __DIR__ . '/layout.php';
         recentBatches = recentBatches.slice(0, 10);
 
         if (!recentBatches.length) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999;">暂无入库记录</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);">暂无入库记录</td></tr>';
             return;
         }
 
@@ -275,7 +275,7 @@ require_once __DIR__ . '/layout.php';
                 <td>${b.product_name}</td>
                 <td><span class="condition-badge condition-${b.condition_type}">${b.condition_name}</span></td>
                 <td style="font-weight:600;">${b.qty}</td>
-                <td style="color:#ef4444; font-weight:600;">¥${parseFloat(b.purchase_price).toFixed(2)}</td>
+                <td style="color:var(--danger); font-weight:600;">¥${parseFloat(b.purchase_price).toFixed(2)}</td>
             </tr>
         `).join('');
     }
@@ -283,20 +283,20 @@ require_once __DIR__ . '/layout.php';
     function renderRecentOutbound(outbound) {
         const tbody = document.getElementById('recentOutbound');
         if (!outbound.length) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999;">暂无数据</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);">暂无数据</td></tr>';
             return;
         }
 
         tbody.innerHTML = outbound.map(o => {
             const profit = o.batch_purchase_price ? 
                 (parseFloat(o.outbound_price) - parseFloat(o.batch_purchase_price)) * parseInt(o.qty) : 0;
-            const profitClass = profit >= 0 ? 'color:#10b981' : 'color:#ef4444';
+            const profitClass = profit >= 0 ? 'color:var(--success)' : 'color:var(--danger)';
             return `
                 <tr>
                     <td>${o.outbound_at.split(' ')[0]}</td>
                     <td>${o.product_name || o.common_name || '-'}</td>
                     <td><span class="condition-badge condition-${o.condition_type}">${conditionNames[o.condition_type] || o.condition_type}</span></td>
-                    <td style="color:#10b981; font-weight:600;">¥${parseFloat(o.outbound_price).toFixed(2)}</td>
+                    <td style="color:var(--success); font-weight:600;">¥${parseFloat(o.outbound_price).toFixed(2)}</td>
                     <td style="font-weight:700; ${profitClass};">¥${profit.toFixed(2)}</td>
                 </tr>
             `;
@@ -306,21 +306,21 @@ require_once __DIR__ . '/layout.php';
     function renderLowStockList(stockList) {
         const tbody = document.getElementById('lowStockList');
         if (!stockList.length) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999; padding:30px;">🎉 暂无低库存商品</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary); padding:30px;">🎉 暂无低库存商品</td></tr>';
             return;
         }
 
         tbody.innerHTML = stockList.slice(0, 15).map(s => `
-            <tr style="background:#fef2f2;">
+            <tr style="background:var(--danger-light);">
                 <td>
                     <strong>${s.product_name}</strong>
-                    ${s.official_name !== s.product_name ? `<br><span style="font-size:12px; color:#999;">${s.official_name}</span>` : ''}
+                    ${s.official_name !== s.product_name ? `<br><span style="font-size:12px; color:var(--text-tertiary);">${s.official_name}</span>` : ''}
                 </td>
                 <td><span class="condition-badge condition-${s.condition_type}">${s.condition_name}</span></td>
-                <td style="color:#ef4444; font-weight:800; font-size:18px;">${s.qty}</td>
+                <td style="color:var(--danger); font-weight:800; font-size:18px;">${s.qty}</td>
                 <td>¥${parseFloat(s.suggested_price).toFixed(2)}</td>
                 <td>
-                    <a href="products.php" style="color:#667eea; text-decoration:none; font-size:14px; font-weight:600;">立即补货</a>
+                    <a href="products.php" style="color:var(--primary); text-decoration:none; font-size:14px; font-weight:600;">立即补货</a>
                 </td>
             </tr>
         `).join('');

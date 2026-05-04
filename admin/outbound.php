@@ -35,7 +35,7 @@ require_once __DIR__ . '/layout.php';
                     </thead>
                     <tbody id="outboundItems"></tbody>
                 </table>
-                <div id="emptyCart" style="text-align:center; padding:60px; color:#999; font-size:18px;">
+                <div id="emptyCart" style="text-align:center; padding:60px; color:var(--text-tertiary); font-size:18px;">
                     扫描条码添加出库商品
                 </div>
             </div>
@@ -43,18 +43,18 @@ require_once __DIR__ . '/layout.php';
             <div class="card" style="height:fit-content;">
                 <div class="card-title">💰 结算信息</div>
 
-                <div style="background:#f3f4f6; padding:20px; border-radius:12px; margin-bottom:20px;">
+                <div style="background:var(--bg-hover); padding:20px; border-radius:12px; margin-bottom:20px;">
                     <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                        <span style="color:#666;">商品种类</span>
+                        <span style="color:var(--text-secondary);">商品种类</span>
                         <span id="totalTypes" style="font-weight:bold;">0</span>
                     </div>
                     <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                        <span style="color:#666;">商品总数</span>
+                        <span style="color:var(--text-secondary);">商品总数</span>
                         <span id="totalQty" style="font-weight:bold;">0</span>
                     </div>
-                    <div style="display:flex; justify-content:space-between; font-size:24px; margin-top:15px; padding-top:15px; border-top:2px solid #ddd;">
+                    <div style="display:flex; justify-content:space-between; font-size:24px; margin-top:15px; padding-top:15px; border-top:2px solid var(--border);">
                         <span>合计金额</span>
-                        <span id="totalAmount" style="font-weight:bold; color:#10b981;">¥0.00</span>
+                        <span id="totalAmount" style="font-weight:bold; color:var(--success);">¥0.00</span>
                     </div>
                 </div>
 
@@ -92,8 +92,8 @@ require_once __DIR__ . '/layout.php';
             </div>
 
             <div style="margin-bottom:15px; display:flex; gap:10px;">
-                <input type="text" id="stockSearch" placeholder="搜索商品..." style="flex:1; padding:10px; border:1px solid #ddd; border-radius:8px;" onkeyup="searchStock()">
-                <select id="stockSeriesFilter" style="padding:10px; border:1px solid #ddd; border-radius:8px;" onchange="searchStock()">
+                <input type="text" id="stockSearch" placeholder="搜索商品..." style="flex:1; padding:10px; border:1px solid var(--border); border-radius:8px;" onkeyup="searchStock()">
+                <select id="stockSeriesFilter" style="padding:10px; border:1px solid var(--border); border-radius:8px;" onchange="searchStock()">
                     <option value="">全部系列</option>
                 </select>
             </div>
@@ -114,7 +114,7 @@ require_once __DIR__ . '/layout.php';
         </div>
 
         <div class="modal" id="scanResultModal">
-            <div class="modal-content" style="max-width:500px;">
+            <div class="modal-content"><!-- 扫描结果 -->
                 <div class="modal-header">
                     <h3 class="modal-title">📷 选择库存</h3>
                     <button class="modal-close" onclick="closeScanModal()">&times;</button>
@@ -124,7 +124,7 @@ require_once __DIR__ . '/layout.php';
         </div>
 
         <div class="modal" id="historyModal">
-            <div class="modal-content" style="max-width:1000px; max-height:80vh; overflow-y:auto;">
+            <div class="modal-content modal-wide" style="max-height:80vh; overflow-y:auto;">
                 <div class="modal-header">
                     <h3 class="modal-title">出库历史</h3>
                     <button class="modal-close" onclick="closeHistoryModal()">&times;</button>
@@ -209,15 +209,15 @@ require_once __DIR__ . '/layout.php';
 
                 data.data.forEach((stock, idx) => {
                     html += `
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border:1px solid #ddd; border-radius:8px; margin-bottom:10px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border:1px solid var(--border); border-radius:8px; margin-bottom:10px;">
                             <div>
                                 <span class="condition-badge condition-${stock.condition_type}">${stock.condition_name}</span>
-                                <div style="margin-top:5px; font-size:12px; color:#666;">
+                                <div style="margin-top:5px; font-size:12px; color:var(--text-secondary);">
                                     批次: ${stock.batch_no} | 进价: ¥${parseFloat(stock.purchase_price).toFixed(2)} | 库存: ${stock.remaining_qty}
                                 </div>
                             </div>
                             <div style="display:flex; gap:10px;">
-                                <input type="number" id="qty_${idx}" value="1" min="1" max="${stock.remaining_qty}" style="width:60px; padding:8px; text-align:center; border:1px solid #ddd; border-radius:4px;">
+                                <input type="number" id="qty_${idx}" value="1" min="1" max="${stock.remaining_qty}" style="width:60px; padding:8px; text-align:center; border:1px solid var(--border); border-radius:4px; background:var(--bg-body); color:var(--text);">
                                 <button class="btn btn-success" onclick="addToCart(${idx})">+ 添加</button>
                             </div>
                         </div>
@@ -276,7 +276,7 @@ require_once __DIR__ . '/layout.php';
             <tr>
                 <td>
                     <strong>${item.common_name || item.product_name}</strong>
-                    ${item.common_name ? `<br><span style="font-size:11px;color:#999;">${item.product_name}</span>` : ''}
+                    ${item.common_name ? `<br><span style="font-size:11px;color:var(--text-tertiary);">${item.product_name}</span>` : ''}
                 </td>
                 <td><span class="condition-badge condition-${item.condition_type}">${item.condition_name}</span></td>
                 <td><code style="font-size:11px;">${item.batch_no}</code></td>
@@ -284,7 +284,7 @@ require_once __DIR__ . '/layout.php';
                 <td>
                     <input type="number" value="${item.price}" onclick="this.select()"
                            onchange="updatePrice(${index}, this.value)"
-                           style="width:80px; padding:6px; text-align:center; border:1px solid #ddd; border-radius:4px; color:#10b981; font-weight:bold;">
+                           style="width:80px; padding:6px; text-align:center; border:1px solid var(--border); border-radius:4px; background:var(--bg-body); color:var(--success); font-weight:bold;">
                 </td>
                 <td>
                     <div style="display:flex; align-items:center; gap:5px;">
@@ -431,7 +431,7 @@ require_once __DIR__ . '/layout.php';
         const tbody = document.getElementById('stockList');
 
         if (!stock.length) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;padding:40px;">暂无库存数据</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无库存数据</td></tr>';
             return;
         }
 
@@ -439,12 +439,12 @@ require_once __DIR__ . '/layout.php';
             <tr>
                 <td>
                     <strong>${s.common_name || s.product_name}</strong>
-                    ${s.common_name ? `<br><span style="font-size:11px;color:#999;">${s.product_name}</span>` : ''}
+                    ${s.common_name ? `<br><span style="font-size:11px;color:var(--text-tertiary);">${s.product_name}</span>` : ''}
                 </td>
                 <td><span class="condition-badge condition-${s.condition_type}">${s.condition_name}</span></td>
                 <td><code style="font-size:11px;">${s.batch_no}</code></td>
                 <td>¥${parseFloat(s.purchase_price).toFixed(2)}</td>
-                <td style="font-weight:bold; ${s.remaining_qty <= 2 ? 'color:#ef4444;' : ''}">${s.remaining_qty}</td>
+                <td style="font-weight:bold; ${s.remaining_qty <= 2 ? 'color:var(--danger);' : ''}">${s.remaining_qty}</td>
                 <td>
                     <button class="btn btn-sm btn-primary" onclick="quickAdd(${idx})">+ 添加</button>
                 </td>
@@ -470,12 +470,12 @@ require_once __DIR__ . '/layout.php';
                 const outboundList = data.data.outbound || [];
 
                 if (!outboundList.length) {
-                    container.innerHTML = '<div style="text-align:center;color:#999;padding:60px;font-size:18px;">暂无出库记录</div>';
+                    container.innerHTML = '<div style="text-align:center;color:var(--text-tertiary);padding:60px;font-size:18px;">暂无出库记录</div>';
                 } else {
                     container.innerHTML = outboundList.map(batch => {
                         const profit = batch.total_amount - batch.total_cost;
                         return `
-                        <div style="margin-bottom:25px; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden;">
+                        <div style="margin-bottom:25px; border:1px solid var(--border); border-radius:12px; overflow:hidden;">
                             <div style="background:linear-gradient(135deg, #667eea, #764ba2); color:white; padding:15px 20px; display:flex; justify-content:space-between; align-items:center;">
                                 <div>
                                     <span style="font-size:18px; font-weight:bold;">${batch.outbound_at}</span>
@@ -512,20 +512,20 @@ require_once __DIR__ . '/layout.php';
                                         <tr>
                                             <td>
                                                 <strong>${item.common_name || item.product_name || '-'}</strong>
-                                                ${item.common_name && item.product_name ? `<br><span style="font-size:11px;color:#999;">${item.product_name}</span>` : ''}
+                                                ${item.common_name && item.product_name ? `<br><span style="font-size:11px;color:var(--text-tertiary);">${item.product_name}</span>` : ''}
                                             </td>
                                             <td><span class="condition-badge condition-${item.condition_type}">${getConditionName(item.condition_type)}</span></td>
                                             <td>${item.qty}</td>
                                             <td>¥${parseFloat(item.batch_purchase_price).toFixed(2)}</td>
                                             <td>¥${parseFloat(item.outbound_price).toFixed(2)}</td>
-                                            <td style="${itemProfit >= 0 ? 'color:#10b981;' : 'color:#ef4444;'} font-weight:bold;">${itemProfit >= 0 ? '+' : ''}¥${itemProfit.toFixed(2)}</td>
+                                            <td style="${itemProfit >= 0 ? 'color:var(--success);' : 'color:var(--danger);'} font-weight:bold;">${itemProfit >= 0 ? '+' : ''}¥${itemProfit.toFixed(2)}</td>
                                             <td style="font-weight:bold;">¥${(parseFloat(item.outbound_price) * item.qty).toFixed(2)}</td>
                                         </tr>
                                     `}).join('')}
                                 </tbody>
                             </table>
                             ${batch.order_no || batch.remark ? `
-                                <div style="background:#f9fafb; padding:10px 20px; border-top:1px solid #e5e7eb; font-size:13px; color:#666;">
+                                <div style="background:var(--bg-hover); padding:10px 20px; border-top:1px solid var(--border); font-size:13px; color:var(--text-secondary);">
                                     ${batch.order_no ? `<span style="margin-right:20px;">订单号: <code>${batch.order_no}</code></span>` : ''}
                                     ${batch.remark ? `<span>备注: ${batch.remark}</span>` : ''}
                                 </div>

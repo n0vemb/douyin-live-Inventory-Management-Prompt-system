@@ -7,11 +7,11 @@ require_once __DIR__ . '/layout.php';
 
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <h3 style="font-size:16px; color:#333;">创建新场次</h3>
+                <h3 style="font-size:16px; color:var(--text);">创建新场次</h3>
                 <button class="btn btn-success" onclick="createSession()">🆕 创建新场次</button>
             </div>
 
-            <div style="padding:15px; background:#dbeafe; border-radius:8px; margin-bottom:20px;">
+            <div style="padding:15px; background:var(--info-light); border-radius:8px; margin-bottom:20px; border:1px solid rgba(96,165,250,0.2);">
                 <strong>💡 说明：</strong>创建场次时会自动复制当前主库存作为直播库存快照，直播期间销售不影响主库存。
             </div>
         </div>
@@ -34,7 +34,7 @@ require_once __DIR__ . '/layout.php';
         </div>
 
         <div class="modal" id="createModal">
-            <div class="modal-content" style="max-width:400px;">
+            <div class="modal-content"><!-- 创建场次 -->
                 <div class="modal-header">
                     <h3 class="modal-title">创建新直播场次</h3>
                     <button class="modal-close" onclick="closeCreateModal()">&times;</button>
@@ -53,7 +53,7 @@ require_once __DIR__ . '/layout.php';
         </div>
 
         <div class="modal" id="broadcastModal">
-            <div class="modal-content" style="max-width:450px;">
+            <div class="modal-content"><!-- 主播提示 -->
                 <div class="modal-header">
                     <h3 class="modal-title">发送提示给主播</h3>
                     <button class="modal-close" onclick="closeBroadcastModal()">&times;</button>
@@ -64,7 +64,7 @@ require_once __DIR__ . '/layout.php';
                         <label class="form-label">提示内容</label>
                         <textarea class="form-input" id="broadcastMessage" rows="6" placeholder="输入要显示给主播的提示信息..." style="font-size:16px; padding:12px; resize:vertical;"></textarea>
                     </div>
-                    <div style="font-size:13px; color:#666; margin-top:8px;">
+                    <div style="font-size:13px; color:var(--text-secondary); margin-top:8px;">
                         💡 提示：消息会在直播屏幕上显示5秒后自动消失
                     </div>
                 </div>
@@ -96,7 +96,7 @@ require_once __DIR__ . '/layout.php';
         const statusClasses = { pending: 'badge-warning', active: 'badge-success', ended: 'badge-info' };
 
         if (!sessions.length) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;padding:40px;">暂无场次记录</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无场次记录</td></tr>';
             return;
         }
 
@@ -114,7 +114,7 @@ require_once __DIR__ . '/layout.php';
                          <a href="../live.php?session_id=${s.id}" target="_blank" class="btn btn-sm btn-success">进入直播</a>` : ''}
                     ${s.status === 'ended' ?
                         `<button class="btn btn-sm btn-secondary" onclick="viewReport(${s.id})">查看报表</button>` : ''}
-                    <button class="btn btn-sm btn-outline" onclick="deleteSession(${s.id})" style="color:#ef4444; border-color:#ef4444;">删除</button>
+                    <button class="btn btn-sm btn-outline" onclick="deleteSession(${s.id})" style="color:var(--danger); border-color:var(--danger);">删除</button>
                 </td>
             </tr>
         `).join('');

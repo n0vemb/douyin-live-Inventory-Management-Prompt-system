@@ -1,5 +1,5 @@
 <?php $pageTitle = '系统配置'; $currentPage = 'settings'; ?>
-<?php include 'layout.php'; ?>
+<?php require_once __DIR__ . '/layout.php'; ?>
 
 <style>
 .config-section {
@@ -16,8 +16,8 @@
 }
 
 .element-card {
-    background: white;
-    border: 2px solid #e5e7eb;
+    background: var(--bg-surface);
+    border: 2px solid var(--border);
     border-radius: 12px;
     padding: 20px;
     cursor: pointer;
@@ -25,12 +25,12 @@
 }
 
 .element-card:hover {
-    border-color: #667eea;
+    border-color: var(--primary);
     transform: translateY(-2px);
 }
 
 .element-card.selected {
-    border-color: #667eea;
+    border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
@@ -48,7 +48,7 @@
 .element-card-title {
     font-weight: 600;
     font-size: 16px;
-    color: #333;
+    color: var(--text);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -60,29 +60,29 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #f0f2ff;
+    background: var(--primary-light);
     border-radius: 8px;
-    color: #667eea;
+    color: var(--primary);
     font-size: 16px;
 }
 
 .element-card-preview {
     font-size: 13px;
-    color: #666;
+    color: var(--text-secondary);
     margin-top: 10px;
     padding-top: 10px;
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid var(--border);
 }
 
 .element-card-preview span {
     display: inline-block;
     margin-right: 10px;
-    color: #999;
+    color: var(--text-tertiary);
 }
 
 .config-panel {
-    background: white;
-    border: 2px solid #e5e7eb;
+    background: var(--bg-surface);
+    border: 2px solid var(--border);
     border-radius: 12px;
     padding: 25px;
 }
@@ -93,13 +93,13 @@
     align-items: center;
     margin-bottom: 20px;
     padding-bottom: 15px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border);
 }
 
 .config-panel-title {
     font-size: 18px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
 }
 
 .config-grid {
@@ -123,16 +123,16 @@
     flex-wrap: wrap;
     gap: 10px;
     align-items: center;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px;
     margin-bottom: 15px;
 }
 
 .fine-tune-btn {
-    border: 1px solid #d1d5db;
-    background: #fff;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
     border-radius: 8px;
     padding: 6px 10px;
     cursor: pointer;
@@ -140,19 +140,19 @@
 }
 
 .fine-tune-btn:hover {
-    border-color: #667eea;
-    color: #667eea;
+    border-color: var(--primary);
+    color: var(--primary);
 }
 
 .config-label {
     font-size: 13px;
-    color: #666;
+    color: var(--text-secondary);
     font-weight: 500;
 }
 
 .config-input {
     padding: 10px 12px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 14px;
     transition: all 0.2s;
@@ -160,7 +160,7 @@
 
 .config-input:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
@@ -183,7 +183,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: #ddd;
+    background-color: var(--bg-active);
     transition: 0.3s;
     border-radius: 26px;
 }
@@ -195,13 +195,13 @@
     width: 20px;
     left: 3px;
     bottom: 3px;
-    background-color: white;
+    background-color: var(--text);
     transition: 0.3s;
     border-radius: 50%;
 }
 
 input:checked + .toggle-slider {
-    background-color: #667eea;
+    background-color: var(--primary);
 }
 
 input:checked + .toggle-slider:before {
@@ -210,41 +210,41 @@ input:checked + .toggle-slider:before {
 
 .section-hint {
     font-size: 13px;
-    color: #666;
-    background: #f8f9ff;
+    color: var(--text-secondary);
+    background: var(--info-light);
     padding: 12px 15px;
     border-radius: 8px;
     margin-bottom: 20px;
-    border-left: 3px solid #667eea;
+    border-left: 3px solid var(--primary);
 }
 
 .save-bar {
     position: sticky;
     bottom: 20px;
-    background: white;
+    background: var(--bg-surface);
     border-radius: 12px;
     padding: 15px 25px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 -5px 30px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow);
     margin-top: 20px;
 }
 
 .save-status {
     font-size: 14px;
-    color: #666;
+    color: var(--text-secondary);
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
 .save-status.saving {
-    color: #f59e0b;
+    color: var(--warning);
 }
 
 .save-status.saved {
-    color: #10b981;
+    color: var(--success);
 }
 
 .condition-type-row {
@@ -253,14 +253,14 @@ input:checked + .toggle-slider:before {
     align-items: center;
     margin-bottom: 10px;
     padding: 10px;
-    background: #f9fafb;
+    background: var(--bg-hover);
     border-radius: 8px;
 }
 
 .condition-type-row input[type="text"] {
     flex: 1;
     padding: 10px 12px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--border);
     border-radius: 6px;
     font-size: 14px;
 }
@@ -281,9 +281,26 @@ input:checked + .toggle-slider:before {
 
 <div class="card">
     <h3 class="card-title">基本设置</h3>
-    <div class="form-group">
-        <label class="form-label">系统名称</label>
-        <input type="text" id="systemName" class="form-input" placeholder="泡泡玛特进销存">
+    <div class="form-row">
+        <div class="form-group">
+            <label class="form-label">系统名称</label>
+            <input type="text" id="systemName" class="form-input" placeholder="泡泡玛特进销存">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Logo</label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input type="file" id="logoFile" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" style="display:none;">
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('logoFile').click()">📁 上传</button>
+                <input type="text" id="logoUrl" class="form-input" placeholder="或输入图片URL" style="flex:1; min-width:120px;">
+                <button class="btn btn-secondary btn-sm" onclick="applyLogoUrl()">应用</button>
+            </div>
+            <div id="logoPreviewGroup" style="display:none; margin-top:8px;">
+                <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:var(--bg-hover); border-radius:6px; border:1px solid var(--border);">
+                    <img id="logoPreview" style="max-height:32px; max-width:120px; object-fit:contain;">
+                    <button class="btn btn-sm btn-danger" onclick="clearLogo()">清除</button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -466,6 +483,11 @@ async function loadSettings() {
 
 function applySettings() {
     document.getElementById('systemName').value = tempSettings.system_name || '';
+    if (tempSettings.logo_path) {
+        showLogoPreview(tempSettings.logo_path);
+    } else {
+        document.getElementById('logoPreviewGroup').style.display = 'none';
+    }
     renderConditionTypes();
     renderElementList();
     updateSaveStatus(false);
@@ -691,10 +713,10 @@ function resizeElement(mode) {
 function updateSaveStatus(hasChanges) {
     const status = document.getElementById('saveStatus');
     if (hasChanges) {
-        status.innerHTML = '<span style="color:#f59e0b;">•</span> 有未保存的修改';
+        status.innerHTML = '<span style="color:var(--warning);">•</span> 有未保存的修改';
         status.className = 'save-status';
     } else {
-        status.innerHTML = '<span style="color:#10b981;">✓</span> 已保存';
+        status.innerHTML = '<span style="color:var(--success);">✓</span> 已保存';
         status.className = 'save-status saved';
     }
 }
@@ -742,6 +764,62 @@ async function saveSettings() {
         alert('保存失败');
         console.error(e);
     }
+}
+
+// ── Logo 处理 ──
+document.getElementById('logoFile').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById('logoFileName').textContent = file.name;
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    fetch('../api/upload_image.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            tempSettings.logo_path = data.data.url;
+            showLogoPreview(tempSettings.logo_path);
+            updateSaveStatus(true);
+        } else {
+            alert('上传失败: ' + (data.error || '未知错误'));
+        }
+    })
+    .catch(err => {
+        alert('上传失败: ' + err.message);
+    });
+});
+
+function applyLogoUrl() {
+    const url = document.getElementById('logoUrl').value.trim();
+    if (!url) return;
+    tempSettings.logo_path = url;
+    showLogoPreview(url);
+    updateSaveStatus(true);
+    document.getElementById('logoUrl').value = '';
+}
+
+function clearLogo() {
+    delete tempSettings.logo_path;
+    document.getElementById('logoPreviewGroup').style.display = 'none';
+    document.getElementById('logoPreview').src = '';
+    document.getElementById('logoFileName').textContent = '';
+    document.getElementById('logoFile').value = '';
+    updateSaveStatus(true);
+}
+
+function showLogoPreview(path) {
+    const img = document.getElementById('logoPreview');
+    if (path && !path.startsWith('http://') && !path.startsWith('https://') && !path.startsWith('data:')) {
+        img.src = '../' + path;
+    } else {
+        img.src = path || '';
+    }
+    document.getElementById('logoPreviewGroup').style.display = path ? 'block' : 'none';
 }
 
 document.getElementById('systemName').addEventListener('input', () => {

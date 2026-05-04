@@ -5,11 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>直播辅助系统</title>
     <style>
+        :root {
+            --bg: #0a0a0f;
+            --bg-card: #12121a;
+            --bg-elevated: #1a1a26;
+            --border: #2a2a3a;
+            --text: #e8e8ed;
+            --text-secondary: #9d9daf;
+            --text-tertiary: #6b6b80;
+            --primary: #5e5ce6;
+            --primary-hover: #7b79f0;
+            --primary-light: rgba(94, 92, 230, 0.12);
+            --primary-glow: rgba(94, 92, 230, 0.3);
+            --success: #34d399;
+            --danger: #f87171;
+            --warning: #fbbf24;
+            --info: #60a5fa;
+            --radius: 8px;
+            --radius-lg: 12px;
+            --radius-xl: 16px;
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #f5f5f5;
+            background: var(--bg);
             overflow: hidden;
+            color: var(--text);
         }
 
         #barcodeInput {
@@ -26,8 +48,28 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: radial-gradient(circle at 50% 40%, #1a1a2e 0%, #0a0a0f 100%);
+            color: var(--text);
+            position: relative;
+            overflow: hidden;
+        }
+        .standby::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
+            animation: scanLine 3s ease-in-out infinite;
+            z-index: 1;
+            pointer-events: none;
+        }
+        @keyframes scanLine {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
         }
         .standby-icon {
             font-size: 120px;
@@ -39,26 +81,40 @@
             50% { transform: translateY(-20px); }
         }
         .standby h1 {
-            font-size: 48px;
+            font-size: 42px;
             margin-bottom: 20px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary) 0%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
         .standby p {
             font-size: 24px;
-            opacity: 0.9;
+            color: var(--text-secondary);
         }
         .live-status {
             margin-top: 30px;
             padding: 15px 30px;
-            background: rgba(255,255,255,0.2);
+            background: rgba(18, 18, 26, 0.65);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
             border-radius: 30px;
             font-size: 18px;
+            color: var(--text);
+            animation: livePulse 2s ease-in-out infinite;
+        }
+        @keyframes livePulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.25); }
+            50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
         }
 
         .product-display {
             display: none;
             width: 100vw;
             height: 100vh;
-            background: white;
+            background: var(--bg);
         }
         .product-display.show {
             display: block;
@@ -72,37 +128,41 @@
         }
         .product-name {
             position: absolute;
-            font-size: 72px;
-            font-weight: bold;
-            color: #333;
+            font-size: 38px;
+            font-weight: 800;
+            color: var(--text);
+            text-shadow: 0 2px 20px rgba(0,0,0,0.3);
         }
         .product-series {
             position: absolute;
             font-size: 48px;
-            color: #667eea;
+            color: var(--primary);
+            font-weight: 600;
         }
         .product-common-name {
             font-size: 28px;
-            color: #666;
+            color: var(--text-secondary);
             margin-bottom: 10px;
         }
         .qiandao-price {
             font-size: 48px;
-            color: #333;
+            color: var(--text-secondary);
             margin-top: 20px;
         }
         .qiandao-price span {
-            color: #ef4444;
+            color: var(--text);
             font-weight: bold;
         }
         .product-description {
             font-size: 32px;
-            color: #fff;
+            color: var(--text);
             line-height: 1.4;
             padding: 15px;
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             border-radius: 10px;
-            border-left: 4px solid #667eea;
+            border-left: 4px solid var(--primary);
             overflow: hidden;
             text-overflow: ellipsis;
         }
@@ -117,7 +177,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #f9fafb;
+            background: var(--bg-card);
             border-radius: 20px;
             overflow: hidden;
         }
@@ -128,7 +188,7 @@
         }
         .product-image.no-image {
             font-size: 150px;
-            color: #ddd;
+            color: var(--text-tertiary);
         }
 
         .product-prices {
@@ -138,27 +198,46 @@
             gap: 20px;
         }
         .price-row {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--bg-elevated);
             padding: 30px;
-            border-radius: 15px;
-            color: white;
+            border-radius: 16px;
+            color: var(--text);
             display: flex;
             justify-content: space-between;
             align-items: center;
             transition: all 0.3s;
             cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .price-row::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(94, 92, 230, 0.06) 0%, transparent 50%);
+            border-radius: 16px;
+            pointer-events: none;
         }
         .price-row:hover {
             transform: scale(1.02);
-            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            border-color: var(--primary);
         }
         .price-row.low-stock {
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            animation: pulse 1.5s ease-in-out infinite;
+            background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(217, 119, 6, 0.1));
+            border-color: rgba(251, 191, 36, 0.3);
+        }
+        .price-row.low-stock::before {
+            display: none;
         }
         .price-row.out-of-stock {
-            background: #9ca3af;
-            opacity: 0.6;
+            background: rgba(108, 108, 120, 0.12);
+            opacity: 0.5;
+            border-color: transparent;
+        }
+        .price-row.out-of-stock::before {
+            display: none;
         }
         @keyframes pulse {
             0%, 100% { transform: scale(1); }
@@ -168,42 +247,43 @@
             flex: 1;
         }
         .condition-number {
-            font-size: 42px;
-            font-weight: bold;
+            font-size: 36px;
+            font-weight: 800;
             margin-bottom: 5px;
         }
         .condition-name {
             font-size: 28px;
-            opacity: 0.95;
+            color: var(--text-secondary);
         }
         .price-info {
             text-align: center;
         }
         .suggested-price {
             font-size: 24px;
-            opacity: 0.7;
+            color: var(--text-tertiary);
             text-decoration: line-through;
             margin-bottom: 5px;
         }
         .live-price {
-            font-size: 52px;
-            font-weight: bold;
+            font-size: 46px;
+            font-weight: 800;
+            color: var(--success);
         }
         .live-price.changed {
-            color: #fbbf24;
+            color: var(--warning);
         }
         .stock-info {
             text-align: center;
             min-width: 120px;
         }
         .stock-number {
-            font-size: 60px;
-            font-weight: bold;
+            font-size: 52px;
+            font-weight: 800;
             line-height: 1;
         }
         .stock-label {
             font-size: 20px;
-            opacity: 0.9;
+            color: var(--text-tertiary);
             margin-top: 5px;
         }
 
@@ -211,41 +291,50 @@
             position: fixed;
             bottom: 20px;
             left: 20px;
-            background: rgba(0,0,0,0.85);
-            color: white;
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            color: var(--text);
             padding: 20px 25px;
             border-radius: 12px;
             font-size: 15px;
             opacity: 0;
             transition: opacity 0.3s;
             z-index: 100;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
         }
         .keyboard-hint.show {
             opacity: 1;
         }
         .keyboard-hint div {
             margin: 8px 0;
+            color: var(--text-secondary);
         }
         .keyboard-hint kbd {
-            background: #555;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
             padding: 4px 10px;
             border-radius: 5px;
             margin: 0 5px;
             font-family: monospace;
             font-size: 14px;
+            color: var(--text);
         }
 
         .operation-toast {
             position: fixed;
             top: 20px;
             left: 20px;
-            background: rgba(0,0,0,0.9);
-            color: white;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            color: var(--text);
             padding: 20px 30px;
             border-radius: 12px;
             font-size: 24px;
             z-index: 1000;
             display: none;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
         }
         .operation-toast.show {
             display: block;
@@ -263,7 +352,9 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             z-index: 2000;
             justify-content: center;
             align-items: center;
@@ -272,15 +363,17 @@
             display: flex;
         }
         .price-modal-content {
-            background: white;
+            background: var(--bg-card);
             padding: 40px;
-            border-radius: 20px;
+            border-radius: var(--radius-xl);
             text-align: center;
             min-width: 450px;
+            border: 1px solid var(--border);
+            box-shadow: 0 24px 80px rgba(0,0,0,0.6);
         }
         .price-modal h3 {
             font-size: 32px;
-            color: #333;
+            color: var(--text);
             margin-bottom: 30px;
         }
         .price-modal input {
@@ -288,9 +381,17 @@
             padding: 20px;
             font-size: 48px;
             text-align: center;
-            border: 2px solid #667eea;
-            border-radius: 10px;
+            background: var(--bg);
+            border: 2px solid var(--border);
+            color: var(--text);
+            border-radius: var(--radius-lg);
             margin-bottom: 30px;
+            outline: none;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .price-modal input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
         }
         .price-modal-buttons {
             display: flex;
@@ -301,30 +402,41 @@
             padding: 18px;
             font-size: 24px;
             border: none;
-            border-radius: 10px;
+            border-radius: var(--radius);
             cursor: pointer;
             transition: all 0.3s;
+            font-weight: 600;
         }
         .btn-confirm {
-            background: #10b981;
-            color: white;
+            background: var(--success);
+            color: #000;
+        }
+        .btn-confirm:hover {
+            background: #2dd48f;
         }
         .btn-cancel {
-            background: #6b7280;
-            color: white;
+            background: var(--bg-elevated);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-cancel:hover {
+            background: var(--border);
         }
 
         .voice-toggle {
             position: fixed;
             top: 20px;
             right: 20px;
-            background: rgba(0,0,0,0.7);
-            color: white;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text);
             padding: 12px 20px;
             border-radius: 25px;
             cursor: pointer;
             font-size: 16px;
             z-index: 100;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
         }
         .voice-toggle.muted {
             opacity: 0.5;
@@ -335,8 +447,10 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(255, 0, 0, 0.52);
-            color: #fff;
+            background: rgba(239, 68, 68, 0.12);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            color: var(--text);
             padding: 120px 180px;
             border-radius: 48px;
             font-size: 96px;
@@ -346,6 +460,7 @@
             animation: broadcastIn 0.3s ease;
             max-width: 80%;
             word-wrap: break-word;
+            border: 1px solid rgba(239, 68, 68, 0.2);
         }
 
         .broadcast-overlay.show {
@@ -370,6 +485,72 @@
             font-size: 144px;
             margin-bottom: 45px;
         }
+
+        @media (max-width: 768px) {
+            .standby h1 {
+                font-size: 28px;
+            }
+            .standby p {
+                font-size: 18px;
+            }
+            .standby-icon {
+                font-size: 80px;
+            }
+            .live-status {
+                font-size: 14px;
+                padding: 10px 20px;
+            }
+            .product-name {
+                font-size: 32px !important;
+            }
+            .product-series {
+                font-size: 24px !important;
+            }
+            .product-common-name {
+                font-size: 18px !important;
+            }
+            .product-description {
+                font-size: 22px !important;
+            }
+            .qiandao-price {
+                font-size: 28px !important;
+            }
+            .condition-number {
+                font-size: 24px !important;
+            }
+            .live-price {
+                font-size: 32px !important;
+            }
+            .stock-number {
+                font-size: 36px !important;
+            }
+            .price-row {
+                padding: 20px;
+                flex-wrap: wrap;
+            }
+            .price-modal-content {
+                min-width: unset;
+                width: 90%;
+                padding: 24px;
+            }
+            .price-modal input {
+                font-size: 32px;
+                padding: 14px;
+            }
+            .broadcast-overlay {
+                padding: 60px 40px;
+                font-size: 48px;
+                border-radius: 24px;
+            }
+            .keyboard-hint {
+                font-size: 11px;
+                padding: 10px;
+                max-width: 300px;
+            }
+            .stock-info {
+                min-width: 80px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -377,7 +558,7 @@
 
     <div class="standby" id="standbyScreen">
         <div class="standby-icon">🎪</div>
-        <h1>泡泡玛特直播辅助系统</h1>
+        <h1 id="standbyTitle">泡泡玛特直播辅助系统</h1>
         <p>请扫描商品条码...</p>
         <div class="live-status" id="liveSessionInfo">准备中</div>
         <div style="margin-top:20px; font-size:14px; opacity:0.7;">按 <kbd style="background:rgba(255,255,255,0.3);padding:5px 10px;border-radius:5px;">F11</kbd> 全屏效果更佳</div>

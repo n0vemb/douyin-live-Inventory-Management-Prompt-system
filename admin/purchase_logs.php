@@ -35,7 +35,7 @@ require_once __DIR__ . '/layout.php';
             </div>
 
             <div style="margin-bottom:15px; display:flex; justify-content:space-between; align-items:center;">
-                <div id="selectedCount" style="color:#666; font-size:14px;"></div>
+                <div id="selectedCount" style="color:var(--text-secondary); font-size:14px;"></div>
                 <div id="printButtonContainer"></div>
             </div>
 
@@ -60,15 +60,15 @@ require_once __DIR__ . '/layout.php';
 
         <!-- 打印设置面板 -->
         <div class="modal" id="printModal">
-            <div class="modal-content" style="max-width:500px;">
+            <div class="modal-content"><!-- 打印设置 -->
                 <div class="modal-header">
                     <h3 class="modal-title">🖨️ 批量打印标签</h3>
                     <button class="modal-close" onclick="closeModal('printModal')">&times;</button>
                 </div>
                 
                 <div style="padding:15px 0;">
-                    <div style="background:#f8fafc; padding:12px; border-radius:8px; margin-bottom:15px;">
-                        <div style="font-size:13px; color:#666; margin-bottom:8px;">
+                    <div style="background:var(--bg-hover); padding:12px; border-radius:8px; margin-bottom:15px;">
+                        <div style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">
                             已选择 <strong id="selectedPrintCount">0</strong> 条记录，共 <strong id="totalLabels">0</strong> 个标签
                         </div>
                         <div id="selectedItemsSummary" style="max-height:100px; overflow-y:auto; font-size:12px;"></div>
@@ -92,7 +92,7 @@ require_once __DIR__ . '/layout.php';
 
         <!-- 可视化编辑器模态框 -->
         <div class="modal" id="editorModal">
-            <div class="modal-content" style="max-width:1000px; max-height:95vh;">
+            <div class="modal-content modal-wide" style="max-height:95vh;"><!-- 编辑器 -->
                 <div class="modal-header">
                     <h3 class="modal-title">✏️ 标签可视化编辑器</h3>
                     <button class="modal-close" onclick="closeEditor()">&times;</button>
@@ -100,7 +100,7 @@ require_once __DIR__ . '/layout.php';
                 
                 <div style="display:flex; gap:15px; max-height:calc(95vh - 80px); margin-top:15px;">
                     <!-- 左侧工具栏 -->
-                    <div style="width:200px; flex-shrink:0; border-right:1px solid #eee; padding-right:15px;">
+                    <div style="width:200px; flex-shrink:0; border-right:1px solid var(--border); padding-right:15px;">
                         <div style="margin-bottom:15px;">
                             <div style="font-weight:bold; margin-bottom:8px; font-size:12px;">📐 画布设置</div>
                             <div class="form-group">
@@ -121,7 +121,7 @@ require_once __DIR__ . '/layout.php';
                             </div>
                         </div>
 
-                        <div style="border-top:1px solid #eee; padding-top:12px;">
+                        <div style="border-top:1px solid var(--border); padding-top:12px;">
                             <div style="font-weight:bold; margin-bottom:8px; font-size:12px;">➕ 添加元素</div>
                             <button class="btn btn-sm btn-primary" onclick="addFabricElement('barcode')" style="margin-bottom:5px; width:100%;">📊 条码</button>
                             <button class="btn btn-sm btn-primary" onclick="addFabricElement('barcodeText')" style="margin-bottom:5px; width:100%;">🔢 数字</button>
@@ -130,14 +130,14 @@ require_once __DIR__ . '/layout.php';
                             <button class="btn btn-sm btn-primary" onclick="addFabricElement('condition')" style="margin-bottom:5px; width:100%;">📋 状态</button>
                         </div>
 
-                        <div style="margin-top:15px; padding-top:12px; border-top:1px solid #eee;">
+                        <div style="margin-top:15px; padding-top:12px; border-top:1px solid var(--border);">
                             <div style="font-weight:bold; margin-bottom:8px; font-size:12px;">🗑️ 操作</div>
                             <button class="btn btn-sm btn-danger" onclick="deleteFabricSelected()" style="width:100%;">删除选中</button>
                         </div>
 
-                        <div style="margin-top:15px; padding-top:12px; border-top:1px solid #eee;">
+                        <div style="margin-top:15px; padding-top:12px; border-top:1px solid var(--border);">
                             <div style="font-weight:bold; margin-bottom:8px; font-size:12px;">📋 画布信息</div>
-                            <div style="font-size:11px; color:#666;">
+                            <div style="font-size:11px; color:var(--text-secondary);">
                                 尺寸: <span id="fabricSizeLabel">60×40mm</span><br>
                                 元素: <span id="fabricElementCount">0</span>
                             </div>
@@ -146,7 +146,7 @@ require_once __DIR__ . '/layout.php';
 
                     <!-- 中间画布区域 -->
                     <div style="flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0;">
-                        <div id="fabricCanvasWrapper" style="flex:1; background:#e0e0e0; border-radius:6px; overflow:auto; padding:20px; display:flex; justify-content:center; align-items:center;">
+                        <div id="fabricCanvasWrapper" style="flex:1; background:var(--bg-hover); border-radius:6px; overflow:auto; padding:20px; display:flex; justify-content:center; align-items:center;">
                             <canvas id="fabricCanvas"></canvas>
                         </div>
 
@@ -161,12 +161,12 @@ require_once __DIR__ . '/layout.php';
 
         <!-- 预览模态框 -->
         <div class="modal" id="previewModal">
-            <div class="modal-content" style="max-width:90vw; max-height:90vh;">
+            <div class="modal-content modal-full" style="max-height:90vh;"><!-- 预览 -->
                 <div class="modal-header">
                     <h3 class="modal-title">👁️ 标签预览</h3>
                     <button class="modal-close" onclick="closeModal('previewModal')">&times;</button>
                 </div>
-                <div id="previewContent" style="overflow:auto; max-height:70vh; background:#f5f5f5; padding:20px; border-radius:8px;"></div>
+                <div id="previewContent" style="overflow:auto; max-height:70vh; background:var(--bg-surface); padding:20px; border-radius:8px;"></div>
                 <div style="display:flex; gap:10px; margin-top:15px;">
                     <button type="button" class="btn btn-success" onclick="printLabelsDirect()" style="flex:1;">🖨️ 打印</button>
                     <button type="button" class="btn btn-secondary" onclick="closeModal('previewModal')">关闭</button>
@@ -178,16 +178,16 @@ require_once __DIR__ . '/layout.php';
     <style>
     .element-tool {
         padding:5px 8px;
-        background:#f5f5f5;
-        border:1px solid #ddd;
+        background:var(--bg-hover);
+        border:1px solid var(--border);
         border-radius:4px;
         cursor:grab;
         font-size:11px;
         transition: all 0.2s;
     }
     .element-tool:hover {
-        background:#e8f4ff;
-        border-color:#1890ff;
+        background:var(--info-light);
+        border-color:var(--primary);
     }
     .element-tool:active {
         cursor: grabbing;
@@ -656,7 +656,7 @@ require_once __DIR__ . '/layout.php';
                 renderPagination(data.data.total, data.data.page_size);
             } else {
                 document.getElementById('purchaseLogList').innerHTML = 
-                    '<tr><td colspan="8" style="text-align:center;color:#999;padding:40px;">' + (data.error || '暂无入库记录') + '</td></tr>';
+                    '<tr><td colspan="8" style="text-align:center;color:var(--text-tertiary);padding:40px;">' + (data.error || '暂无入库记录') + '</td></tr>';
                 document.getElementById('pagination').innerHTML = '';
             }
         } catch (err) {
@@ -668,7 +668,7 @@ require_once __DIR__ . '/layout.php';
     function renderPurchaseLogs(records) {
         const tbody = document.getElementById('purchaseLogList');
         if (!records || records.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#999;padding:40px;">暂无入库记录</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无入库记录</td></tr>';
             return;
         }
 
@@ -678,7 +678,7 @@ require_once __DIR__ . '/layout.php';
         tbody.innerHTML = records.map(r => {
             const isSelected = selectedItems.some(s => s.batch_id === r.batch_id);
             return `
-                <tr style="${isSelected ? 'background:#e8f4ff;' : ''}">
+                <tr style="${isSelected ? 'background:var(--info-light);' : ''}">
                     <td><input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelect(event, ${r.batch_id}, '${r.barcode}', '${escapeHtml(r.product_name || r.common_name || '')}', '${r.condition_type}', ${r.qty}, ${r.suggested_price})"></td>
                     <td>${formatDate(r.purchased_at)}</td>
                     <td><code style="font-size:12px;">${r.batch_no}</code></td>
@@ -686,7 +686,7 @@ require_once __DIR__ . '/layout.php';
                     <td>${r.product_name || r.common_name || '-'}</td>
                     <td><span class="condition-badge ${getConditionClass(r.condition_type)}">${getConditionName(r.condition_type)}</span></td>
                     <td style="font-weight:bold;">${r.qty}</td>
-                    <td style="color:#e53e3e; font-weight:bold;">¥${parseFloat(r.suggested_price).toFixed(2)}</td>
+                    <td style="color:var(--danger); font-weight:bold;">¥${parseFloat(r.suggested_price).toFixed(2)}</td>
                 </tr>
             `;
         }).join('');
@@ -716,6 +716,7 @@ require_once __DIR__ . '/layout.php';
             }
         });
         updateSelectedUI();
+        renderPurchaseLogs(allRecords);
     }
 
     function toggleSelect(event, batchId, barcode, productName, conditionType, qty, price) {
@@ -728,7 +729,7 @@ require_once __DIR__ . '/layout.php';
         
         const row = event.target.closest('tr');
         if (row) {
-            row.style.backgroundColor = selectedItems.some(s => s.batch_id === batchId) ? '#e8f4ff' : '';
+            row.style.backgroundColor = selectedItems.some(s => s.batch_id === batchId) ? 'var(--info-light)' : '';
         }
         
         updateSelectedUI();
@@ -774,11 +775,11 @@ require_once __DIR__ . '/layout.php';
 
         let summaryHtml = '';
         selectedItems.forEach(item => {
-            summaryHtml += `<div style="padding:3px 0; border-bottom:1px solid #eee;">
-                ${item.productName} ×${item.qty} <span style="color:#e53e3e;">¥${parseFloat(item.price).toFixed(2)}</span>
+            summaryHtml += `<div style="padding:3px 0; border-bottom:1px solid var(--border);">
+                ${item.productName} ×${item.qty} <span style="color:var(--danger);">¥${parseFloat(item.price).toFixed(2)}</span>
             </div>`;
         });
-        document.getElementById('selectedItemsSummary').innerHTML = summaryHtml || '<div style="color:#999;">暂无选中</div>';
+        document.getElementById('selectedItemsSummary').innerHTML = summaryHtml || '<div style="color:var(--text-tertiary);">暂无选中</div>';
 
         currentTemplateIndex = '';
         document.getElementById('labelTemplate').value = '';
@@ -809,7 +810,7 @@ require_once __DIR__ . '/layout.php';
         };
 
         // 预览使用 mm 单位
-        let html = `<div style="display:inline-block; background:#fff; padding:20px; filter:${densityFilter[template.density]}">
+        let html = `<div style="display:inline-block; background:#fff; padding:12px; border-radius:4px; filter:${densityFilter[template.density]}">
             <div style="position:relative; width:${template.canvasWidth}mm; height:${template.canvasHeight}mm; border:1px dashed #ccc; overflow:visible;">`;
 
         template.elements.forEach((el, index) => {
@@ -845,10 +846,10 @@ require_once __DIR__ . '/layout.php';
         html += '</div></div>';
 
         document.getElementById('previewContent').innerHTML = `
-            <div style="position:relative; overflow:visible;">
+            <div style="display:flex; flex-direction:column; align-items:center; min-height:300px; justify-content:center;">
                 ${html}
             </div>
-            <div style="clear:both; padding-top:20px; font-size:13px; color:#666;">
+            <div style="text-align:center; padding-top:16px; font-size:13px; color:var(--text-secondary);">
                 尺寸: ${template.canvasWidth}×${template.canvasHeight}mm | 数量: ${selectedItems.reduce((s, i) => s + i.qty, 0)} 个
             </div>
         `;
