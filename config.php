@@ -66,6 +66,45 @@ function jsonResponse($data) {
     exit;
 }
 
+/**
+ * 计算 EAN-13 校验位
+ * @param string $digits 12位数字
+ * @return int 校验位 (0-9)
+ */
+function calculateEAN13CheckDigit($digits) {
+    $sum = 0;
+    for ($i = 0; $i < 12; $i++) {
+        $digit = intval($digits[$i]);
+        // 奇数位（第1,3,5...位）权重1，偶数位（第2,4,6...位）权重3
+        $sum += $digit * ($i % 2 === 0 ? 1 : 3);
+    }
+    return (10 - ($sum % 10)) % 10;
+}
+
+/**
+ * 生成带 EAN-13 校验位的条形码，并检查数据库中是否已存在
+ * 格式：69414486 + 4位随机数 + 1位校验位 = 13位
+ * @param PDO $pdo 数据库连接
+ * @return string|null 生成的条形码，失败返回 null
+ */
+function generateBarcode($pdo) {
+    $prefix = '69414486';
+    $maxAttempts = 10;
+    for ($i = 0; $i < $maxAttempts; $i++) {
+        $randomPart = str_pad(mt_rand(0, 9999), 4, '0', STR_PAD_LEFT);
+        $digits = $prefix . $randomPart;
+        $checkDigit = calculateEAN13CheckDigit($digits);
+        $barcode = $digits . $checkDigit;
+
+        $stmt = $pdo->prepare('SELECT id FROM products WHERE barcode = ?');
+        $stmt->execute([$barcode]);
+        if (!$stmt->fetch()) {
+            return $barcode;
+        }
+    }
+    return null;
+}
+
 function success($data = []) {
     jsonResponse(array_merge(['success' => true], $data));
 }

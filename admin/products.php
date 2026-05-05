@@ -46,11 +46,15 @@ require_once __DIR__ . '/layout.php';
                 <button class="btn btn-success" onclick="openImportModal()" style="margin-left:10px;">
                     📁 批量导入
                 </button>
+                <button class="btn btn-danger" id="batchDeleteBtn" onclick="batchDelete()" style="margin-left:10px; display:none;">
+                    🗑️ 批量删除 (<span id="selectedCount">0</span>)
+                </button>
             </div>
 
             <table>
                 <thead>
                     <tr>
+                        <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)" title="全选"></th>
                         <th>图片</th>
                         <th>条码</th>
                         <th>商品名称</th>
@@ -58,7 +62,8 @@ require_once __DIR__ . '/layout.php';
                         <th>参考价</th>
                         <th>库存状态</th>
                         <th>库存总量</th>
-                        <th>库存价值</th>
+                        <th>进价</th>
+                        <th>售价</th>
                         <th>操作</th>
                     </tr>
                 </thead>
@@ -465,7 +470,7 @@ require_once __DIR__ . '/layout.php';
     function renderProducts(products) {
         const tbody = document.getElementById('productList');
         if (!products.length) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无商品，点击上方"添加商品"创建</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无商品，点击上方"添加商品"创建</td></tr>';
             return;
         }
 
@@ -480,11 +485,14 @@ require_once __DIR__ . '/layout.php';
 
             const inventoryHtml = renderInventoryBadges(p.id, p.inventory_summary);
             const totalStock = getTotalStock(p.inventory_summary);
-            const totalValue = getTotalValue(p.inventory_summary);
             const stockClass = totalStock <= 0 ? 'text-muted' : totalStock <= 5 ? 'text-warning' : '';
+
+            const purchasePrice = p.overall_purchase_price ? '¥' + parseFloat(p.overall_purchase_price).toFixed(2) : '-';
+            const suggestedPrice = p.overall_suggested_price ? '¥' + parseFloat(p.overall_suggested_price).toFixed(2) : '-';
 
             return `
                 <tr>
+                    <td><input type="checkbox" class="product-checkbox" value="${p.id}" onchange="updateBatchDeleteButton()"></td>
                     <td>${imageHtml}</td>
                     <td><code style="background:var(--bg-hover);padding:4px 8px;border-radius:4px;">${p.barcode}</code></td>
                     <td>${nameDisplay}</td>
@@ -495,7 +503,8 @@ require_once __DIR__ . '/layout.php';
                         <div style="font-size:12px;color:var(--text-secondary);margin-top:5px;">点击查看详情 ▼</div>
                     </td>
                     <td style="font-weight:bold; ${stockClass}; font-size:18px;">${totalStock}</td>
-                    <td style="font-weight:bold; color:var(--success);">¥${totalValue.toFixed(0)}</td>
+                    <td style="color:var(--text-secondary);">${purchasePrice}</td>
+                    <td style="font-weight:bold; color:var(--success);">${suggestedPrice}</td>
                     <td>
                         <div style="display:flex; gap:4px; flex-wrap:wrap;">
                             <button class="btn btn-sm btn-primary" onclick="editProduct(${p.id})">编辑</button>
@@ -513,15 +522,6 @@ require_once __DIR__ . '/layout.php';
         let total = 0;
         Object.values(inventory).forEach(item => {
             total += item.total_stock || 0;
-        });
-        return total;
-    }
-
-    function getTotalValue(inventory) {
-        if (!inventory) return 0;
-        let total = 0;
-        Object.values(inventory).forEach(item => {
-            total += (item.total_stock || 0) * (item.suggested_price || 0);
         });
         return total;
     }
@@ -689,8 +689,15 @@ require_once __DIR__ . '/layout.php';
     }
 
     function generateBarcode() {
-        const randomNum = String(Math.floor(Math.random() * 100000)).padStart(5, '0');
-        return '69414486' + randomNum;
+        const prefix = '69414486';
+        const randomNum = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+        const digits = prefix + randomNum;
+        let sum = 0;
+        for (let i = 0; i < 12; i++) {
+            sum += parseInt(digits[i]) * (i % 2 === 0 ? 1 : 3);
+        }
+        const checkDigit = (10 - (sum % 10)) % 10;
+        return digits + checkDigit;
     }
 
     function openAddModal() {
@@ -1199,6 +1206,91 @@ require_once __DIR__ . '/layout.php';
         } catch (err) {
             showErrorToast('删除失败');
         }
+    }
+
+    function toggleSelectAll(checked) {
+        document.querySelectorAll('.product-checkbox').forEach(cb => cb.checked = checked);
+        updateBatchDeleteButton();
+    }
+
+    function updateBatchDeleteButton() {
+        const checked = document.querySelectorAll('.product-checkbox:checked');
+        const btn = document.getElementById('batchDeleteBtn');
+        const countEl = document.getElementById('selectedCount');
+        if (checked.length > 0) {
+            countEl.textContent = checked.length;
+            btn.style.display = 'inline-flex';
+        } else {
+            btn.style.display = 'none';
+        }
+    }
+
+    function batchDelete() {
+        const checked = document.querySelectorAll('.product-checkbox:checked');
+        if (checked.length === 0) return;
+
+        const ids = Array.from(checked).map(cb => parseInt(cb.value));
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        `;
+
+        dialog.innerHTML = `
+            <div style="background: var(--bg-surface); padding: 30px; border-radius: 12px; max-width: 420px; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                <h3 style="margin-bottom: 15px; color: var(--text);">确认批量删除</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 25px; line-height: 1.5;">
+                    确定要删除选中的 <strong style="color: var(--danger);">${ids.length}</strong> 个商品吗？<br>
+                    所有相关的库存和销售记录也会被删除，此操作不可恢复。
+                </p>
+                <div style="display: flex; gap: 10px;">
+                    <button id="cancelBatchDelete" class="btn btn-secondary" style="flex:1;">取消</button>
+                    <button id="confirmBatchDelete" style="flex: 1; padding: 12px; border: none; background: var(--danger); color: white; border-radius: 6px; cursor: pointer;">确认删除</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(dialog);
+
+        document.getElementById('cancelBatchDelete').onclick = () => {
+            document.body.removeChild(dialog);
+        };
+
+        document.getElementById('confirmBatchDelete').onclick = async () => {
+            document.body.removeChild(dialog);
+            try {
+                const res = await fetch('../api/delete_product.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ product_ids: ids })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    productDetails = {};
+                    await loadProducts();
+                    updateBatchDeleteButton();
+                } else {
+                    showErrorToast(result.error || '批量删除失败');
+                }
+            } catch (err) {
+                showErrorToast('批量删除失败');
+            }
+        };
+
+        dialog.onclick = (e) => {
+            if (e.target === dialog) {
+                document.body.removeChild(dialog);
+            }
+        };
     }
 
     function showErrorToast(message) {

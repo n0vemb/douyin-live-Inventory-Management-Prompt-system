@@ -21,19 +21,7 @@ if (empty($name)) {
 $pdo = getDB();
 
 if (empty($barcode) && $barcode !== '0') {
-    $maxAttempts = 10;
-    for ($i = 0; $i < $maxAttempts; $i++) {
-        $randomNum = str_pad(mt_rand(0, 99999), 5, '0', STR_PAD_LEFT);
-        $newBarcode = '69414486' . $randomNum;
-
-        $stmt = $pdo->prepare('SELECT id FROM products WHERE barcode = ?');
-        $stmt->execute([$newBarcode]);
-        if (!$stmt->fetch()) {
-            $barcode = $newBarcode;
-            break;
-        }
-    }
-
+    $barcode = generateBarcode($pdo);
     if (empty($barcode)) {
         error('条码生成失败，请稍后重试');
     }

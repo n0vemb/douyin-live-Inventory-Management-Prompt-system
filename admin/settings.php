@@ -850,8 +850,6 @@ async function saveSettings() {
 document.getElementById('logoFile').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
-    document.getElementById('logoFileName').textContent = file.name;
-
     const formData = new FormData();
     formData.append('image', file);
 
@@ -887,7 +885,6 @@ function clearLogo() {
     delete tempSettings.logo_path;
     document.getElementById('logoPreviewGroup').style.display = 'none';
     document.getElementById('logoPreview').src = '';
-    document.getElementById('logoFileName').textContent = '';
     document.getElementById('logoFile').value = '';
     updateSaveStatus(true);
 }

@@ -93,6 +93,18 @@ foreach ($products as &$p) {
         }
     }
     $p['batches'] = $batchesData[$p['id']] ?? [];
+
+    // 从有库存的状态中聚合进价和售价（取最小价）
+    $purchasePrices = [];
+    $suggestedPrices = [];
+    foreach ($p['inventory_summary'] as $ct => $data) {
+        if ($data['total_stock'] > 0) {
+            if (!empty($data['purchase_price'])) $purchasePrices[] = $data['purchase_price'];
+            if (!empty($data['suggested_price'])) $suggestedPrices[] = $data['suggested_price'];
+        }
+    }
+    $p['overall_purchase_price'] = !empty($purchasePrices) ? min($purchasePrices) : null;
+    $p['overall_suggested_price'] = !empty($suggestedPrices) ? min($suggestedPrices) : null;
 }
 
 $stmt = $pdo->query('SELECT DISTINCT series FROM products WHERE series IS NOT NULL AND series != "" ORDER BY series');

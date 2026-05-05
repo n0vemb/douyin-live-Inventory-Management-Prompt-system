@@ -188,41 +188,74 @@ try {
 
     // 开始事务
     $pdo->beginTransaction();
-    
+
     $successCount = 0;
     $errorMessages = [];
-    
+
     foreach ($products as $index => $product) {
         try {
-            // 检查条码是否已存在
-            $stmt = $pdo->prepare("SELECT id FROM products WHERE barcode = ?");
-            $stmt->execute([$product['barcode']]);
-            $existing = $stmt->fetch();
-            
-            if ($existing) {
-                $errorMessages[] = "第{$product['row']}行：条码 {$product['barcode']} 已存在";
-                continue;
+            $productId = null;
+
+            if (empty($product['barcode'])) {
+                // 条码为空：按商品名称匹配已有商品
+                $stmt = $pdo->prepare("SELECT id, barcode FROM products WHERE name = ?");
+                $stmt->execute([$product['name']]);
+                $existing = $stmt->fetch();
+
+                if ($existing) {
+                    // 匹配到已有商品，使用其ID
+                    $productId = $existing['id'];
+                    // 如果匹配到的商品也没有条码，自动补上
+                    if (empty($existing['barcode'])) {
+                        $newBarcode = generateBarcode($pdo);
+                        if ($newBarcode) {
+                            $stmt = $pdo->prepare("UPDATE products SET barcode = ? WHERE id = ?");
+                            $stmt->execute([$newBarcode, $productId]);
+                        }
+                    }
+                } else {
+                    // 未匹配到，自动生成条码新建商品
+                    $barcode = generateBarcode($pdo);
+                    if (empty($barcode)) {
+                        $errorMessages[] = "第{$product['row']}行：条码生成失败，请稍后重试";
+                        continue;
+                    }
+                    $product['barcode'] = $barcode;
+                }
             }
-            
-            // 插入商品
-            $stmt = $pdo->prepare("
-                INSERT INTO products (name, common_name, series, brand, barcode, qiandao_price, release_date, product_description, image_url, created_at, updated_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-            ");
-            
-            $stmt->execute([
-                $product['name'],
-                $product['common_name'],
-                $product['series'],
-                $product['brand'],
-                $product['barcode'],
-                $product['qiandao_price'],
-                $product['release_date'],
-                $product['product_description'],
-                $product['image_url']
-            ]);
-            
-            $productId = $pdo->lastInsertId();
+
+            // 如果需要插入新商品（非空条码的新商品 / 空条码未匹配到后已补全条码）
+            if ($productId === null) {
+                // 检查条码是否已存在
+                $stmt = $pdo->prepare("SELECT id FROM products WHERE barcode = ?");
+                $stmt->execute([$product['barcode']]);
+                $existing = $stmt->fetch();
+
+                if ($existing) {
+                    $errorMessages[] = "第{$product['row']}行：条码 {$product['barcode']} 已存在";
+                    continue;
+                }
+
+                // 插入商品
+                $stmt = $pdo->prepare("
+                    INSERT INTO products (name, common_name, series, brand, barcode, qiandao_price, release_date, product_description, image_url, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                ");
+
+                $stmt->execute([
+                    $product['name'],
+                    $product['common_name'],
+                    $product['series'],
+                    $product['brand'],
+                    $product['barcode'],
+                    $product['qiandao_price'],
+                    $product['release_date'],
+                    $product['product_description'],
+                    $product['image_url']
+                ]);
+
+                $productId = $pdo->lastInsertId();
+            }
             
             // 如果有库存数据，添加库存
             if (!empty($product['inventory_data'])) {
@@ -307,19 +340,31 @@ function outputJson($data) {
     exit;
 }
 
+/**
+ * 将 Excel 列字母转换为 0-based 索引（A=0, B=1, ..., Z=25, AA=26, ...）
+ */
+function excelColIndex($col) {
+    $index = 0;
+    $len = strlen($col);
+    for ($i = 0; $i < $len; $i++) {
+        $index = $index * 26 + (ord($col[$i]) - ord('A') + 1);
+    }
+    return $index - 1;
+}
+
 function parseXlsxFile($fileName, $pdo) {
-    global $errorMessages; // 使用全局变量来收集错误
+    global $errorMessages;
     $products = [];
-    
+
     if (!class_exists('ZipArchive')) {
         throw new Exception('需要ZipArchive扩展来处理Excel文件，请使用CSV格式');
     }
-    
+
     $zip = new ZipArchive();
     if ($zip->open($fileName) !== TRUE) {
         throw new Exception('无法打开Excel文件');
     }
-    
+
     // 读取共享字符串
     $sharedStrings = [];
     if ($zip->locateName('xl/sharedStrings.xml') !== false) {
@@ -333,20 +378,20 @@ function parseXlsxFile($fileName, $pdo) {
             }
         }
     }
-    
+
     // 读取工作表数据
     $worksheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
     if ($worksheetXml === false) {
         $zip->close();
         throw new Exception('无法读取工作表数据');
     }
-    
+
     $xml = simplexml_load_string($worksheetXml);
     if (!$xml) {
         $zip->close();
         throw new Exception('工作表数据格式错误');
     }
-    
+
     $rows = [];
     foreach ($xml->sheetData->row as $row) {
         $rowData = [];
@@ -354,15 +399,31 @@ function parseXlsxFile($fileName, $pdo) {
             $cellValue = '';
             if (isset($cell->v)) {
                 if ((string)$cell['t'] === 's') {
-                    // 共享字符串
                     $index = (int)$cell->v;
                     $cellValue = $sharedStrings[$index] ?? '';
                 } else {
-                    // 数值或直接值
                     $cellValue = (string)$cell->v;
                 }
             }
-            $rowData[] = $cellValue;
+            // 使用单元格引用（如 "A1"、"C3"）确定列位置
+            $ref = (string)$cell['r'];
+            if (preg_match('/^([A-Z]+)/', $ref, $m)) {
+                $colIdx = excelColIndex($m[1]);
+                $rowData[$colIdx] = $cellValue;
+            } else {
+                $rowData[] = $cellValue;
+            }
+        }
+        // 填充空缺列为空字符串，确保列位置对齐
+        if (!empty($rowData)) {
+            ksort($rowData);
+            $maxCol = max(array_keys($rowData));
+            for ($i = 0; $i <= $maxCol; $i++) {
+                if (!array_key_exists($i, $rowData)) {
+                    $rowData[$i] = '';
+                }
+            }
+            ksort($rowData);
         }
         $rows[] = $rowData;
     }
