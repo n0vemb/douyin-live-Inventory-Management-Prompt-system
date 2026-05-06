@@ -286,39 +286,78 @@
             color: var(--text-tertiary);
             margin-top: 5px;
         }
+        .price-adjust {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-left: 12px;
+        }
+        .btn-adjust {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            font-size: 22px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            user-select: none;
+            line-height: 1;
+        }
+        .btn-adjust:hover {
+            background: var(--primary-light);
+            border-color: var(--primary);
+        }
+        .btn-adjust-minus:hover {
+            background: rgba(248, 113, 113, 0.2);
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+        .btn-adjust-plus:hover {
+            background: rgba(52, 211, 153, 0.2);
+            border-color: var(--success);
+            color: var(--success);
+        }
 
         .keyboard-hint {
             position: fixed;
-            bottom: 20px;
-            left: 20px;
-            background: var(--bg-card);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--border);
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-elevated);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-top: 1px solid var(--border);
             color: var(--text);
-            padding: 20px 25px;
-            border-radius: 12px;
-            font-size: 15px;
+            padding: 10px 20px;
+            font-size: 13px;
             opacity: 0;
             transition: opacity 0.3s;
-            z-index: 100;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            z-index: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
         }
         .keyboard-hint.show {
             opacity: 1;
         }
-        .keyboard-hint div {
-            margin: 8px 0;
+        .keyboard-hint span {
             color: var(--text-secondary);
+            white-space: nowrap;
         }
         .keyboard-hint kbd {
-            background: var(--bg-elevated);
+            background: var(--bg-card);
             border: 1px solid var(--border);
-            padding: 4px 10px;
-            border-radius: 5px;
-            margin: 0 5px;
+            padding: 2px 8px;
+            border-radius: 4px;
             font-family: monospace;
-            font-size: 14px;
+            font-size: 12px;
             color: var(--text);
         }
 
@@ -582,6 +621,9 @@
             <!-- 参考价格 -->
             <div class="qiandao-price" id="suggestedPriceElement">参考价: <span id="qiandaoPrice"></span></div>
 
+            <!-- 进货价 -->
+            <div class="qiandao-price" id="purchasePriceElement">进价: <span id="purchasePrice"></span></div>
+
             <!-- 产品介绍 -->
             <div class="product-description" id="productDescription" style="display:none;"></div>
 
@@ -598,12 +640,12 @@
 
     <div class="operation-toast" id="operationToast"></div>
 
-    <div class="keyboard-hint" id="keyboardHint" style="font-size: 12px; padding: 12px 12px; width: auto; max-width: 500px;">
-    <div><kbd>Num 1</kbd>-<kbd>4</kbd> 小键盘减库存</div>
-    <div><kbd>Shift</kbd>+<kbd>Num 1</kbd>-<kbd>4</kbd> 加库存</div>
-    <div>左键点击减库存|中键点击加库存</div>
-    <div><kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd> 修改对应价格</div>
-    <div><kbd>Space</kbd> 关闭</div>
+    <div class="keyboard-hint" id="keyboardHint">
+        <span><kbd>Num 1</kbd>-<kbd>4</kbd> 减</span>
+        <span><kbd>Shift</kbd>+<kbd>Num</kbd> 加</span>
+        <span>左键减 · 中键加</span>
+        <span><kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd> 改价</span>
+        <span><kbd>Space</kbd> 关闭</span>
     </div>
 
     <div class="broadcast-overlay" id="broadcastOverlay">
@@ -724,6 +766,7 @@
                 productSeries: { enabled: true, left: 60, top: 150, width: 600, height: 60, fontSize: '48px', zIndex: 2 },
                 commonName: { enabled: true, left: 60, top: 220, width: 600, height: 80, fontSize: '42px', zIndex: 2 },
                 suggestedPrice: { enabled: true, left: 60, top: 310, width: 500, height: 100, fontSize: '72px', zIndex: 2, color: '#e8e8ed' },
+                purchasePrice: { enabled: true, left: 60, top: 420, width: 500, height: 60, fontSize: '28px', zIndex: 2, color: '#9d9daf' },
                 productDescription: { enabled: true, left: 60, top: 430, width: 800, height: 80, fontSize: '32px', zIndex: 2 },
                 image: { enabled: true, left: 60, top: 540, width: 600, height: 600, fontSize: '0px', zIndex: 1 },
                 condition: { enabled: true, left: 750, top: 450, width: 1100, height: 600, fontSize: '40px', zIndex: 1, itemSpacing: 30, statusFontSize: '28px', statusColor: '#9d9daf', priceFontSize: '46px', priceColor: '#34d399', priceOffsetX: 0, stockOffsetX: 0 }
@@ -976,6 +1019,27 @@
                 suggestedPriceElement.style.display = 'none';
             }
 
+            // 进货价显示
+            const purchasePriceElement = document.getElementById('purchasePriceElement');
+            const purchasePriceEl = document.getElementById('purchasePrice');
+            const purchasePriceConfig = getElementConfig('purchasePrice');
+
+            if (purchasePriceConfig.enabled && p.purchase_prices) {
+                purchasePriceEl.textContent = '¥' + String(p.purchase_prices).split('/').map(p => parseFloat(p).toFixed(2)).join('/¥');
+                purchasePriceElement.style.position = 'absolute';
+                purchasePriceElement.style.left = purchasePriceConfig.left + 'px';
+                purchasePriceElement.style.top = purchasePriceConfig.top + 'px';
+                purchasePriceElement.style.width = purchasePriceConfig.width + 'px';
+                purchasePriceElement.style.minHeight = purchasePriceConfig.height + 'px';
+                purchasePriceElement.style.zIndex = purchasePriceConfig.zIndex || 1;
+                purchasePriceElement.style.fontSize = purchasePriceConfig.fontSize || '28px';
+                purchasePriceEl.style.color = purchasePriceConfig.color || '#9d9daf';
+                purchasePriceElement.style.display = 'flex';
+                purchasePriceElement.style.alignItems = 'center';
+            } else {
+                purchasePriceElement.style.display = 'none';
+            }
+
             // 产品介绍显示
             const productDescriptionEl = document.getElementById('productDescription');
             const descriptionConfig = getElementConfig('productDescription');
@@ -1077,6 +1141,10 @@
                     <div class="stock-info" style="transform:translateX(${conditionConfig.stockOffsetX || 0}px)">
                         <div class="stock-number">${info.stock}</div>
                         <div class="stock-label">库存</div>
+                    </div>
+                    <div class="price-adjust">
+                        <button class="btn-adjust btn-adjust-minus" onclick="event.stopPropagation();adjustPrice('${condition.name}',-1)" title="减1元">−</button>
+                        <button class="btn-adjust btn-adjust-plus" onclick="event.stopPropagation();adjustPrice('${condition.name}',1)" title="加1元">+</button>
                     </div>
                 `;
 
@@ -1299,6 +1367,43 @@
                 } else {
                     showToast('❌ 改价失败');
                 }
+            });
+        }
+
+        function adjustPrice(condition, delta) {
+            const info = currentProduct.inventory[condition];
+            if (!info) return;
+            const currentPrice = info.live_price || info.suggested_price;
+            const newPrice = Math.round((parseFloat(currentPrice) + delta) * 100) / 100;
+            if (newPrice < 0) return;
+
+            fetch('api/change_price.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    product_id: currentProduct.id,
+                    condition_type: getConditionKey(condition),
+                    new_price: newPrice,
+                    live_session_id: liveSessionId
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    if (newPrice == info.suggested_price) {
+                        info.live_price = null;
+                    } else {
+                        info.live_price = newPrice;
+                    }
+                    displayProduct();
+                    showToast(`${condition} ¥${newPrice.toFixed(2)}`);
+                } else {
+                    showToast('❌ ' + (data.error || '调价失败'));
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showToast('❌ 调价失败');
             });
         }
 

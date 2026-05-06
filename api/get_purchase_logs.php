@@ -18,14 +18,15 @@ try {
     $offset = ($page - 1) * $pageSize;
 
     $sql = "
-        SELECT 
+        SELECT
             ib.id as batch_id,
             ib.batch_no,
             ib.product_id,
             ib.condition_type,
             ib.purchase_price,
             ib.suggested_price,
-            ib.total_qty as qty,
+            ib.remaining_qty as qty,
+            ib.total_qty,
             ib.supplier,
             ib.remark,
             COALESCE(ib.purchased_at, ib.created_at) as purchased_at,
@@ -35,6 +36,7 @@ try {
         FROM inventory_batches ib
         LEFT JOIN products p ON ib.product_id = p.id
         WHERE 1=1
+            AND ib.remaining_qty > 0
     ";
 
     $params = [];

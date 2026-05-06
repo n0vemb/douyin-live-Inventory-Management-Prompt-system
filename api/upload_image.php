@@ -53,6 +53,15 @@ try {
     }
 
     $uploadDir = __DIR__ . '/../uploads/';
+    $subDir = '';
+
+    // 支持按系列分目录存储
+    $series = isset($_POST['series']) ? trim($_POST['series']) : '';
+    if ($series !== '') {
+        $subDir = sanitizeSeriesDir($series) . '/';
+        $uploadDir .= $subDir;
+    }
+
     if (!is_dir($uploadDir)) {
         mkdir($uploadDir, 0755, true);
     }
@@ -73,7 +82,7 @@ try {
         chmod($filePath, 0644);
         $response['success'] = true;
         $response['data'] = [
-            'url' => 'uploads/' . $fileName,
+            'url' => 'uploads/' . $subDir . $fileName,
             'name' => $fileName
         ];
     } else {

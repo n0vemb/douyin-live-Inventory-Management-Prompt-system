@@ -433,6 +433,7 @@ const elementLabels = {
     'productSeries': '商品系列',
     'commonName': '常用名',
     'suggestedPrice': '参考价',
+    'purchasePrice': '进货价',
     'productDescription': '产品介绍',
     'image': '商品图片',
     'condition': '价格列表'
@@ -443,6 +444,7 @@ const elementIcons = {
     'productSeries': '📦',
     'commonName': '📝',
     'suggestedPrice': '💰',
+    'purchasePrice': '💵',
     'productDescription': '📄',
     'image': '🖼️',
     'condition': '📊'
@@ -462,6 +464,7 @@ const defaultSettings = {
             {type: 'productSeries', enabled: true, left: 60, top: 150, width: 600, height: 60, fontSize: '48px', zIndex: 2},
             {type: 'commonName', enabled: true, left: 60, top: 220, width: 600, height: 80, fontSize: '42px', zIndex: 2},
             {type: 'suggestedPrice', enabled: true, left: 60, top: 310, width: 500, height: 100, fontSize: '72px', zIndex: 2, color: '#e8e8ed'},
+            {type: 'purchasePrice', enabled: true, left: 60, top: 420, width: 500, height: 60, fontSize: '28px', zIndex: 2, color: '#9d9daf'},
             {type: 'productDescription', enabled: true, left: 60, top: 430, width: 800, height: 80, fontSize: '32px', zIndex: 2},
             {type: 'image', enabled: true, left: 60, top: 540, width: 600, height: 600, fontSize: '0px', zIndex: 1},
             {type: 'condition', enabled: true, left: 750, top: 450, width: 1100, height: 600, fontSize: '40px', zIndex: 1, itemSpacing: 30, statusFontSize: '28px', statusColor: '#9d9daf', priceFontSize: '46px', priceColor: '#34d399', priceOffsetX: 0, stockOffsetX: 0}
@@ -507,6 +510,29 @@ async function loadSettings() {
                 }
             }
             
+            // 确保有 purchasePrice 元素
+            if (tempSettings.live_display && tempSettings.live_display.elements) {
+                const hasPurchasePrice = tempSettings.live_display.elements.some(e => e.type === 'purchasePrice');
+                if (!hasPurchasePrice) {
+                    const suggestedIndex = tempSettings.live_display.elements.findIndex(e => e.type === 'suggestedPrice');
+                    if (suggestedIndex !== -1) {
+                        const sp = tempSettings.live_display.elements[suggestedIndex];
+                        const purchasePrice = {
+                            type: 'purchasePrice',
+                            enabled: true,
+                            left: sp.left,
+                            top: sp.top + sp.height + 10,
+                            width: sp.width,
+                            height: 60,
+                            fontSize: '28px',
+                            zIndex: 2,
+                            color: '#9d9daf'
+                        };
+                        tempSettings.live_display.elements.splice(suggestedIndex + 1, 0, purchasePrice);
+                    }
+                }
+            }
+
             console.log('loadSettings - loaded settings:', tempSettings);
         }
     } catch(e) {
@@ -654,7 +680,7 @@ function selectElement(index) {
         document.getElementById('configItemSpacing').value = item.itemSpacing || 30;
 
         document.getElementById('configColorWrapper').style.display =
-            (item.type === 'suggestedPrice') ? 'flex' : 'none';
+            (item.type === 'suggestedPrice' || item.type === 'purchasePrice') ? 'flex' : 'none';
         document.getElementById('configColor').value = item.color || '#e8e8ed';
 
         const isCondition = item.type === 'condition';
@@ -714,7 +740,7 @@ function updateElementConfig() {
         item.itemSpacing = parseInt(document.getElementById('configItemSpacing').value) || 30;
     }
 
-    if (item.type === 'suggestedPrice') {
+    if (item.type === 'suggestedPrice' || item.type === 'purchasePrice') {
         item.color = document.getElementById('configColor').value;
     }
 

@@ -14,6 +14,10 @@ define('DB_USER', envOrDefault('PPMART_DB_USER', 'ppmart'));
 define('DB_PASS', envOrDefault('PPMART_DB_PASS', ''));
 define('DB_NAME', envOrDefault('PPMART_DB_NAME', 'ppmart'));
 
+// Windows 打印代理地址（启用后 direct_print.php 将发送标签到该代理打印）
+// 格式：http://192.168.x.x:9188
+define('WINDOWS_PRINT_PROXY_URL', envOrDefault('PPMART_PRINT_PROXY', ''));
+
 define('CONDITION_TYPES', [
     'sealed' => '原盒未拆',
     'opened' => '拆盒无瑕',
@@ -103,6 +107,30 @@ function generateBarcode($pdo) {
         }
     }
     return null;
+}
+
+/**
+ * 删除本地上传的商品图片文件
+ * @param string $imageUrl 数据库中的 image_url 值（如 uploads/xxx.jpg）
+ */
+function deleteImageFile($imageUrl) {
+    if (empty($imageUrl)) return;
+    // 只处理本地 uploads/ 路径，不处理外部 URL
+    if (strpos($imageUrl, 'uploads/') !== 0) return;
+    $filePath = __DIR__ . '/' . $imageUrl;
+    if (file_exists($filePath)) {
+        @unlink($filePath);
+    }
+}
+
+/**
+ * 将系列名称转为安全的目录名
+ */
+function sanitizeSeriesDir($series) {
+    if (empty($series)) return '';
+    $name = str_replace(['/', '\\', '..', "\0"], '', $series);
+    $name = trim($name);
+    return $name === '' ? '_' : $name;
 }
 
 function success($data = []) {

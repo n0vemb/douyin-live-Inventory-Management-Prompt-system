@@ -33,7 +33,7 @@ if (!empty($conditions)) {
     $sql .= ' WHERE ' . implode(' AND ', $conditions);
 }
 
-$sql .= ' ORDER BY p.updated_at DESC';
+$sql .= ' ORDER BY (SELECT MAX(ib.purchased_at) FROM inventory_batches ib WHERE ib.product_id = p.id) DESC, p.id DESC';
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);

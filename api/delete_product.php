@@ -17,6 +17,19 @@ if (empty($productIds)) {
 
 $pdo = getDB();
 
+// 先收集所有要删除的商品的图片路径
+$imagesToDelete = [];
+foreach ($productIds as $productId) {
+    $productId = intval($productId);
+    if ($productId <= 0) continue;
+    $stmt = $pdo->prepare('SELECT image_url FROM products WHERE id = ?');
+    $stmt->execute([$productId]);
+    $row = $stmt->fetch();
+    if ($row && !empty($row['image_url'])) {
+        $imagesToDelete[] = $row['image_url'];
+    }
+}
+
 $pdo->beginTransaction();
 
 try {
@@ -38,6 +51,12 @@ try {
     }
 
     $pdo->commit();
+
+    // 清理所有商品的本地图片文件
+    foreach ($imagesToDelete as $url) {
+        deleteImageFile($url);
+    }
+
     success();
 
 } catch (Exception $e) {

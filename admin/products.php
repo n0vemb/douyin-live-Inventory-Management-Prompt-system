@@ -59,7 +59,7 @@ require_once __DIR__ . '/layout.php';
                         <th>条码</th>
                         <th>商品名称</th>
                         <th>系列</th>
-                        <th>参考价</th>
+                        <th>简介</th>
                         <th>库存状态</th>
                         <th>库存总量</th>
                         <th>进价</th>
@@ -406,6 +406,11 @@ require_once __DIR__ . '/layout.php';
     let productDetails = {};
     let currentProductDetailId = null;
 
+    function escapeHtml(text) {
+        if (!text) return '';
+        return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
     async function loadProducts() {
         try {
             const res = await fetch('../api/list_products.php');
@@ -497,7 +502,7 @@ require_once __DIR__ . '/layout.php';
                     <td><code style="background:var(--bg-hover);padding:4px 8px;border-radius:4px;">${p.barcode}</code></td>
                     <td>${nameDisplay}</td>
                     <td>${p.series || '-'}</td>
-                    <td style="font-size:18px;font-weight:bold;color:var(--danger);">${p.qiandao_price ? '¥' + parseFloat(p.qiandao_price).toFixed(2) : '-'}</td>
+                    <td style="text-align:center;">${p.product_description ? '<span style="display:inline-block;width:12px;height:12px;background:#34d399;border-radius:50%;" title="' + escapeHtml(p.product_description) + '"></span>' : ''}</td>
                     <td style="cursor:pointer;" onclick="showStockDetail(${p.id}, '${p.common_name || p.name}')">
                         ${inventoryHtml}
                         <div style="font-size:12px;color:var(--text-secondary);margin-top:5px;">点击查看详情 ▼</div>
@@ -804,6 +809,10 @@ require_once __DIR__ . '/layout.php';
 
         const formData = new FormData();
         formData.append('image', file);
+        const series = document.getElementById('productSeries').value.trim();
+        if (series) {
+            formData.append('series', series);
+        }
 
         try {
             const res = await fetch('../api/upload_image.php', {
@@ -861,10 +870,15 @@ require_once __DIR__ . '/layout.php';
 
             const result = await res.json();
             if (result.success) {
-                alert(id ? '修改成功' : '添加成功');
                 closeModal('productModal');
                 productDetails = {};
-                loadProducts();
+                // 保持筛选状态重新加载
+                const currentSeries = document.getElementById('seriesFilter').value;
+                const currentKeyword = document.getElementById('searchInput').value;
+                await loadProducts();
+                document.getElementById('seriesFilter').value = currentSeries;
+                document.getElementById('searchInput').value = currentKeyword;
+                searchProducts();
             } else {
                 alert(result.error || '保存失败');
             }

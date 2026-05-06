@@ -50,6 +50,7 @@ require_once __DIR__ . '/layout.php';
                         <th>状态</th>
                         <th>数量</th>
                         <th>售价</th>
+                        <th>操作</th>
                     </tr>
                 </thead>
                 <tbody id="purchaseLogList"></tbody>
@@ -81,10 +82,25 @@ require_once __DIR__ . '/layout.php';
                         </select>
                     </div>
 
+                    <div class="form-group" style="margin-top:12px;">
+                        <label class="form-label">打印机（留空使用系统默认）</label>
+                        <input type="text" class="form-input" id="printerName" placeholder="例如: Brother_QL_820NWB" style="font-size:13px;">
+                    </div>
+
                     <div style="display:flex; gap:10px; margin-top:20px;">
                         <button type="button" class="btn btn-secondary" onclick="openEditor()" style="flex:1;">✏️ 编辑模板</button>
                         <button type="button" class="btn btn-primary" onclick="previewLabels()" style="flex:1;">👁️ 预览</button>
-                        <button type="button" class="btn btn-success" onclick="printLabels()" style="flex:1;">🖨️ 打印</button>
+                        <button type="button" class="btn btn-success" onclick="directPrint()" style="flex:1;">🖨️ 直打</button>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:8px;">
+                        <button type="button" class="btn btn-secondary" onclick="printLabels()" style="flex:0.5; font-size:12px;">🖨️ 浏览器打印</button>
+                    </div>
+                    <div style="margin-top:12px; padding:10px; background:#fff3cd; border-radius:6px; font-size:12px; color:#856404; line-height:1.6;">
+                        ⚠️ 打印前请在浏览器打印对话框中设置：<br>
+                        <strong>纸张尺寸</strong> = 匹配标签纸（如 60×40mm 或自定义）、
+                        <strong>边距</strong> = 无、
+                        <strong>缩放</strong> = 100、
+                        <strong>页眉页脚</strong> = 关闭
                     </div>
                 </div>
             </div>
@@ -514,6 +530,17 @@ require_once __DIR__ . '/layout.php';
                     opt.textContent = template.name;
                     select.appendChild(opt);
                 });
+
+                // 恢复上次使用的模板，如果没有则默认第一个
+                const savedIndex = localStorage.getItem('ppmart_last_template');
+                if (savedIndex !== null && labelTemplates[savedIndex]) {
+                    select.value = savedIndex;
+                    currentTemplateIndex = savedIndex;
+                } else if (labelTemplates.length > 0) {
+                    select.value = '0';
+                    currentTemplateIndex = '0';
+                    localStorage.setItem('ppmart_last_template', '0');
+                }
             })
             .catch(err => {
                 console.error('加载模板失败:', err);
@@ -656,7 +683,7 @@ require_once __DIR__ . '/layout.php';
                 renderPagination(data.data.total, data.data.page_size);
             } else {
                 document.getElementById('purchaseLogList').innerHTML = 
-                    '<tr><td colspan="8" style="text-align:center;color:var(--text-tertiary);padding:40px;">' + (data.error || '暂无入库记录') + '</td></tr>';
+                    '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary);padding:40px;">' + (data.error || '暂无入库记录') + '</td></tr>';
                 document.getElementById('pagination').innerHTML = '';
             }
         } catch (err) {
@@ -668,7 +695,7 @@ require_once __DIR__ . '/layout.php';
     function renderPurchaseLogs(records) {
         const tbody = document.getElementById('purchaseLogList');
         if (!records || records.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无入库记录</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无入库记录</td></tr>';
             return;
         }
 
@@ -687,6 +714,7 @@ require_once __DIR__ . '/layout.php';
                     <td><span class="condition-badge ${getConditionClass(r.condition_type)}">${getConditionName(r.condition_type)}</span></td>
                     <td style="font-weight:bold;">${r.qty}</td>
                     <td style="color:var(--danger); font-weight:bold;">¥${parseFloat(r.suggested_price).toFixed(2)}</td>
+                    <td><button class="btn btn-sm btn-success" onclick="singlePrint(${r.batch_id})" style="font-size:12px;white-space:nowrap;">🖨️ 打印</button></td>
                 </tr>
             `;
         }).join('');
@@ -781,9 +809,16 @@ require_once __DIR__ . '/layout.php';
         });
         document.getElementById('selectedItemsSummary').innerHTML = summaryHtml || '<div style="color:var(--text-tertiary);">暂无选中</div>';
 
-        currentTemplateIndex = '';
-        document.getElementById('labelTemplate').value = '';
-        
+        // 恢复上次使用的模板，没有则默认第一个
+        const savedIndex = localStorage.getItem('ppmart_last_template');
+        if (savedIndex !== null && labelTemplates[savedIndex]) {
+            currentTemplateIndex = savedIndex;
+            document.getElementById('labelTemplate').value = savedIndex;
+        } else if (labelTemplates.length > 0) {
+            currentTemplateIndex = '0';
+            document.getElementById('labelTemplate').value = '0';
+        }
+
         showModal('printModal');
     }
 
@@ -924,9 +959,125 @@ require_once __DIR__ . '/layout.php';
     function printLabels() {
         const template = getSelectedTemplate();
         if (!template) return;
-        
+
         closeModal('printModal');
         printLabelsFromTemplate(template);
+    }
+
+    function directPrint() {
+        const template = getSelectedTemplate();
+        if (!template) return;
+
+        if (!selectedItems.length) {
+            alert('请先选择要打印的商品');
+            return;
+        }
+
+        const printerName = document.getElementById('printerName').value.trim();
+
+        const batchQty = {};
+        selectedItems.forEach(item => { batchQty[item.batch_id] = item.qty; });
+        const batchIds = selectedItems.map(item => item.batch_id);
+
+        const btn = document.querySelector('.btn-success');
+        const origText = btn.textContent;
+        btn.textContent = '⏳ 正在打印...';
+        btn.disabled = true;
+
+        fetch('../api/direct_print.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                batch_ids: batchIds,
+                batch_qty: batchQty,
+                template: {
+                    canvasWidth: template.canvasWidth,
+                    canvasHeight: template.canvasHeight,
+                    elements: template.elements
+                },
+                printer: printerName
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeModal('printModal');
+                alert('✅ ' + (data.message || '打印完成'));
+            } else {
+                alert('❌ ' + (data.error || '打印失败'));
+            }
+        })
+        .catch(err => {
+            alert('❌ 请求失败: ' + err.message);
+        })
+        .finally(() => {
+            btn.textContent = origText;
+            btn.disabled = false;
+        });
+    }
+
+    function singlePrint(batchId) {
+        let template = getSelectedTemplate();
+        if (!template) {
+            // 尝试从 localStorage 恢复上次使用的模板，没有则默认第一个
+            const savedIndex = localStorage.getItem('ppmart_last_template');
+            if (savedIndex !== null && labelTemplates[savedIndex]) {
+                template = labelTemplates[savedIndex];
+                document.getElementById('labelTemplate').value = savedIndex;
+            } else if (labelTemplates.length > 0) {
+                template = labelTemplates[0];
+                document.getElementById('labelTemplate').value = '0';
+                localStorage.setItem('ppmart_last_template', '0');
+            } else {
+                alert('请先创建一个标签模板');
+                return;
+            }
+        }
+
+        const record = allRecords.find(r => r.batch_id === batchId);
+        if (!record) {
+            alert('未找到该记录');
+            return;
+        }
+
+        const qtyInput = prompt('请输入打印张数：', '1');
+        if (qtyInput === null) return;
+        const qty = parseInt(qtyInput);
+        if (isNaN(qty) || qty < 1) {
+            alert('请输入有效数量');
+            return;
+        }
+
+        const printerName = document.getElementById('printerName').value.trim();
+
+        const batchQty = {};
+        batchQty[batchId] = qty;
+
+        fetch('../api/direct_print.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                batch_ids: [batchId],
+                batch_qty: batchQty,
+                template: {
+                    canvasWidth: template.canvasWidth,
+                    canvasHeight: template.canvasHeight,
+                    elements: template.elements
+                },
+                printer: printerName
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('✅ ' + (data.message || '打印完成'));
+            } else {
+                alert('❌ ' + (data.error || '打印失败'));
+            }
+        })
+        .catch(err => {
+            alert('❌ 请求失败: ' + err.message);
+        });
     }
 
     function printLabelsFromTemplate(template) {
@@ -940,7 +1091,7 @@ require_once __DIR__ . '/layout.php';
         let html = '';
         selectedItems.forEach(item => {
             for (let i = 0; i < item.qty; i++) {
-                html += `<div class="label-page" style="position:relative; width:${template.canvasWidth}mm; height:${template.canvasHeight}mm; filter:${densityFilter[density]}; box-sizing:border-box; overflow:visible; page-break-after:always;">`;
+                html += `<div class="label-page" style="position:relative; width:${template.canvasWidth}mm; min-height:${template.canvasHeight}mm; height:${template.canvasHeight}mm; filter:${densityFilter[density]}; box-sizing:border-box; overflow:hidden; page-break-after:always; page-break-inside:avoid; break-inside:avoid;">`;
 
                 template.elements.forEach(el => {
                     const content = getElementContentForItem(el.type, item);
@@ -980,20 +1131,30 @@ require_once __DIR__ . '/layout.php';
             <style>
                 @media print {
                     @page {
-                        margin: 0;
+                        margin: 0mm;
                         size: ${template.canvasWidth}mm ${template.canvasHeight}mm;
                     }
-                    body {
+                    html, body {
                         margin: 0;
                         padding: 0;
+                    }
+                    .label-page {
+                        margin: 0;
+                        padding: 0;
+                        page-break-after: always;
+                        page-break-inside: avoid;
+                        overflow: hidden;
                     }
                     .label-page:last-child {
                         page-break-after: avoid;
                     }
                 }
-                body {
+                html, body {
                     margin: 0;
                     padding: 0;
+                }
+                * {
+                    box-sizing: border-box;
                 }
                 div {
                     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
@@ -1178,7 +1339,10 @@ waitForJsBarcode(function() {
     document.getElementById('labelTemplate').addEventListener('change', function() {
         currentTemplateIndex = this.value;
         if (this.value !== '') {
+            localStorage.setItem('ppmart_last_template', this.value);
             loadTemplateToEditor(this.value);
+        } else {
+            localStorage.removeItem('ppmart_last_template');
         }
     });
     </script>

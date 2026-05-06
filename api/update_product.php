@@ -21,6 +21,12 @@ if (empty($productId) || empty($name) || empty($barcode)) {
 
 $pdo = getDB();
 
+// 读取旧的 image_url，用于后续清理旧文件
+$stmt = $pdo->prepare('SELECT image_url FROM products WHERE id = ?');
+$stmt->execute([$productId]);
+$oldProduct = $stmt->fetch();
+$oldImageUrl = $oldProduct ? $oldProduct['image_url'] : null;
+
 $stmt = $pdo->prepare('SELECT id FROM products WHERE barcode = ? AND id != ?');
 $stmt->execute([$barcode, $productId]);
 if ($stmt->fetch()) {
@@ -29,6 +35,11 @@ if ($stmt->fetch()) {
 
 $stmt = $pdo->prepare('UPDATE products SET name = ?, common_name = ?, series = ?, brand = ?, barcode = ?, qiandao_price = ?, release_date = ?, product_description = ?, image_url = ?, remark = ? WHERE id = ?');
 $stmt->execute([$name, $commonName, $series, $brand, $barcode, $qiandaoPrice, $releaseDate, $productDescription, $imageUrl, $remark, $productId]);
+
+// 清理旧图片：如果 image_url 发生变化且旧图片是本地上传的
+if ($oldImageUrl !== null && $oldImageUrl !== $imageUrl) {
+    deleteImageFile($oldImageUrl);
+}
 
 $stmt = $pdo->prepare('SELECT * FROM products WHERE id = ?');
 $stmt->execute([$productId]);
