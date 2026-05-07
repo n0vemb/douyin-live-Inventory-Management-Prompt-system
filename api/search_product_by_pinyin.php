@@ -2,10 +2,10 @@
 require_once __DIR__ . '/../config.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
-$rawKeyword = trim($input['keyword'] ?? '');
+$keyword = trim($input['keyword'] ?? '');
 $liveSessionId = $input['live_session_id'] ?? null;
 
-if (empty($rawKeyword)) {
+if (empty($keyword)) {
     error('请提供搜索关键词');
 }
 
@@ -13,8 +13,7 @@ if (empty($liveSessionId)) {
     error('请提供直播场次ID');
 }
 
-// 将 zh/ch/sh 简化为 z/c/s，方便拼音不好时也能搜到
-$keyword = str_replace(['zh', 'ch', 'sh'], ['z', 'c', 's'], $rawKeyword);
+// 存量数据用的是每个字拼音的首字母格式（失衡→sh），输入什么就搜什么
 
 $pdo = getDB();
 

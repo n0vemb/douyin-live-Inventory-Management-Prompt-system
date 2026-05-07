@@ -129,14 +129,11 @@ async function loadProductsFallback() {
 function getInitials(name) {
     if (!name) return '';
     try {
-        // 取每个字拼音的首字母（零声母字也能拿到 a/o/e 等）
+        // 每个字拼音的首字母（零声母字也能拿到 a/o/e），天然已简化 zh/ch/sh
         return pinyin(name, { toneType: 'none' })
             .split(/\s+/)
             .map(s => s[0] || '')
-            .join('')
-            .replace(/zh/g, 'z')
-            .replace(/ch/g, 'c')
-            .replace(/sh/g, 's');
+            .join('');
     } catch (e) {
         return '';
     }
