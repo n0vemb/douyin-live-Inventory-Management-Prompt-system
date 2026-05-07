@@ -15,6 +15,18 @@ try {
     $stmt->execute([$monthStart]);
     $monthOutbound = $stmt->fetchAll() ?: [];
 
+    // 也查直播销售记录（直播售出只写 sales_log，不走 outbound_log）
+    $stmt = $pdo->prepare("
+        SELECT sl.qty, sl.sale_price, sl.sold_at,
+            (SELECT MIN(ib.purchase_price) FROM inventory_batches ib
+             WHERE ib.product_id = sl.product_id AND ib.condition_type = sl.condition_type
+             AND ib.remaining_qty > 0 AND ib.purchase_price > 0 LIMIT 1) as purchase_price
+        FROM sales_log sl
+        WHERE sl.sold_at >= ?
+    ");
+    $stmt->execute([$monthStart]);
+    $monthSalesLog = $stmt->fetchAll() ?: [];
+
     $todaySalesAmount = 0;
     $todayProfit = 0;
     $monthSalesAmount = 0;
@@ -31,6 +43,22 @@ try {
         $monthProfit += $profit;
 
         if (strpos($o['outbound_at'], $today) === 0) {
+            $todaySalesAmount += $amount;
+            $todayProfit += $profit;
+        }
+    }
+
+    foreach ($monthSalesLog as $s) {
+        $qty = intval($s['qty']);
+        $price = floatval($s['sale_price']);
+        $cost = floatval($s['purchase_price'] ?? 0);
+        $amount = $qty * $price;
+        $profit = $qty * ($price - $cost);
+
+        $monthSalesAmount += $amount;
+        $monthProfit += $profit;
+
+        if (strpos($s['sold_at'], $today) === 0) {
             $todaySalesAmount += $amount;
             $todayProfit += $profit;
         }

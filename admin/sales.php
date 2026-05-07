@@ -78,9 +78,13 @@ require_once __DIR__ . '/layout.php';
         const sessionId = document.getElementById('sessionFilter').value;
 
         let url = '../api/list_sales.php?limit=500';
-        if (startDate) url += '&start_date=' + startDate;
-        if (endDate) url += '&end_date=' + endDate;
-        if (sessionId) url += '&live_session_id=' + sessionId;
+        // 指定了具体场次就不再加日期筛选，避免场次不在本月时查不到
+        if (sessionId) {
+            url += '&live_session_id=' + sessionId;
+        } else {
+            if (startDate) url += '&start_date=' + startDate;
+            if (endDate) url += '&end_date=' + endDate;
+        }
 
         try {
             const res = await fetch(url);
@@ -155,18 +159,34 @@ require_once __DIR__ . '/layout.php';
         `}).join('');
     }
 
+    // 从 URL 读取 session_id 参数（从场次报表跳转过来）
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlSessionId = urlParams.get('session_id');
+
     const today = new Date();
     document.getElementById('endDate').value = today.toISOString().split('T')[0];
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
     document.getElementById('startDate').value = firstDay.toISOString().split('T')[0];
 
-    loadSessions();
+    loadSessions().then(() => {
+        // 如果 URL 有 session_id，预选对应的场次
+        if (urlSessionId) {
+            const select = document.getElementById('sessionFilter');
+            select.value = urlSessionId;
+        }
+    });
     async function initializePage() {
         await loadSettings();
+        // 传 session_id 到后端，即使在本月之外也能查到
         await loadSales();
     }
 
     initializePage();
+
+    // 场次筛选变更时自动刷新
+    document.getElementById('sessionFilter').addEventListener('change', loadSales);
+    document.getElementById('startDate').addEventListener('change', loadSales);
+    document.getElementById('endDate').addEventListener('change', loadSales);
     </script>
 </body>
 </html>
