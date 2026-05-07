@@ -168,17 +168,13 @@ require_once __DIR__ . '/layout.php';
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
     document.getElementById('startDate').value = firstDay.toISOString().split('T')[0];
 
-    loadSessions().then(() => {
-        // 如果 URL 有 session_id，预选对应的场次
-        if (urlSessionId) {
-            const select = document.getElementById('sessionFilter');
-            select.value = urlSessionId;
-        }
-    });
     async function initializePage() {
         await loadSettings();
-        // 传 session_id 到后端，即使在本月之外也能查到
-        await loadSales();
+        await loadSessions(); // 先等场次列表加载完毕
+        if (urlSessionId) {
+            document.getElementById('sessionFilter').value = urlSessionId;
+        }
+        await loadSales(); // 再加载销售数据（此时筛选条件已设置）
     }
 
     initializePage();

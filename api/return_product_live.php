@@ -64,7 +64,16 @@ try {
     $stmt = $pdo->prepare('UPDATE live_inventory SET current_stock = ? WHERE id = ?');
     $stmt->execute([$afterQty, $liveInv['id']]);
 
-    // 只添加 inventory_log 记录，不要删除 sales_log，否则 total_sold 会出错
+    // 更新 sales_log 的 returned_qty（取最近一条可退的记录）
+    $stmt = $pdo->prepare('
+        UPDATE sales_log SET returned_qty = returned_qty + 1
+        WHERE product_id = ? AND condition_type = ? AND live_session_id = ?
+        AND returned_qty < qty
+        ORDER BY id DESC LIMIT 1
+    ');
+    $stmt->execute([$productId, $conditionType, $liveSessionId]);
+
+    // 记录 inventory_log
     $stmt = $pdo->prepare('
         INSERT INTO inventory_log
         (product_id, condition_type, change_type, qty_change, before_qty, after_qty, live_session_id, remark)

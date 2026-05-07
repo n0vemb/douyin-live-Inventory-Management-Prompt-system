@@ -37,7 +37,7 @@ $since = date('Y-m-d', strtotime("-{$days} days"));
 
 // sales_log (直播销售)
 $stmt = $pdo->prepare("
-    SELECT {$labelExpr} AS date_label, SUM(sale_price * qty) AS amount, SUM(qty) AS qty
+    SELECT {$labelExpr} AS date_label, SUM(sale_price * (qty - returned_qty)) AS amount, SUM(qty - returned_qty) AS qty
     FROM sales_log
     WHERE sold_at >= ?
     GROUP BY date_label

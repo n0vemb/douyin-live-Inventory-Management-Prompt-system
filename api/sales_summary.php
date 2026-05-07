@@ -17,7 +17,7 @@ try {
 
     // 也查直播销售记录（直播售出只写 sales_log，不走 outbound_log）
     $stmt = $pdo->prepare("
-        SELECT sl.qty, sl.sale_price, sl.sold_at,
+        SELECT sl.qty, sl.returned_qty, sl.sale_price, sl.sold_at,
             (SELECT MIN(ib.purchase_price) FROM inventory_batches ib
              WHERE ib.product_id = sl.product_id AND ib.condition_type = sl.condition_type
              AND ib.remaining_qty > 0 AND ib.purchase_price > 0 LIMIT 1) as purchase_price
@@ -49,7 +49,7 @@ try {
     }
 
     foreach ($monthSalesLog as $s) {
-        $qty = intval($s['qty']);
+        $qty = intval($s['qty']) - intval($s['returned_qty'] ?? 0);
         $price = floatval($s['sale_price']);
         $cost = floatval($s['purchase_price'] ?? 0);
         $amount = $qty * $price;

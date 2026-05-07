@@ -88,6 +88,33 @@
         .search-mode-badge.show {
             display: inline;
         }
+        .kb-mode-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 10px;
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: all 0.3s;
+            user-select: none;
+            margin-left: 6px;
+            white-space: nowrap;
+        }
+        .kb-mode-badge.input-mode {
+            background: rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.45);
+        }
+        .kb-mode-badge.shortcut-mode {
+            background: var(--primary);
+            color: #fff;
+            animation: mode-pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes mode-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(94,92,230,0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(94,92,230,0); }
+        }
         .search-results {
             position: absolute;
             bottom: calc(100% + 8px);
@@ -707,6 +734,7 @@
             <span class="search-icon">🔍</span>
             <input type="text" id="barcodeInput" autocomplete="off" placeholder="扫码或输入拼音首字母搜索...">
             <span class="search-mode-badge" id="searchModeBadge">条码</span>
+            <span class="kb-mode-badge input-mode" id="kbModeBadge" title="点击切换">🔤 输入</span>
         </div>
         <div class="search-results" id="searchResults"></div>
     </div>
@@ -764,6 +792,7 @@
         <span>左键减 · 中键加</span>
         <span><kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd> 改价</span>
         <span><kbd>Space</kbd> 关闭</span>
+        <span><kbd>ESC</kbd> 切换模式</span>
     </div>
 
     <div class="broadcast-overlay" id="broadcastOverlay">
@@ -958,16 +987,48 @@
                     document.getElementById('liveSessionInfo').textContent = '❌ 连接失败';
                 });
 
-            document.getElementById('barcodeInput').focus();
+            if (!currentProduct) document.getElementById('barcodeInput').focus();
 
             document.getElementById('barcodeInput').addEventListener('input', handleInputChange);
             document.getElementById('barcodeInput').addEventListener('keydown', handleSearchKeydown);
             document.getElementById('barcodeInput').addEventListener('click', function() {
+                if (keyboardMode === 'shortcut') {
+                    setKeyboardMode('input');
+                    return;
+                }
                 if (currentProduct && !isPinyinSearch) {
                     this.select();
                 }
             });
         }
+
+        let keyboardMode = 'input';
+        let shortcutModeTimer = null;
+
+        function setKeyboardMode(mode) {
+            keyboardMode = mode;
+            const badge = document.getElementById('kbModeBadge');
+            const input = document.getElementById('barcodeInput');
+            clearTimeout(shortcutModeTimer);
+
+            if (mode === 'shortcut') {
+                badge.className = 'kb-mode-badge shortcut-mode';
+                badge.innerHTML = '⌨️ 快捷键';
+                input.blur();
+                shortcutModeTimer = setTimeout(() => setKeyboardMode('input'), 10000);
+            } else {
+                badge.className = 'kb-mode-badge input-mode';
+                badge.innerHTML = '🔤 输入';
+                input.focus();
+            }
+        }
+
+        // 点击模式标签切换
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('#kbModeBadge')) {
+                setKeyboardMode(keyboardMode === 'input' ? 'shortcut' : 'input');
+            }
+        });
 
         function handleInputChange(e) {
             clearTimeout(scanDebounceTimer);
@@ -1045,6 +1106,8 @@
                     e.preventDefault();
                     e.stopPropagation();
                     hideSearchResults();
+                    // ESC handled by global keydown (mode toggle)
+                    // stopPropagation prevents double-firing
                 }
             }
         }
@@ -1459,51 +1522,72 @@
             document.getElementById('productDisplay').classList.add('show');
             document.getElementById('keyboardHint').classList.add('show');
 
-            setTimeout(() => {
-                document.getElementById('barcodeInput').focus();
-            }, 100);
+            // 保持当前键盘模式（input = 继续聚焦, shortcut = 已失焦）
         }
 
         document.addEventListener('keydown', function(e) {
             if (!currentProduct) return;
-            if (e.target.id === 'newPriceInput' || e.target.id === 'barcodeInput') return;
 
-            const isNumpad = e.location === 3;
-
-            if (isNumpad) {
-                if (['1', '2', '3', '4'].includes(e.key)) {
-                    const num = parseInt(e.key);
-                    if (e.shiftKey) {
-                        e.preventDefault();
-                        addItem(CONDITION_TYPES_CN[num - 1]);
-                    } else {
-                        e.preventDefault();
-                        sellItem(CONDITION_TYPES_CN[num - 1]);
-                    }
-                    return;
+            // newPriceInput: only handle ESC to close modal, skip everything else
+            if (e.target.id === 'newPriceInput') {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    closePriceModal();
                 }
+                return;
             }
 
-            if (['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'].includes(e.key.toLowerCase())) {
-                e.preventDefault();
-                const index = CONDITION_KEYS[e.key.toLowerCase()];
-                if (index !== undefined && CONDITION_TYPES_CN[index]) {
-                    openPriceModal(CONDITION_TYPES_CN[index]);
-                }
-            }
-
+            // Space: always close product regardless of mode
             if (e.key === ' ' || e.key === 'Spacebar') {
                 e.preventDefault();
                 closeProduct();
+                return;
             }
 
+            // ESC: close price modal → hide search → toggle mode
             if (e.key === 'Escape') {
                 e.preventDefault();
                 if (document.getElementById('priceModal').classList.contains('show')) {
                     closePriceModal();
-                } else {
-                    closeProduct();
+                    return;
                 }
+                if (document.getElementById('searchResults').classList.contains('show')) {
+                    hideSearchResults();
+                    return;
+                }
+                // Toggle keyboard mode
+                setKeyboardMode(keyboardMode === 'input' ? 'shortcut' : 'input');
+                return;
+            }
+
+            // Input mode: no shortcuts (except Space/ESC above)
+            if (keyboardMode === 'input') return;
+
+            // Shortcut mode: process shortcuts (Numpad 1-4, QWER)
+            const isNumpad = e.location === 3;
+
+            if (isNumpad && ['1', '2', '3', '4'].includes(e.key)) {
+                e.preventDefault();
+                clearTimeout(shortcutModeTimer);
+                shortcutModeTimer = setTimeout(() => setKeyboardMode('input'), 10000);
+                const num = parseInt(e.key);
+                if (e.shiftKey) {
+                    addItem(CONDITION_TYPES_CN[num - 1]);
+                } else {
+                    sellItem(CONDITION_TYPES_CN[num - 1]);
+                }
+                return;
+            }
+
+            if (['q', 'w', 'e', 'r'].includes(e.key.toLowerCase())) {
+                e.preventDefault();
+                clearTimeout(shortcutModeTimer);
+                shortcutModeTimer = setTimeout(() => setKeyboardMode('input'), 10000);
+                const index = CONDITION_KEYS[e.key.toLowerCase()];
+                if (index !== undefined && CONDITION_TYPES_CN[index]) {
+                    openPriceModal(CONDITION_TYPES_CN[index]);
+                }
+                return;
             }
         });
 
@@ -1623,7 +1707,9 @@
         function closePriceModal() {
             document.getElementById('priceModal').classList.remove('show');
             currentPriceChangeCondition = null;
-            document.getElementById('barcodeInput').focus();
+            if (keyboardMode === 'input') {
+                document.getElementById('barcodeInput').focus();
+            }
         }
 
         function confirmPriceChange() {
@@ -1709,7 +1795,7 @@
             hideSearchResults();
             document.getElementById('searchModeBadge').classList.remove('show');
             document.getElementById('barcodeInput').value = '';
-            document.getElementById('barcodeInput').focus();
+            setKeyboardMode('input');
         }
 
         function showToast(message) {
@@ -1853,14 +1939,14 @@
         setInterval(checkForConfigUpdates, 200);
 
         setInterval(() => {
-            if (document.activeElement.id !== 'newPriceInput') {
+            if (keyboardMode === 'input' && document.activeElement.id !== 'newPriceInput') {
                 document.getElementById('barcodeInput').focus();
             }
         }, 1000);
 
         document.addEventListener('click', function(e) {
-            if (e.target.closest('.price-modal') || e.target.closest('.voice-toggle') || e.target.closest('.search-results')) return;
-            if (document.activeElement.id !== 'newPriceInput') {
+            if (e.target.closest('.price-modal') || e.target.closest('.voice-toggle') || e.target.closest('.search-results') || e.target.closest('#kbModeBadge')) return;
+            if (keyboardMode === 'input' && document.activeElement.id !== 'newPriceInput') {
                 document.getElementById('barcodeInput').focus();
             }
         });
