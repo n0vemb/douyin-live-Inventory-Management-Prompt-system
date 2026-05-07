@@ -50,6 +50,7 @@ register_shutdown_function(function() {
 
 header('Content-Type: application/json');
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/pinyin_helper.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -237,13 +238,15 @@ try {
                 }
 
                 // 插入商品
+                $pinyinInitials = generatePinyinInitials($product['name']);
                 $stmt = $pdo->prepare("
-                    INSERT INTO products (name, common_name, series, brand, barcode, qiandao_price, release_date, product_description, image_url, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                    INSERT INTO products (name, pinyin_initials, common_name, series, brand, barcode, qiandao_price, release_date, product_description, image_url, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
                 ");
 
                 $stmt->execute([
                     $product['name'],
+                    $pinyinInitials,
                     $product['common_name'],
                     $product['series'],
                     $product['brand'],

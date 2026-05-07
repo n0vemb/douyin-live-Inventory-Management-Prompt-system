@@ -34,11 +34,122 @@
             color: var(--text);
         }
 
-        #barcodeInput {
+        .search-bar-container {
+            position: fixed;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 520px;
+            max-width: 90vw;
+            z-index: 100;
+        }
+        .search-bar {
+            display: flex;
+            align-items: center;
+            background: rgba(30, 30, 50, 0.92);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 0 16px;
+            backdrop-filter: blur(12px);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .search-bar:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+        .search-bar .search-icon {
+            font-size: 18px;
+            margin-right: 10px;
+            opacity: 0.5;
+            flex-shrink: 0;
+        }
+        .search-bar input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text);
+            font-size: 18px;
+            height: 48px;
+            font-family: inherit;
+        }
+        .search-bar input::placeholder {
+            color: var(--text-tertiary);
+        }
+        .search-mode-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: var(--primary-light);
+            color: var(--primary);
+            flex-shrink: 0;
+            display: none;
+        }
+        .search-mode-badge.show {
+            display: inline;
+        }
+        .search-results {
             position: absolute;
-            left: -9999px;
-            width: 1px;
-            height: 1px;
+            bottom: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            background: rgba(26, 26, 38, 0.96);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+            display: none;
+            max-height: 320px;
+            overflow-y: auto;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .search-results.show {
+            display: block;
+        }
+        .search-results::-webkit-scrollbar {
+            width: 4px;
+        }
+        .search-results::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 2px;
+        }
+        .search-result-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid rgba(42, 42, 58, 0.5);
+            transition: background 0.15s;
+        }
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+        .search-result-item:hover,
+        .search-result-item.active {
+            background: rgba(94, 92, 230, 0.15);
+        }
+        .search-result-item .result-name {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text);
+        }
+        .search-result-item .result-barcode {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            margin-top: 2px;
+        }
+        .search-result-item .result-stock {
+            margin-left: auto;
+            font-size: 13px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        .search-result-empty {
+            padding: 20px;
+            text-align: center;
+            color: var(--text-tertiary);
+            font-size: 14px;
         }
 
         .standby {
@@ -591,7 +702,14 @@
     </style>
 </head>
 <body>
-    <input type="text" id="barcodeInput" autocomplete="off">
+    <div class="search-bar-container">
+        <div class="search-bar">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="barcodeInput" autocomplete="off" placeholder="扫码或输入拼音首字母搜索...">
+            <span class="search-mode-badge" id="searchModeBadge">条码</span>
+        </div>
+        <div class="search-results" id="searchResults"></div>
+    </div>
 
     <div class="standby" id="standbyScreen">
         <div class="standby-icon" id="standbyIcon" style="display:none;">
@@ -681,6 +799,10 @@
         let voiceEnabled = false;
         let lastScannedBarcode = '';
         let scanDebounceTimer = null;
+        let searchDebounceTimer = null;
+        let searchResults = [];
+        let searchSelectedIndex = -1;
+        let isPinyinSearch = false;
         let lastBroadcastId = 0;
         let broadcastTimeout = null;
         let systemSettings = {};
@@ -838,26 +960,92 @@
 
             document.getElementById('barcodeInput').focus();
 
-            document.getElementById('barcodeInput').addEventListener('input', handleBarcodeInput);
-            document.getElementById('barcodeInput').addEventListener('keypress', handleBarcodeKeypress);
+            document.getElementById('barcodeInput').addEventListener('input', handleInputChange);
+            document.getElementById('barcodeInput').addEventListener('keydown', handleSearchKeydown);
+            document.getElementById('barcodeInput').addEventListener('click', function() {
+                if (currentProduct && !isPinyinSearch) {
+                    this.select();
+                }
+            });
         }
 
-        function handleBarcodeInput(e) {
+        function handleInputChange(e) {
             clearTimeout(scanDebounceTimer);
+            clearTimeout(searchDebounceTimer);
             const value = e.target.value;
 
-            scanDebounceTimer = setTimeout(() => {
-                if (value.length >= 5) {
-                    processBarcode(value);
-                    e.target.value = '';
-                }
-            }, 150);
+            if (!value) {
+                isPinyinSearch = false;
+                document.getElementById('searchModeBadge').classList.remove('show');
+                hideSearchResults();
+                return;
+            }
+
+            if (/^\d+$/.test(value)) {
+                // Barcode mode — 纯数字，走扫码流程
+                isPinyinSearch = false;
+                document.getElementById('searchModeBadge').textContent = '条码';
+                document.getElementById('searchModeBadge').classList.add('show');
+                hideSearchResults();
+
+                scanDebounceTimer = setTimeout(() => {
+                    if (value.length >= 5) {
+                        processBarcode(value);
+                        e.target.value = '';
+                        document.getElementById('searchModeBadge').classList.remove('show');
+                    }
+                }, 150);
+            } else if (/[a-zA-Z]/.test(value)) {
+                // Pinyin search mode — 包含字母，走拼音搜索
+                isPinyinSearch = true;
+                document.getElementById('searchModeBadge').textContent = '拼音';
+                document.getElementById('searchModeBadge').classList.add('show');
+
+                const keyword = value.toLowerCase().trim();
+                searchDebounceTimer = setTimeout(() => {
+                    searchByPinyin(keyword);
+                }, 200);
+            } else {
+                // 其他字符（中文等），不处理
+                isPinyinSearch = false;
+                document.getElementById('searchModeBadge').classList.remove('show');
+                hideSearchResults();
+            }
         }
 
-        function handleBarcodeKeypress(e) {
-            if (e.key === 'Enter' && e.target.value.length >= 5) {
-                processBarcode(e.target.value);
-                e.target.value = '';
+        function handleSearchKeydown(e) {
+            const value = e.target.value;
+
+            if (e.key === 'Enter') {
+                if (isPinyinSearch) {
+                    e.preventDefault();
+                    if (searchResults.length > 0) {
+                        const idx = searchSelectedIndex >= 0 ? searchSelectedIndex : 0;
+                        selectSearchResult(idx);
+                    }
+                } else if (/^\d+$/.test(value) && value.length >= 5) {
+                    e.preventDefault();
+                    processBarcode(value);
+                    e.target.value = '';
+                    document.getElementById('searchModeBadge').classList.remove('show');
+                }
+                return;
+            }
+
+            if (isPinyinSearch && searchResults.length > 0) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    searchSelectedIndex = Math.min(searchSelectedIndex + 1, searchResults.length - 1);
+                    highlightSearchItem();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    searchSelectedIndex = Math.max(searchSelectedIndex - 1, -1);
+                    highlightSearchItem();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    hideSearchResults();
+                }
             }
         }
 
@@ -939,6 +1127,111 @@
                 speak('查询失败');
             });
         }
+
+        /* ---- 拼音搜索 ---- */
+        function searchByPinyin(keyword) {
+            if (!liveSessionId) return;
+
+            fetch('api/search_product_by_pinyin.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    keyword: keyword,
+                    live_session_id: liveSessionId
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.data) {
+                    searchResults = data.data;
+                    showSearchResults();
+                } else {
+                    searchResults = [];
+                    showSearchResults();
+                }
+            })
+            .catch(() => {
+                searchResults = [];
+                showSearchResults();
+            });
+        }
+
+        function showSearchResults() {
+            const container = document.getElementById('searchResults');
+            searchSelectedIndex = -1;
+
+            if (!searchResults || searchResults.length === 0) {
+                container.innerHTML = '<div class="search-result-empty">未找到匹配商品</div>';
+                container.classList.add('show');
+                return;
+            }
+
+            container.innerHTML = '';
+            searchResults.forEach((product, index) => {
+                // 计算总库存
+                let totalStock = 0;
+                if (product.inventory) {
+                    Object.values(product.inventory).forEach(info => {
+                        totalStock += parseInt(info.stock || 0);
+                    });
+                }
+
+                const item = document.createElement('div');
+                item.className = 'search-result-item';
+                item.dataset.index = index;
+                item.innerHTML = `
+                    <div>
+                        <div class="result-name">${escapeHtml(product.name)}</div>
+                        <div class="result-barcode">${escapeHtml(product.barcode)} ${product.series ? '· ' + escapeHtml(product.series) : ''}</div>
+                    </div>
+                    <div class="result-stock">库存 ${totalStock}</div>
+                `;
+                item.addEventListener('click', () => selectSearchResult(index));
+                item.addEventListener('mousemove', () => {
+                    searchSelectedIndex = index;
+                    highlightSearchItem();
+                });
+                container.appendChild(item);
+            });
+
+            container.classList.add('show');
+        }
+
+        function hideSearchResults() {
+            document.getElementById('searchResults').classList.remove('show');
+            searchResults = [];
+            searchSelectedIndex = -1;
+        }
+
+        function highlightSearchItem() {
+            const container = document.getElementById('searchResults');
+            const items = container.querySelectorAll('.search-result-item');
+            items.forEach((item, index) => {
+                item.classList.toggle('active', index === searchSelectedIndex);
+                if (index === searchSelectedIndex) {
+                    item.scrollIntoView({ block: 'nearest' });
+                }
+            });
+        }
+
+        function selectSearchResult(index) {
+            const product = searchResults[index];
+            if (!product) return;
+
+            hideSearchResults();
+            document.getElementById('searchModeBadge').classList.remove('show');
+            document.getElementById('barcodeInput').value = '';
+
+            // 通过扫码接口加载完整商品数据（复用现有流程）
+            processBarcode(product.barcode);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        }
+        /* ---- 拼音搜索结束 ---- */
 
         function displayProduct() {
             const p = currentProduct;
@@ -1173,7 +1466,7 @@
 
         document.addEventListener('keydown', function(e) {
             if (!currentProduct) return;
-            if (e.target.id === 'newPriceInput') return;
+            if (e.target.id === 'newPriceInput' || e.target.id === 'barcodeInput') return;
 
             const isNumpad = e.location === 3;
 
@@ -1413,6 +1706,9 @@
             document.getElementById('keyboardHint').classList.remove('show');
             currentProduct = null;
             lastScannedBarcode = '';
+            hideSearchResults();
+            document.getElementById('searchModeBadge').classList.remove('show');
+            document.getElementById('barcodeInput').value = '';
             document.getElementById('barcodeInput').focus();
         }
 
@@ -1563,7 +1859,7 @@
         }, 1000);
 
         document.addEventListener('click', function(e) {
-            if (e.target.closest('.price-modal') || e.target.closest('.voice-toggle')) return;
+            if (e.target.closest('.price-modal') || e.target.closest('.voice-toggle') || e.target.closest('.search-results')) return;
             if (document.activeElement.id !== 'newPriceInput') {
                 document.getElementById('barcodeInput').focus();
             }

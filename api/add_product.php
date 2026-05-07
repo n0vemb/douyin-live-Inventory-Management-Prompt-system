@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/pinyin_helper.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 
@@ -33,8 +34,10 @@ if (empty($barcode) && $barcode !== '0') {
     }
 }
 
-$stmt = $pdo->prepare('INSERT INTO products (name, common_name, series, brand, barcode, qiandao_price, release_date, product_description, image_url, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-$stmt->execute([$name, $commonName, $series, $brand, $barcode, $qiandaoPrice, $releaseDate, $productDescription, $imageUrl, $remark]);
+$pinyinInitials = generatePinyinInitials($name);
+
+$stmt = $pdo->prepare('INSERT INTO products (name, pinyin_initials, common_name, series, brand, barcode, qiandao_price, release_date, product_description, image_url, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+$stmt->execute([$name, $pinyinInitials, $commonName, $series, $brand, $barcode, $qiandaoPrice, $releaseDate, $productDescription, $imageUrl, $remark]);
 $productId = $pdo->lastInsertId();
 
 $stmt = $pdo->prepare('SELECT * FROM products WHERE id = ?');

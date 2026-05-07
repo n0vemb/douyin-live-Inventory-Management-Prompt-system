@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/pinyin_helper.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 
@@ -33,8 +34,10 @@ if ($stmt->fetch()) {
     error('条码已存在');
 }
 
-$stmt = $pdo->prepare('UPDATE products SET name = ?, common_name = ?, series = ?, brand = ?, barcode = ?, qiandao_price = ?, release_date = ?, product_description = ?, image_url = ?, remark = ? WHERE id = ?');
-$stmt->execute([$name, $commonName, $series, $brand, $barcode, $qiandaoPrice, $releaseDate, $productDescription, $imageUrl, $remark, $productId]);
+$pinyinInitials = generatePinyinInitials($name);
+
+$stmt = $pdo->prepare('UPDATE products SET name = ?, pinyin_initials = ?, common_name = ?, series = ?, brand = ?, barcode = ?, qiandao_price = ?, release_date = ?, product_description = ?, image_url = ?, remark = ? WHERE id = ?');
+$stmt->execute([$name, $pinyinInitials, $commonName, $series, $brand, $barcode, $qiandaoPrice, $releaseDate, $productDescription, $imageUrl, $remark, $productId]);
 
 // 清理旧图片：如果 image_url 发生变化且旧图片是本地上传的
 if ($oldImageUrl !== null && $oldImageUrl !== $imageUrl) {
