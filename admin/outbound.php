@@ -5,21 +5,9 @@ require_once __DIR__ . '/layout.php';
 ?>
         <div class="page-title">商品出库</div>
 
-        <div class="card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <div class="search-bar" style="margin:0;">
-                    <input type="text" id="scanInput" placeholder="📷 扫描枪扫码或输入条码..." style="min-width:300px; font-size:18px; padding:12px;">
-                </div>
-                <div>
-                    <button class="btn btn-primary" onclick="showOutboundList()">📋 出库记录</button>
-                    <button class="btn btn-success" onclick="confirmOutbound()" id="confirmBtn" disabled>✅ 确认出库 (<span id="confirmCount">0</span>)</button>
-                </div>
-            </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns: 1fr 400px; gap:20px;">
-            <div class="card">
-                <div class="card-title">🛒 出库商品</div>
+        <div style="display:flex; gap:20px; align-items:flex-start;">
+            <div class="card" style="flex:1;">
+                <div class="card-title">🛒 待出库商品</div>
                 <table id="outboundTable">
                     <thead>
                         <tr>
@@ -40,10 +28,9 @@ require_once __DIR__ . '/layout.php';
                 </div>
             </div>
 
-            <div class="card" style="height:fit-content;">
+            <div class="card" style="width:320px; flex-shrink:0;">
                 <div class="card-title">💰 结算信息</div>
-
-                <div style="background:var(--bg-hover); padding:20px; border-radius:12px; margin-bottom:20px;">
+                <div style="background:var(--bg-hover); padding:20px; border-radius:12px; margin-bottom:16px;">
                     <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
                         <span style="color:var(--text-secondary);">商品种类</span>
                         <span id="totalTypes" style="font-weight:bold;">0</span>
@@ -57,18 +44,87 @@ require_once __DIR__ . '/layout.php';
                         <span id="totalAmount" style="font-weight:bold; color:var(--success);">¥0.00</span>
                     </div>
                 </div>
-
                 <div class="form-group">
                     <label class="form-label">订单号（选填）</label>
                     <input type="text" class="form-input" id="orderNo" placeholder="外部订单号">
                 </div>
-
                 <div class="form-group">
                     <label class="form-label">备注</label>
                     <input type="text" class="form-input" id="outboundRemark" placeholder="备注信息">
                 </div>
+                <div style="display:flex; gap:8px; margin-top:12px;">
+                    <button class="btn btn-primary" onclick="showOutboundList()" style="flex:1;">📋 记录</button>
+                    <button class="btn btn-success" onclick="confirmOutbound()" id="confirmBtn" disabled style="flex:1;">✅ 出库 (<span id="confirmCount">0</span>)</button>
+                </div>
             </div>
         </div>
+
+        <!-- 底部扫码区 -->
+        <div class="scan-bar">
+            <div class="scan-bar-inner">
+                <input type="text" id="scanInput" placeholder="📷 扫描条码..." class="scan-input">
+                <div class="scan-result" id="obResult" style="display:none;">
+                    <span class="sr-product" id="obProductName"></span>
+                    <span class="sr-sep">|</span>
+                    <span class="sr-label">状态</span>
+                    <span class="condition-group" id="conditionGroup">
+                        <button class="sr-arrow" onclick="cycleCondition(-1)">▲</button>
+                        <span class="sr-condition" id="obCondition"></span>
+                        <button class="sr-arrow" onclick="cycleCondition(1)">▼</button>
+                    </span>
+                    <span class="sr-sep">|</span>
+                    <span class="sr-label">售价</span>
+                    <input type="number" id="obPrice" step="0.01" placeholder="0.00" onfocus="this.select()" autocomplete="off">
+                    <button class="btn btn-sm btn-success" onclick="confirmBarAdd()">+ 添加</button>
+                </div>
+            </div>
+        </div>
+
+        <style>
+        .scan-bar {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 20px;
+            margin-bottom: 20px;
+        }
+        .scan-bar-inner {
+            display: flex; align-items: center; justify-content: center; gap: 12px;
+        }
+        .scan-input {
+            width: 260px; font-size: 18px; padding: 10px 16px;
+            border: 2px solid var(--border); border-radius: 8px;
+            background: var(--bg-card); color: var(--text); outline: none;
+            transition: border-color 0.2s; box-sizing: border-box;
+        }
+        .scan-input:focus { border-color: var(--primary); }
+        .scan-result { display: flex; align-items: center; gap: 8px; }
+        .sr-product { font-weight: bold; font-size: 15px; white-space: nowrap; }
+        .sr-sep { color: var(--text-tertiary); font-size: 16px; }
+        .sr-label { font-size: 12px; color: var(--text-secondary); }
+        .sr-condition { font-weight: bold; font-size: 15px; min-width: 60px; text-align: center; color: var(--primary); }
+        .condition-group {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 4px 8px; border: 2px solid transparent; border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .condition-group.active {
+            border-color: var(--primary);
+            background: rgba(99,102,241,0.12);
+            box-shadow: 0 0 12px rgba(99,102,241,0.2);
+        }
+        .sr-arrow {
+            background: var(--bg-card); border: 1px solid var(--border); color: var(--text);
+            padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; line-height: 1;
+        }
+        .sr-arrow:hover { background: var(--primary-light); border-color: var(--primary); }
+        .scan-result input[type="number"] {
+            width: 90px; padding: 6px 10px; border: 2px solid var(--border); border-radius: 6px;
+            background: var(--bg-card); color: var(--success); font-weight: bold; font-size: 16px;
+            text-align: center; outline: none; transition: border-color 0.2s;
+        }
+        .scan-result input[type="number"]:focus { border-color: var(--success); }
+        </style>
 
         <div class="card">
             <div class="card-title">📊 库存概览</div>
@@ -113,16 +169,6 @@ require_once __DIR__ . '/layout.php';
             </table>
         </div>
 
-        <div class="modal" id="scanResultModal">
-            <div class="modal-content"><!-- 扫描结果 -->
-                <div class="modal-header">
-                    <h3 class="modal-title">📷 选择库存</h3>
-                    <button class="modal-close" onclick="closeScanModal()">&times;</button>
-                </div>
-                <div id="scanResultContent"></div>
-            </div>
-        </div>
-
         <div class="modal" id="historyModal">
             <div class="modal-content modal-wide" style="max-height:80vh; overflow-y:auto;">
                 <div class="modal-header">
@@ -137,32 +183,140 @@ require_once __DIR__ . '/layout.php';
     <script>
     let cart = [];
     let stockData = [];
-    let pendingStock = null;
     let scanTimer = null;
     let conditionNameMap = { sealed: '原盒未拆', opened: '拆盒无瑕', boxless: '无盒无瑕', flawed: '微瑕' };
 
+    // ---- 扫码工作流 ----
+    let scanResult = [];    // 当前扫码返回的批次列表
+    let selectedIdx = 0;    // 当前选中的条件索引
+    let phase = 'condition'; // 'condition' | 'price' 扫码工作流阶段
+
+    // 扫码输入：回车触发查询
     document.getElementById('scanInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             const barcode = this.value.trim();
             if (barcode) {
-                searchAndShow(barcode);
+                handleScan(barcode);
                 this.value = '';
             }
         }
     });
 
+    // 扫码枪快速输入自动触发
     document.getElementById('scanInput').addEventListener('input', function(e) {
         clearTimeout(scanTimer);
         if (this.value.length >= 5) {
             scanTimer = setTimeout(() => {
                 const barcode = this.value.trim();
                 if (barcode) {
-                    searchAndShow(barcode);
+                    handleScan(barcode);
                     this.value = '';
                 }
             }, 250);
         }
     });
+
+    // 全局键盘：扫码后箭头切换条件，回车确认
+    document.addEventListener('keydown', function(e) {
+        if (scanResult.length === 0) return;
+
+        if (phase === 'condition') {
+            // 状态选择阶段：上下切换，回车确认进入价格输入
+            if (e.key === 'ArrowUp') { e.preventDefault(); cycleCondition(-1); }
+            else if (e.key === 'ArrowDown') { e.preventDefault(); cycleCondition(1); }
+            else if (e.key === 'Enter') {
+                e.preventDefault();
+                phase = 'price';
+                document.getElementById('conditionGroup').classList.remove('active');
+                document.getElementById('obPrice').focus();
+            }
+        } else if (phase === 'price') {
+            // 价格输入阶段：上下仍可切换状态，回车添加
+            if (e.key === 'ArrowUp') { e.preventDefault(); cycleCondition(-1); }
+            else if (e.key === 'ArrowDown') { e.preventDefault(); cycleCondition(1); }
+            else if (e.key === 'Enter') { e.preventDefault(); confirmBarAdd(); }
+        }
+    });
+
+    // 扫码查询
+    async function handleScan(barcode) {
+        try {
+            const res = await fetch(`../api/search_stock.php?barcode=${encodeURIComponent(barcode)}`);
+            const data = await res.json();
+            if (data.success && data.data && data.data.length > 0) {
+                scanResult = data.data;
+                selectedIdx = 0;
+                showBarResult();
+                // 扫码框失去焦点，避免光标混淆
+                document.getElementById('scanInput').blur();
+                if (scanResult.length === 1) {
+                    // 仅一个状态，直接进入价格阶段
+                    phase = 'price';
+                    document.getElementById('obPrice').focus();
+                } else {
+                    // 多状态，在状态选择阶段等待回车确认
+                    phase = 'condition';
+                    document.getElementById('conditionGroup').classList.add('active');
+                }
+            } else {
+                alert('未找到库存或库存为零');
+                document.getElementById('scanInput').focus();
+            }
+        } catch (err) {
+            console.error(err);
+            alert('查询失败');
+            document.getElementById('scanInput').focus();
+        }
+    }
+
+    // 在浮层显示扫码结果
+    function showBarResult() {
+        const stock = scanResult[selectedIdx];
+        document.getElementById('obProductName').textContent = stock.common_name || stock.product_name;
+        document.getElementById('obCondition').textContent = getConditionName(stock.condition_type);
+        document.getElementById('obPrice').value = parseFloat(stock.suggested_price || 0).toFixed(2);
+        document.getElementById('obResult').style.display = 'block';
+    }
+
+    // 上下切换条件
+    function cycleCondition(delta) {
+        if (scanResult.length === 0) return;
+        selectedIdx = (selectedIdx + delta + scanResult.length) % scanResult.length;
+        const stock = scanResult[selectedIdx];
+        document.getElementById('obCondition').textContent = getConditionName(stock.condition_type);
+        document.getElementById('obPrice').value = parseFloat(stock.suggested_price || 0).toFixed(2);
+    }
+
+    // 确认添加（从浮层加入购物车）
+    function confirmBarAdd() {
+        if (scanResult.length === 0) return;
+        const stock = scanResult[selectedIdx];
+        const price = parseFloat(document.getElementById('obPrice').value);
+        if (!price || price <= 0) {
+            document.getElementById('obPrice').focus();
+            return;
+        }
+        if (stock.remaining_qty < 1) {
+            alert('库存不足');
+            resetBar();
+            return;
+        }
+        stock.suggested_price = price;
+        upsertCartItem(stock, 1);
+        resetBar();
+        renderCart();
+        updateStats();
+    }
+
+    // 重置浮层
+    function resetBar() {
+        phase = 'condition';
+        document.getElementById('conditionGroup').classList.remove('active');
+        scanResult = [];
+        selectedIdx = 0;
+        document.getElementById('obResult').style.display = 'none';
+        document.getElementById('scanInput').focus();
+    }
 
     function upsertCartItem(stock, qty = 1) {
         const index = cart.findIndex(item => item.batch_id === stock.batch_id);
@@ -186,76 +340,6 @@ require_once __DIR__ . '/layout.php';
             qty: qty,
             stock_qty: stock.remaining_qty
         });
-    }
-
-    async function searchAndShow(barcode) {
-        try {
-            const res = await fetch(`../api/search_stock.php?barcode=${encodeURIComponent(barcode)}`);
-            const data = await res.json();
-
-            if (data.success && data.data && data.data.length > 0) {
-                if (data.data.length === 1) {
-                    upsertCartItem(data.data[0], 1);
-                    renderCart();
-                    updateStats();
-                    return;
-                }
-
-                pendingStock = data.data;
-
-                const content = document.getElementById('scanResultContent');
-                const productName = data.data[0].common_name || data.data[0].product_name;
-
-                let html = `<div style="margin-bottom:15px;"><strong>${productName}</strong></div>`;
-
-                data.data.forEach((stock, idx) => {
-                    html += `
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border:1px solid var(--border); border-radius:8px; margin-bottom:10px;">
-                            <div>
-                                <span class="condition-badge condition-${stock.condition_type}">${stock.condition_name}</span>
-                                <div style="margin-top:5px; font-size:12px; color:var(--text-secondary);">
-                                    批次: ${stock.batch_no} | 进价: ¥${parseFloat(stock.purchase_price).toFixed(2)} | 库存: ${stock.remaining_qty}
-                                </div>
-                            </div>
-                            <div style="display:flex; gap:10px;">
-                                <input type="number" id="qty_${idx}" value="1" min="1" max="${stock.remaining_qty}" style="width:60px; padding:8px; text-align:center; border:1px solid var(--border); border-radius:4px; background:var(--bg-body); color:var(--text);">
-                                <button class="btn btn-success" onclick="addToCart(${idx})">+ 添加</button>
-                            </div>
-                        </div>
-                    `;
-                });
-
-                content.innerHTML = html;
-                document.getElementById('scanResultModal').classList.add('show');
-            } else {
-                alert('未找到库存或库存为零');
-            }
-        } catch (err) {
-            console.error(err);
-            alert('查询失败');
-        }
-    }
-
-    function addToCart(index) {
-        const stock = pendingStock[index];
-        const qtyInput = document.getElementById(`qty_${index}`);
-        const qty = parseInt(qtyInput.value) || 1;
-
-        if (qty > stock.remaining_qty) {
-            alert('超出库存数量');
-            return;
-        }
-
-        upsertCartItem(stock, qty);
-
-        closeScanModal();
-        renderCart();
-        updateStats();
-    }
-
-    function closeScanModal() {
-        document.getElementById('scanResultModal').classList.remove('show');
-        pendingStock = null;
     }
 
     function renderCart() {

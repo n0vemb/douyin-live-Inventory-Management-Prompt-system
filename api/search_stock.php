@@ -39,11 +39,30 @@ try {
         'flawed' => '微瑕'
     ];
 
+    // 从数据库加载状态名称
+    try {
+        $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types'");
+        $stmt->execute();
+        $result = $stmt->fetch();
+        if ($result && $result['setting_value']) {
+            $types = json_decode($result['setting_value'], true);
+            if ($types && is_array($types)) {
+                $conditionNames = [];
+                foreach ($types as $t) {
+                    $conditionNames[$t['key']] = $t['name'];
+                }
+            }
+        }
+    } catch (Exception $e) {}
+
     foreach ($batches as &$batch) {
         $batch['condition_name'] = $conditionNames[$batch['condition_type']] ?? $batch['condition_type'];
     }
 
-    success(['data' => $batches]);
+    // 附带所有状态类型列表供前端使用
+    $conditionTypes = array_keys($conditionNames);
+
+    success(['data' => $batches, 'condition_types' => $conditionTypes]);
 
 } catch (Exception $e) {
     error($e->getMessage(), 500);
