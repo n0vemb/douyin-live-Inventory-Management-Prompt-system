@@ -62,7 +62,7 @@ require_once __DIR__ . '/layout.php';
         <!-- 底部扫码区 -->
         <div class="scan-bar">
             <div class="scan-bar-inner">
-                <input type="text" id="scanInput" placeholder="📷 扫描条码..." class="scan-input">
+                <input type="text" id="scanInput" placeholder="📷 扫描条码或输入拼音搜索..." class="scan-input">
                 <div class="scan-result" id="obResult" style="display:none;">
                     <span class="sr-product" id="obProductName"></span>
                     <span class="sr-sep">|</span>
@@ -77,11 +77,13 @@ require_once __DIR__ . '/layout.php';
                     <input type="number" id="obPrice" step="0.01" placeholder="0.00" onfocus="this.select()" autocomplete="off">
                     <button class="btn btn-sm btn-success" onclick="confirmBarAdd()">+ 添加</button>
                 </div>
+                <div class="search-dropdown" id="obSearchDropdown"></div>
             </div>
         </div>
 
         <style>
         .scan-bar {
+            position: relative;
             background: var(--bg-elevated);
             border: 1px solid var(--border);
             border-radius: 12px;
@@ -124,6 +126,52 @@ require_once __DIR__ . '/layout.php';
             text-align: center; outline: none; transition: border-color 0.2s;
         }
         .scan-result input[type="number"]:focus { border-color: var(--success); }
+
+        /* 拼音搜索下拉框 */
+        .search-dropdown {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            display: none;
+            max-height: 400px;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            z-index: 200;
+        }
+        .search-dropdown.show { display: block; }
+        .search-dropdown-empty {
+            padding: 30px; text-align: center; color: var(--text-tertiary); font-size: 14px;
+        }
+        .search-dropdown-header {
+            padding: 10px 14px 6px; border-bottom: 1px solid var(--border);
+            background: var(--bg-hover);
+        }
+        .search-dropdown-header .sdi-product-name {
+            font-weight: 600; font-size: 14px;
+        }
+        .search-dropdown-header .sdi-product-meta {
+            font-size: 11px; color: var(--text-tertiary); margin-top: 2px;
+        }
+        .search-dropdown-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 14px; border-bottom: 1px solid var(--border);
+            font-size: 13px; transition: background 0.15s;
+        }
+        .search-dropdown-item:last-child { border-bottom: none; }
+        .search-dropdown-item:hover { background: var(--bg-hover); }
+        .sdi-stock { font-size: 12px; color: var(--text-secondary); min-width: 50px; }
+        .sdi-price { font-weight: bold; font-size: 14px; min-width: 65px; text-align: right; }
+        .sdi-add-btn {
+            padding: 4px 14px; border-radius: 6px; border: none;
+            background: var(--primary); color: #fff; font-size: 12px;
+            cursor: pointer; font-weight: 600; white-space: nowrap; transition: 0.15s;
+        }
+        .sdi-add-btn:hover { opacity: 0.85; }
         </style>
 
         <div class="card">
@@ -202,22 +250,42 @@ require_once __DIR__ . '/layout.php';
         }
     });
 
-    // 扫码枪快速输入自动触发
+    // 扫码或拼音搜索输入
     document.getElementById('scanInput').addEventListener('input', function(e) {
         clearTimeout(scanTimer);
-        if (this.value.length >= 5) {
-            scanTimer = setTimeout(() => {
-                const barcode = this.value.trim();
-                if (barcode) {
-                    handleScan(barcode);
+        const value = this.value.trim();
+
+        if (!value) {
+            hideSearchDropdown();
+            return;
+        }
+
+        if (/^\d+$/.test(value)) {
+            // 全数字 → 条码查询
+            hideSearchDropdown();
+            if (value.length >= 5) {
+                scanTimer = setTimeout(() => {
+                    handleScan(value);
                     this.value = '';
-                }
-            }, 250);
+                }, 250);
+            }
+        } else {
+            // 含字母 → 拼音搜索
+            if (document.getElementById('obResult').style.display === 'block') {
+                resetBar();
+            }
+            scanTimer = setTimeout(() => {
+                searchPinyinStock(value);
+            }, 300);
         }
     });
 
     // 全局键盘：扫码后箭头切换条件，回车确认
     document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            hideSearchDropdown();
+            return;
+        }
         if (scanResult.length === 0) return;
 
         if (phase === 'condition') {
@@ -317,6 +385,99 @@ require_once __DIR__ . '/layout.php';
         document.getElementById('obResult').style.display = 'none';
         document.getElementById('scanInput').focus();
     }
+
+    /* ---- 拼音搜索 ---- */
+    let obSearchResults = [];
+
+    function searchPinyinStock(keyword) {
+        fetch(`../api/search_outbound_stock.php?keyword=${encodeURIComponent(keyword)}`)
+            .then(r => r.json())
+            .then(data => {
+                obSearchResults = data.success && data.data ? data.data : [];
+                showSearchDropdown();
+            })
+            .catch(() => {
+                obSearchResults = [];
+                showSearchDropdown();
+            });
+    }
+
+    function showSearchDropdown() {
+        const dd = document.getElementById('obSearchDropdown');
+        if (!obSearchResults || !obSearchResults.length) {
+            dd.innerHTML = '<div class="search-dropdown-empty">未找到匹配商品</div>';
+            dd.classList.add('show');
+            return;
+        }
+
+        // 按商品分组
+        const grouped = {};
+        obSearchResults.forEach(b => {
+            const key = b.product_id;
+            if (!grouped[key]) {
+                grouped[key] = { product_id: b.product_id, product_name: b.product_name, common_name: b.common_name, series: b.series, barcode: b.barcode, conditions: [] };
+            }
+            grouped[key].conditions.push(b);
+        });
+
+        dd.innerHTML = '';
+        Object.values(grouped).forEach(product => {
+            const displayName = product.common_name || product.product_name;
+            const section = document.createElement('div');
+            section.innerHTML = `
+                <div class="search-dropdown-header">
+                    <div class="sdi-product-name">${escapeHtml(displayName)}</div>
+                    <div class="sdi-product-meta">${escapeHtml(product.barcode)}${product.series ? ' · ' + escapeHtml(product.series) : ''}</div>
+                </div>
+                ${product.conditions.map(b => `
+                    <div class="search-dropdown-item">
+                        <span class="condition-badge condition-${b.condition_type}">${escapeHtml(b.condition_name)}</span>
+                        <span class="sdi-stock">库存 ${b.remaining_qty}</span>
+                        <span class="sdi-price" style="color:var(--text-secondary);">¥${parseFloat(b.purchase_price || 0).toFixed(2)}</span>
+                        <span class="sdi-price" style="color:var(--success);">¥${parseFloat(b.suggested_price || 0).toFixed(2)}</span>
+                        <button class="sdi-add-btn" data-pid="${b.product_id}" data-ctype="${b.condition_type}">添加</button>
+                    </div>
+                `).join('')}
+            `;
+            dd.appendChild(section);
+        });
+
+        dd.classList.add('show');
+
+        // 添加按钮事件
+        dd.querySelectorAll('.sdi-add-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const pid = parseInt(this.dataset.pid);
+                const ctype = this.dataset.ctype;
+                const batch = obSearchResults.find(b => b.product_id === pid && b.condition_type === ctype);
+                if (batch) {
+                    upsertCartItem(batch, 1);
+                    renderCart();
+                    updateStats();
+                    this.textContent = '✓';
+                    this.style.background = '#34d399';
+                    setTimeout(() => { this.textContent = '添加'; this.style.background = ''; }, 600);
+                }
+            });
+        });
+    }
+
+    function hideSearchDropdown() {
+        document.getElementById('obSearchDropdown').classList.remove('show');
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    // 点击外部关闭下拉框
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.scan-bar')) {
+            hideSearchDropdown();
+        }
+    });
 
     function upsertCartItem(stock, qty = 1) {
         const index = cart.findIndex(item => item.batch_id === stock.batch_id);

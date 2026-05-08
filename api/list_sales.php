@@ -17,7 +17,7 @@ $sql = 'SELECT s.*,
              AND ib.remaining_qty > 0 AND ib.purchase_price > 0 LIMIT 1) as batch_purchase_price
         FROM sales_log s
         LEFT JOIN products p ON s.product_id = p.id
-        WHERE s.qty > s.returned_qty'
+        WHERE s.qty > s.returned_qty';
 $params = [];
 
 if (!empty($productId)) {
