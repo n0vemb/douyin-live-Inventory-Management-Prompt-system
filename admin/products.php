@@ -46,6 +46,9 @@ require_once __DIR__ . '/layout.php';
                 <button class="btn btn-success" onclick="openImportModal()" style="margin-left:10px;">
                     📁 批量导入
                 </button>
+                <button class="btn btn-warning" onclick="openAuditModal()" style="margin-left:10px;">
+                    📊 库存盘点
+                </button>
                 <button class="btn btn-danger" id="batchDeleteBtn" onclick="batchDelete()" style="margin-left:10px; display:none;">
                     🗑️ 批量删除 (<span id="selectedCount">0</span>)
                 </button>
@@ -347,6 +350,23 @@ require_once __DIR__ . '/layout.php';
             </div>
         </div>
 
+        <!-- 库存盘点模态框 -->
+        <div class="modal" id="auditModal">
+            <div class="modal-content modal-wide" style="max-width:95vw; max-height:90vh; overflow-y:auto;">
+                <div class="modal-header">
+                    <h3 class="modal-title">📊 库存盘点</h3>
+                    <button class="modal-close" onclick="closeAuditModal()">&times;</button>
+                </div>
+                <div id="auditContent">
+                    <div style="text-align:center; padding:40px; color:var(--text-tertiary);">加载中...</div>
+                </div>
+                <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px; padding-top:15px; border-top:1px solid var(--border); position:sticky; bottom:0; background:var(--bg-surface);">
+                    <button class="btn btn-primary" onclick="saveAuditChanges()">💾 保存修改</button>
+                    <button class="btn btn-secondary" onclick="closeAuditModal()">取消</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 批量导入模态框 -->
         <div class="modal" id="importModal">
             <div class="modal-content"><!-- 批量导入 -->
@@ -454,6 +474,15 @@ require_once __DIR__ . '/layout.php';
         } catch (err) {
             console.error(err);
         }
+    }
+
+    async function reloadWithFilter() {
+        const keyword = document.getElementById('searchInput').value;
+        const series = document.getElementById('seriesFilter').value;
+        await loadProducts();
+        document.getElementById('searchInput').value = keyword;
+        document.getElementById('seriesFilter').value = series;
+        searchProducts();
     }
 
     function searchProducts() {
@@ -564,6 +593,159 @@ require_once __DIR__ . '/layout.php';
         });
 
         return badges.join(' ');
+    }
+
+    /* ---- 库存盘点 ---- */
+    let auditProducts = [];
+    let auditConditionTypes = [];
+
+    async function openAuditModal() {
+        showModal('auditModal');
+        document.getElementById('auditContent').innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-tertiary);">加载中...</div>';
+
+        try {
+            const res = await fetch('../api/inventory_audit.php');
+            const data = await res.json();
+            if (data.success) {
+                auditProducts = data.data.products;
+                auditConditionTypes = data.data.condition_types;
+                renderAuditTable();
+            } else {
+                document.getElementById('auditContent').innerHTML = '<div style="text-align:center; padding:40px; color:var(--danger);">加载失败: ' + (data.error || '未知错误') + '</div>';
+            }
+        } catch (err) {
+            document.getElementById('auditContent').innerHTML = '<div style="text-align:center; padding:40px; color:var(--danger);">加载失败: ' + err.message + '</div>';
+        }
+    }
+
+    function closeAuditModal() {
+        closeModal('auditModal');
+        reloadWithFilter();
+    }
+
+    function renderAuditTable() {
+        const content = document.getElementById('auditContent');
+
+        let html = '<div style="margin-bottom:12px;">';
+        html += '<input type="text" id="auditSearch" placeholder="搜索商品..." style="padding:8px 14px; border-radius:8px; border:1px solid var(--border); background:var(--bg-elevated); color:var(--text); font-size:14px; width:250px;" oninput="filterAuditTable()">';
+        html += ' <span style="font-size:13px; color:var(--text-secondary); margin-left:8px;">共 ' + auditProducts.length + ' 个商品</span>';
+        html += '</div>';
+
+        html += '<div style="overflow-x:auto;">';
+        html += '<table style="font-size:13px; white-space:nowrap; min-width:100%; border-collapse:collapse;">';
+        html += '<thead><tr style="position:sticky; top:0; background:var(--bg-surface); z-index:2;">';
+        html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:150px;">商品名称</th>';
+
+        // 状态列标题（每个状态3列）
+        auditConditionTypes.forEach(ct => {
+            html += '<th style="text-align:center; padding:8px 4px; border-bottom:2px solid var(--border); color:var(--text-secondary); font-size:12px; min-width:55px;" colspan="3">';
+            html += '<span class="condition-badge condition-' + ct.key + '">' + escapeHtml(ct.name) + '</span>';
+            html += '</th>';
+        });
+
+        html += '</tr>';
+        html += '<tr style="position:sticky; top:36px; background:var(--bg-hover); z-index:2;">';
+        html += '<th style="text-align:left; padding:4px 10px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">条码 / 系列</th>';
+        auditConditionTypes.forEach(() => {
+            html += '<th style="text-align:center; padding:4px 2px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">数量</th>';
+            html += '<th style="text-align:center; padding:4px 2px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">进价</th>';
+            html += '<th style="text-align:center; padding:4px 2px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">售价</th>';
+        });
+        html += '</tr></thead><tbody id="auditTableBody">';
+
+        auditProducts.forEach(p => {
+            html += '<tr class="audit-row" data-pid="' + p.product_id + '" data-name="' + escapeHtml((p.product_name || p.official_name || '').toLowerCase()) + '" data-barcode="' + escapeHtml(p.barcode) + '">';
+            html += '<td style="padding:6px 10px; border-bottom:1px solid var(--border);">';
+            html += '<div style="font-weight:600; font-size:13px;">' + escapeHtml(p.product_name) + '</div>';
+            html += '<div style="font-size:11px; color:var(--text-tertiary);">' + escapeHtml(p.barcode || '') + (p.series ? ' · ' + escapeHtml(p.series) : '') + '</div>';
+            html += '</td>';
+
+            auditConditionTypes.forEach(ct => {
+                const c = p.conditions[ct.key] || { qty: 0, purchase_price: null, suggested_price: null };
+                const qty = c.qty || 0;
+                const pp = c.purchase_price !== null && c.purchase_price !== undefined ? c.purchase_price.toFixed(2) : '';
+                const sp = c.suggested_price !== null && c.suggested_price !== undefined ? c.suggested_price.toFixed(2) : '';
+                const inputStyle = 'width:58px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; background:var(--bg-elevated); color:var(--text); font-size:12px; text-align:center;';
+
+                html += '<td style="padding:3px 2px; border-bottom:1px solid var(--border);">';
+                html += '<input type="number" min="0" class="audit-qty" data-pid="' + p.product_id + '" data-ctype="' + ct.key + '" value="' + qty + '" style="' + inputStyle + 'width:52px;">';
+                html += '</td>';
+                html += '<td style="padding:3px 2px; border-bottom:1px solid var(--border);">';
+                html += '<input type="number" step="0.01" min="0" class="audit-price" data-pid="' + p.product_id + '" data-ctype="' + ct.key + '" value="' + pp + '" placeholder="-" style="' + inputStyle + '">';
+                html += '</td>';
+                html += '<td style="padding:3px 2px; border-bottom:1px solid var(--border);">';
+                html += '<input type="number" step="0.01" min="0" class="audit-price" data-pid="' + p.product_id + '" data-ctype="' + ct.key + '" value="' + sp + '" placeholder="-" style="' + inputStyle + '">';
+                html += '</td>';
+            });
+
+            html += '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+        content.innerHTML = html;
+    }
+
+    function filterAuditTable() {
+        const keyword = document.getElementById('auditSearch').value.toLowerCase().trim();
+        document.querySelectorAll('#auditTableBody .audit-row').forEach(row => {
+            const name = row.dataset.name || '';
+            const barcode = row.dataset.barcode || '';
+            const match = !keyword || name.includes(keyword) || barcode.includes(keyword);
+            row.style.display = match ? '' : 'none';
+        });
+    }
+
+    async function saveAuditChanges() {
+        if (!confirm('确认保存所有修改？这将覆盖当前库存数量和价格。')) return;
+
+        const items = [];
+        const inputs = document.querySelectorAll('#auditContent .audit-qty, #auditContent .audit-price');
+
+        // 按 product_id+condition_type 分组
+        const map = {};
+        inputs.forEach(inp => {
+            const key = inp.dataset.pid + '_' + inp.dataset.ctype;
+            if (!map[key]) {
+                map[key] = { product_id: parseInt(inp.dataset.pid), condition_type: inp.dataset.ctype, qty: 0, purchase_price: null, suggested_price: null };
+            }
+            if (inp.classList.contains('audit-qty')) {
+                map[key].qty = parseInt(inp.value) || 0;
+            } else {
+                // 第一个 price 是进价，第二个是售价
+                if (map[key].purchase_price === null) {
+                    map[key].purchase_price = inp.value !== '' ? parseFloat(inp.value) : null;
+                } else {
+                    map[key].suggested_price = inp.value !== '' ? parseFloat(inp.value) : null;
+                }
+            }
+        });
+
+        Object.values(map).forEach(item => items.push(item));
+
+        const btn = document.querySelector('#auditModal .btn-primary');
+        const origText = btn.textContent;
+        btn.textContent = '⏳ 保存中...';
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('../api/batch_inventory_update.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('✅ ' + (data.data.message || '盘点更新完成'));
+                closeAuditModal();
+            } else {
+                alert('❌ ' + (data.error || '保存失败'));
+            }
+        } catch (err) {
+            alert('❌ 保存失败: ' + err.message);
+        } finally {
+            btn.textContent = origText;
+            btn.disabled = false;
+        }
     }
 
     async function showStockDetail(productId, productName) {
@@ -684,7 +866,7 @@ require_once __DIR__ . '/layout.php';
             if (data.success) {
                 alert(`✅ 售价已统一为 ¥${price.toFixed(2)}，共更新 ${data.data.updated_batches} 个批次`);
                 showStockDetail(productId, productName);
-                loadProducts();
+                reloadWithFilter();
             } else {
                 alert('修改失败: ' + data.error);
             }
@@ -872,13 +1054,7 @@ require_once __DIR__ . '/layout.php';
             if (result.success) {
                 closeModal('productModal');
                 productDetails = {};
-                // 保持筛选状态重新加载
-                const currentSeries = document.getElementById('seriesFilter').value;
-                const currentKeyword = document.getElementById('searchInput').value;
-                await loadProducts();
-                document.getElementById('seriesFilter').value = currentSeries;
-                document.getElementById('searchInput').value = currentKeyword;
-                searchProducts();
+                await reloadWithFilter();
             } else {
                 alert(result.error || '保存失败');
             }
@@ -951,7 +1127,7 @@ require_once __DIR__ . '/layout.php';
         alert('入库成功！');
         closeModal('purchaseModal');
         productDetails = {};
-        loadProducts();
+        reloadWithFilter();
         } catch (err) {
             alert('入库失败');
         } finally {
@@ -984,7 +1160,7 @@ require_once __DIR__ . '/layout.php';
                 alert('调整成功');
                 closeModal('adjustModal');
                 productDetails = {};
-                loadProducts();
+                reloadWithFilter();
             } else {
                 alert(result.error || '调整失败');
             }
@@ -1040,7 +1216,7 @@ require_once __DIR__ . '/layout.php';
                     alert('价格修改成功');
                     closeModal('priceModal');
                     productDetails = {};
-                    loadProducts();
+                    reloadWithFilter();
                 } else {
                     alert(result.error || '修改失败');
                 }
@@ -1135,7 +1311,7 @@ require_once __DIR__ . '/layout.php';
                 if (currentProductDetailId) {
                     showStockDetail(currentProductDetailId, '');
                 }
-                loadProducts();
+                reloadWithFilter();
             } else {
                 alert(result.error || '修改失败');
             }
@@ -1212,7 +1388,7 @@ require_once __DIR__ . '/layout.php';
             if (result.success) {
                 // 删除成功，直接刷新列表，不再提示
                 productDetails = {};
-                loadProducts();
+                reloadWithFilter();
             } else {
                 // 只在失败时显示错误
                 showErrorToast(result.error || '删除失败');
@@ -1290,7 +1466,7 @@ require_once __DIR__ . '/layout.php';
                 const result = await res.json();
                 if (result.success) {
                     productDetails = {};
-                    await loadProducts();
+                    await reloadWithFilter();
                     updateBatchDeleteButton();
                 } else {
                     showErrorToast(result.error || '批量删除失败');
@@ -1392,7 +1568,7 @@ require_once __DIR__ . '/layout.php';
                 
                 resultHtml += `
                     <div style="text-align:center; margin-top:20px;">
-                        <button class="btn btn-primary" onclick="closeImportModal(); loadProducts();">确定</button>
+                        <button class="btn btn-primary" onclick="closeImportModal(); reloadWithFilter();">确定</button>
                     </div>
                 </div>
                 `;

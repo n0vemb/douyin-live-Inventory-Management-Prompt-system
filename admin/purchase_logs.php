@@ -1019,7 +1019,6 @@ require_once __DIR__ . '/layout.php';
     function singlePrint(batchId) {
         let template = getSelectedTemplate();
         if (!template) {
-            // 尝试从 localStorage 恢复上次使用的模板，没有则默认第一个
             const savedIndex = localStorage.getItem('ppmart_last_template');
             if (savedIndex !== null && labelTemplates[savedIndex]) {
                 template = labelTemplates[savedIndex];
@@ -1048,36 +1047,162 @@ require_once __DIR__ . '/layout.php';
             return;
         }
 
-        const printerName = document.getElementById('printerName').value.trim();
+        // 构造单条打印项（与批量浏览器打印同样的逻辑）
+        const item = {
+            barcode: record.barcode,
+            productName: record.product_name || record.common_name || '',
+            price: record.suggested_price,
+            conditionType: record.condition_type,
+            qty: qty
+        };
 
-        const batchQty = {};
-        batchQty[batchId] = qty;
+        printSingleLabel(item, template, qty);
+    }
 
-        fetch('../api/direct_print.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                batch_ids: [batchId],
-                batch_qty: batchQty,
-                template: {
-                    canvasWidth: template.canvasWidth,
-                    canvasHeight: template.canvasHeight,
-                    elements: template.elements
-                },
-                printer: printerName
-            })
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                alert('✅ ' + (data.message || '打印完成'));
-            } else {
-                alert('❌ ' + (data.error || '打印失败'));
+    function printSingleLabel(item, template, qty) {
+        const density = template.density || 'normal';
+        const densityFilter = {
+            'light': 'opacity(0.8)',
+            'normal': 'opacity(1)',
+            'dark': 'opacity(1.1)'
+        };
+
+        let html = '';
+        for (let i = 0; i < qty; i++) {
+            html += `<div class="label-page" style="position:relative; width:${template.canvasWidth}mm; min-height:${template.canvasHeight}mm; height:${template.canvasHeight}mm; filter:${densityFilter[density]}; box-sizing:border-box; overflow:hidden; page-break-after:always; page-break-inside:avoid; break-inside:avoid;">`;
+
+            template.elements.forEach(el => {
+                const content = getElementContentForItem(el.type, item);
+                if (el.type === 'barcode') {
+                    html += `<div style="
+                        position:absolute;
+                        left:${el.x}mm;
+                        top:${el.y}mm;
+                        width:${el.width}mm;
+                        height:${el.height}mm;
+                        display:flex;
+                        align-items:center;
+                        justify-content:center;
+                        overflow:visible;
+                        box-sizing:border-box;
+                    " class="barcode-placeholder" data-barcode="${item.barcode}" data-width="${el.width}" data-height="${el.height}"></div>`;
+                } else {
+                    html += `<div style="
+                        position:absolute;
+                        left:${el.x}mm;
+                        top:${el.y}mm;
+                        font-size:${el.fontSize}mm;
+                        font-weight:${el.fontWeight || 'normal'};
+                        color:${el.color || '#000'};
+                        white-space:nowrap;
+                        line-height:1.2;
+                    ">${content}</div>`;
+                }
+            });
+
+            html += '</div>';
+        }
+
+        const printStyles = `
+            <style>
+                @media print {
+                    @page { margin: 0mm; size: ${template.canvasWidth}mm ${template.canvasHeight}mm; }
+                    html, body { margin: 0; padding: 0; }
+                    .label-page {
+                        margin: 0; padding: 0;
+                        page-break-after: always;
+                        page-break-inside: avoid;
+                        overflow: hidden;
+                    }
+                    .label-page:last-child { page-break-after: avoid; }
+                }
+                html, body { margin: 0; padding: 0; }
+                * { box-sizing: border-box; }
+                div { font-family: -apple-system, BlinkMacSystemFont, sans-serif; overflow: visible; }
+                @supports (-webkit-print-color-adjust: exact) {
+                    div { -webkit-print-color-adjust: exact; }
+                }
+            </style>
+        `;
+
+        const printWindow = window.open('', '_blank', 'width=800,height=600');
+        printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+    <title>打印标签</title>
+    <meta charset="UTF-8">
+    ${printStyles}
+</head>
+<body>
+${html}
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>
+<script>
+function detectBarcodeFormat(barcode) {
+    if (!barcode) return 'CODE128';
+    var str = String(barcode).trim();
+    if (/^\\d{13}$/.test(str)) return 'EAN13';
+    if (/^\\d{8}$/.test(str)) return 'EAN8';
+    if (/^\\d{12}$/.test(str)) return 'UPC';
+    return 'CODE128';
+}
+function waitForJsBarcode(callback, maxAttempts) {
+    var attempts = 0;
+    var check = function() {
+        attempts++;
+        if (typeof JsBarcode !== 'undefined') {
+            callback();
+        } else if (attempts < maxAttempts) {
+            setTimeout(check, 100);
+        } else {
+            console.error('JsBarcode failed to load');
+            callback();
+        }
+    };
+    check();
+}
+waitForJsBarcode(function() {
+    var placeholders = document.querySelectorAll('.barcode-placeholder');
+    placeholders.forEach(function(placeholder) {
+        var barcode = placeholder.dataset.barcode;
+        var widthMm = parseFloat(placeholder.dataset.width);
+        var heightMm = parseFloat(placeholder.dataset.height);
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.style.width = '100%';
+        svg.style.height = '100%';
+        placeholder.appendChild(svg);
+        if (typeof JsBarcode !== 'undefined') {
+            var format = detectBarcodeFormat(barcode);
+            try {
+                JsBarcode(svg, barcode, {
+                    format: format,
+                    displayValue: false,
+                    width: 2,
+                    height: heightMm * 3.78 * 0.9,
+                    margin: 0
+                });
+            } catch (e) {
+                try {
+                    JsBarcode(svg, barcode, {
+                        format: 'CODE128',
+                        displayValue: false,
+                        width: 2,
+                        height: heightMm * 3.78 * 0.9,
+                        margin: 0
+                    });
+                } catch (e2) {
+                    placeholder.innerHTML = '<span style="font-family:monospace; font-size:3mm;">' + barcode + '</span>';
+                }
             }
-        })
-        .catch(err => {
-            alert('❌ 请求失败: ' + err.message);
-        });
+        } else {
+            placeholder.innerHTML = '<span style="font-family:monospace; font-size:3mm;">' + barcode + '</span>';
+        }
+    });
+    setTimeout(function() { window.print(); }, 200);
+}, 50);
+<\/script>
+</body>
+</html>`);
+        printWindow.document.close();
     }
 
     function printLabelsFromTemplate(template) {
