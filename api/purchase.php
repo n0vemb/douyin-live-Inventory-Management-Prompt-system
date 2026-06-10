@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 
@@ -18,6 +19,7 @@ if ($suggestedPrice <= 0) {
 }
 
 $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 $pdo->beginTransaction();
 
 try {
@@ -25,9 +27,9 @@ try {
     $stmt = $pdo->prepare('
         SELECT id, purchase_price
         FROM inventory_batches
-        WHERE product_id = ? AND condition_type = ? AND remaining_qty > 0
+        WHERE product_id = ? AND condition_type = ? AND remaining_qty > 0 AND store_id = ?
     ');
-    $stmt->execute([$productId, $conditionType]);
+    $stmt->execute([$productId, $conditionType, $storeId]);
     $batches = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($batches)) {
@@ -39,12 +41,16 @@ try {
         ? 'UPDATE inventory_batches SET suggested_price = ?, remark = CONCAT(IFNULL(remark, ""), IF(IFNULL(remark, "") = "", "", " | "), ?) WHERE id = ?'
         : 'UPDATE inventory_batches SET purchase_price = ?, suggested_price = ?, remark = CONCAT(IFNULL(remark, ""), IF(IFNULL(remark, "") = "", "", " | "), ?) WHERE id = ?';
 
+    // Add store_id to the WHERE clause
+    $updateSql = $newPurchasePrice === null
+        ? 'UPDATE inventory_batches SET suggested_price = ?, remark = CONCAT(IFNULL(remark, ""), IF(IFNULL(remark, "") = "", "", " | "), ?) WHERE id = ? AND store_id = ?'
+        : 'UPDATE inventory_batches SET purchase_price = ?, suggested_price = ?, remark = CONCAT(IFNULL(remark, ""), IF(IFNULL(remark, "") = "", "", " | "), ?) WHERE id = ? AND store_id = ?';
     $updateStmt = $pdo->prepare($updateSql);
     foreach ($batches as $batch) {
         if ($newPurchasePrice === null) {
-            $updateStmt->execute([$suggestedPrice, $remark, (int)$batch['id']]);
+            $updateStmt->execute([$suggestedPrice, $remark, (int)$batch['id'], $storeId]);
         } else {
-            $updateStmt->execute([$newPurchasePrice, $suggestedPrice, $remark, (int)$batch['id']]);
+            $updateStmt->execute([$newPurchasePrice, $suggestedPrice, $remark, (int)$batch['id'], $storeId]);
         }
     }
 

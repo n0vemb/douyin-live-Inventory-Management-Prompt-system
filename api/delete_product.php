@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 
@@ -16,14 +17,15 @@ if (empty($productIds)) {
 }
 
 $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
 // 先收集所有要删除的商品的图片路径
 $imagesToDelete = [];
 foreach ($productIds as $productId) {
     $productId = intval($productId);
     if ($productId <= 0) continue;
-    $stmt = $pdo->prepare('SELECT image_url FROM products WHERE id = ?');
-    $stmt->execute([$productId]);
+    $stmt = $pdo->prepare('SELECT image_url FROM products WHERE id = ? AND store_id = ?');
+    $stmt->execute([$productId, $storeId]);
     $row = $stmt->fetch();
     if ($row && !empty($row['image_url'])) {
         $imagesToDelete[] = $row['image_url'];
@@ -37,17 +39,17 @@ try {
         $productId = intval($productId);
         if ($productId <= 0) continue;
 
-        $stmt = $pdo->prepare('DELETE FROM purchase_log WHERE product_id = ?');
-        $stmt->execute([$productId]);
+        $stmt = $pdo->prepare('DELETE FROM purchase_log WHERE product_id = ? AND store_id = ?');
+        $stmt->execute([$productId, $storeId]);
 
-        $stmt = $pdo->prepare('DELETE FROM inventory_log WHERE product_id = ?');
-        $stmt->execute([$productId]);
+        $stmt = $pdo->prepare('DELETE FROM inventory_log WHERE product_id = ? AND store_id = ?');
+        $stmt->execute([$productId, $storeId]);
 
-        $stmt = $pdo->prepare('DELETE FROM inventory_batches WHERE product_id = ?');
-        $stmt->execute([$productId]);
+        $stmt = $pdo->prepare('DELETE FROM inventory_batches WHERE product_id = ? AND store_id = ?');
+        $stmt->execute([$productId, $storeId]);
 
-        $stmt = $pdo->prepare('DELETE FROM products WHERE id = ?');
-        $stmt->execute([$productId]);
+        $stmt = $pdo->prepare('DELETE FROM products WHERE id = ? AND store_id = ?');
+        $stmt->execute([$productId, $storeId]);
     }
 
     $pdo->commit();

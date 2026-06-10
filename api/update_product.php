@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/pinyin_helper.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
@@ -21,10 +22,11 @@ if (empty($productId) || empty($name) || empty($barcode)) {
 }
 
 $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
 // 读取旧的 image_url，用于后续清理旧文件
-$stmt = $pdo->prepare('SELECT image_url FROM products WHERE id = ?');
-$stmt->execute([$productId]);
+$stmt = $pdo->prepare('SELECT image_url FROM products WHERE id = ? AND store_id = ?');
+$stmt->execute([$productId, $storeId]);
 $oldProduct = $stmt->fetch();
 $oldImageUrl = $oldProduct ? $oldProduct['image_url'] : null;
 
@@ -36,16 +38,16 @@ if ($stmt->fetch()) {
 
 $pinyinInitials = generatePinyinInitials($name);
 
-$stmt = $pdo->prepare('UPDATE products SET name = ?, pinyin_initials = ?, common_name = ?, series = ?, brand = ?, barcode = ?, qiandao_price = ?, release_date = ?, product_description = ?, image_url = ?, remark = ? WHERE id = ?');
-$stmt->execute([$name, $pinyinInitials, $commonName, $series, $brand, $barcode, $qiandaoPrice, $releaseDate, $productDescription, $imageUrl, $remark, $productId]);
+$stmt = $pdo->prepare('UPDATE products SET name = ?, pinyin_initials = ?, common_name = ?, series = ?, brand = ?, barcode = ?, qiandao_price = ?, release_date = ?, product_description = ?, image_url = ?, remark = ? WHERE id = ? AND store_id = ?');
+$stmt->execute([$name, $pinyinInitials, $commonName, $series, $brand, $barcode, $qiandaoPrice, $releaseDate, $productDescription, $imageUrl, $remark, $productId, $storeId]);
 
 // 清理旧图片：如果 image_url 发生变化且旧图片是本地上传的
 if ($oldImageUrl !== null && $oldImageUrl !== $imageUrl) {
     deleteImageFile($oldImageUrl);
 }
 
-$stmt = $pdo->prepare('SELECT * FROM products WHERE id = ?');
-$stmt->execute([$productId]);
+$stmt = $pdo->prepare('SELECT * FROM products WHERE id = ? AND store_id = ?');
+$stmt->execute([$productId, $storeId]);
 $product = $stmt->fetch();
 
 success(['data' => $product]);

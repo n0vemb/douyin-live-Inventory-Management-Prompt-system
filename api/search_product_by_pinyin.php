@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 $keyword = trim($input['keyword'] ?? '');
@@ -16,24 +17,44 @@ if (empty($liveSessionId)) {
 // 存量数据用的是每个字拼音的首字母格式（失衡→sh），输入什么就搜什么
 
 $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
 // 条件类型映射
 $conditionMap = [];
 try {
-    $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types'");
-    $stmt->execute();
-    $result = $stmt->fetch();
-    if ($result && $result['setting_value']) {
-        $conditionTypes = json_decode($result['setting_value'], true);
-        if ($conditionTypes && is_array($conditionTypes)) {
-            foreach ($conditionTypes as $ct) {
-                $conditionMap[$ct['key']] = $ct['name'];
+    if ($storeId) {
+        $stmt = $pdo->prepare("SELECT condition_types FROM stores WHERE id = ?");
+        $stmt->execute([$storeId]);
+        $result = $stmt->fetch();
+        if ($result && $result['condition_types']) {
+            $conditionTypes = json_decode($result['condition_types'], true);
+            if ($conditionTypes && is_array($conditionTypes)) {
+                foreach ($conditionTypes as $ct) {
+                    $conditionMap[$ct['key']] = $ct['name'];
+                }
+            }
+        }
+    } else {
+        $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types' AND store_id IS NULL");
+        $stmt->execute();
+        $result = $stmt->fetch();
+        if ($result && $result['setting_value']) {
+            $conditionTypes = json_decode($result['setting_value'], true);
+            if ($conditionTypes && is_array($conditionTypes)) {
+                foreach ($conditionTypes as $ct) {
+                    $conditionMap[$ct['key']] = $ct['name'];
+                }
             }
         }
     }
 } catch (Exception $e) {}
 if (empty($conditionMap)) {
-    $conditionMap = CONDITION_TYPES;
+    $conditionMap = [
+        'sealed' => '原盒未拆',
+        'opened' => '拆盒无瑕',
+        'boxless' => '无盒无瑕',
+        'flawed' => '微瑕'
+    ];
 }
 
 // 搜索商品（匹配拼音首字母或名称本身），限定在本场直播库存中
@@ -64,9 +85,11 @@ $placeholders = implode(',', array_fill(0, count($productIds), '?'));
 // 查直播库存详情
 $stmt = $pdo->prepare("
     SELECT * FROM live_inventory
-    WHERE live_session_id = ? AND product_id IN ({$placeholders})
+    WHERE live_session_id = ? AND product_id IN ({$placeholders})" . ($storeId ? " AND store_id = ?" : "") . "
 ");
-$stmt->execute(array_merge([$liveSessionId], $productIds));
+$params = array_merge([$liveSessionId], $productIds);
+if ($storeId) $params[] = $storeId;
+$stmt->execute($params);
 $liveInventoryRows = $stmt->fetchAll();
 
 // 按 product_id 分组
@@ -79,10 +102,12 @@ foreach ($liveInventoryRows as $row) {
 $stmt = $pdo->prepare("
     SELECT product_id, condition_type, GROUP_CONCAT(DISTINCT purchase_price ORDER BY purchase_price SEPARATOR '/') as prices
     FROM inventory_batches
-    WHERE product_id IN ({$placeholders}) AND remaining_qty > 0 AND purchase_price > 0
+    WHERE product_id IN ({$placeholders}) AND remaining_qty > 0 AND purchase_price > 0" . ($storeId ? " AND store_id = ?" : "") . "
     GROUP BY product_id, condition_type
 ");
-$stmt->execute($productIds);
+$params = $productIds;
+if ($storeId) $params[] = $storeId;
+$stmt->execute($params);
 $purchaseRows = $stmt->fetchAll();
 $purchaseByProduct = [];
 foreach ($purchaseRows as $pr) {

@@ -1,8 +1,10 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 try {
     $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
     // 确保表存在
     $pdo->exec("
@@ -16,7 +18,8 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
 
-    $stmt = $pdo->query('SELECT id, name, config, created_at, updated_at FROM label_templates ORDER BY updated_at DESC');
+    $stmt = $pdo->prepare('SELECT id, name, config, created_at, updated_at FROM label_templates WHERE 1=1' . ($storeId ? ' AND store_id = ?' : '') . ' ORDER BY updated_at DESC');
+    $stmt->execute($storeId ? [$storeId] : []);
     $templates = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $formatted = array_map(function($t) {

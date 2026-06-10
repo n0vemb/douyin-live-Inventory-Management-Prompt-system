@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 $barcode = trim($input['barcode'] ?? '');
@@ -14,9 +15,10 @@ if (empty($liveSessionId)) {
 }
 
 $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
-$stmt = $pdo->prepare('SELECT * FROM products WHERE barcode = ?');
-$stmt->execute([$barcode]);
+$stmt = $pdo->prepare('SELECT * FROM products WHERE barcode = ?' . ($storeId ? ' AND store_id = ?' : ''));
+$stmt->execute($storeId ? [$barcode, $storeId] : [$barcode]);
 $product = $stmt->fetch();
 
 if (!$product) {
@@ -24,10 +26,10 @@ if (!$product) {
 }
 
 $stmt = $pdo->prepare('
-    SELECT * FROM live_inventory 
-    WHERE live_session_id = ? AND product_id = ?
+    SELECT * FROM live_inventory
+    WHERE live_session_id = ? AND product_id = ? AND store_id = ?
 ');
-$stmt->execute([$liveSessionId, $product['id']]);
+$stmt->execute([$liveSessionId, $product['id'], $storeId]);
 $liveInventory = $stmt->fetchAll();
 
 if (empty($liveInventory)) {
@@ -38,18 +40,41 @@ $inventoryData = [];
 $conditionMap = [];
 $purchasePriceData = [];
 try {
-    $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types'");
-    $stmt->execute();
-    $result = $stmt->fetch();
-    if ($result && $result['setting_value']) {
-        $conditionTypes = json_decode($result['setting_value'], true);
-        if ($conditionTypes && is_array($conditionTypes)) {
-            foreach ($conditionTypes as $ct) {
-                $conditionMap[$ct['key']] = $ct['name'];
+    if ($storeId) {
+        $stmt = $pdo->prepare("SELECT condition_types FROM stores WHERE id = ?");
+        $stmt->execute([$storeId]);
+        $result = $stmt->fetch();
+        if ($result && $result['condition_types']) {
+            $conditionTypes = json_decode($result['condition_types'], true);
+            if ($conditionTypes && is_array($conditionTypes)) {
+                foreach ($conditionTypes as $ct) {
+                    $conditionMap[$ct['key']] = $ct['name'];
+                }
+            }
+        }
+    } else {
+        $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types' AND store_id IS NULL");
+        $stmt->execute();
+        $result = $stmt->fetch();
+        if ($result && $result['setting_value']) {
+            $conditionTypes = json_decode($result['setting_value'], true);
+            if ($conditionTypes && is_array($conditionTypes)) {
+                foreach ($conditionTypes as $ct) {
+                    $conditionMap[$ct['key']] = $ct['name'];
+                }
             }
         }
     }
 } catch (Exception $e) {}
+
+if (empty($conditionMap)) {
+    $conditionMap = [
+        'sealed' => '原盒未拆',
+        'opened' => '拆盒无瑕',
+        'boxless' => '无盒无瑕',
+        'flawed' => '微瑕'
+    ];
+}
 
 if (empty($conditionMap)) {
     $conditionMap = CONDITION_TYPES;
@@ -60,10 +85,10 @@ try {
     $stmt = $pdo->prepare('
         SELECT condition_type, GROUP_CONCAT(DISTINCT purchase_price ORDER BY purchase_price SEPARATOR "/") as prices
         FROM inventory_batches
-        WHERE product_id = ? AND remaining_qty > 0 AND purchase_price > 0
+        WHERE product_id = ? AND remaining_qty > 0 AND purchase_price > 0 AND store_id = ?
         GROUP BY condition_type
     ');
-    $stmt->execute([$product['id']]);
+    $stmt->execute([$product['id'], $storeId]);
     $purchaseRows = $stmt->fetchAll();
     foreach ($purchaseRows as $pr) {
         $conditionName = $conditionMap[$pr['condition_type']] ?? $pr['condition_type'];

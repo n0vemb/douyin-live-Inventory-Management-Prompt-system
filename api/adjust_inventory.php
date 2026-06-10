@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 
@@ -17,12 +18,13 @@ if ($adjustQty === 0) {
 }
 
 $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 $pdo->beginTransaction();
 
 try {
 
-    $stmt = $pdo->prepare('SELECT SUM(remaining_qty) FROM inventory_batches WHERE product_id = ? AND condition_type = ?');
-    $stmt->execute([$productId, $conditionType]);
+    $stmt = $pdo->prepare('SELECT SUM(remaining_qty) FROM inventory_batches WHERE product_id = ? AND condition_type = ? AND store_id = ?');
+    $stmt->execute([$productId, $conditionType, $storeId]);
     $currentStock = (int)$stmt->fetchColumn();
 
     if ($adjustQty < 0) {
@@ -34,10 +36,10 @@ try {
         $stmt = $pdo->prepare('
             SELECT id, remaining_qty
             FROM inventory_batches
-            WHERE product_id = ? AND condition_type = ? AND remaining_qty > 0
+            WHERE product_id = ? AND condition_type = ? AND remaining_qty > 0 AND store_id = ?
             ORDER BY purchased_at ASC, id ASC
         ');
-        $stmt->execute([$productId, $conditionType]);
+        $stmt->execute([$productId, $conditionType, $storeId]);
         $batches = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($batches as $batch) {
@@ -45,19 +47,19 @@ try {
                 break;
             }
             $consume = min($need, (int)$batch['remaining_qty']);
-            $update = $pdo->prepare('UPDATE inventory_batches SET remaining_qty = remaining_qty - ? WHERE id = ?');
-            $update->execute([$consume, (int)$batch['id']]);
+            $update = $pdo->prepare('UPDATE inventory_batches SET remaining_qty = remaining_qty - ? WHERE id = ? AND store_id = ?');
+            $update->execute([$consume, (int)$batch['id'], $storeId]);
             $need -= $consume;
         }
     } else {
         $stmt = $pdo->prepare('
             SELECT purchase_price, suggested_price
             FROM inventory_batches
-            WHERE product_id = ? AND condition_type = ?
+            WHERE product_id = ? AND condition_type = ? AND store_id = ?
             ORDER BY purchased_at DESC, id DESC
             LIMIT 1
         ');
-        $stmt->execute([$productId, $conditionType]);
+        $stmt->execute([$productId, $conditionType, $storeId]);
         $latest = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$latest) {
@@ -67,8 +69,8 @@ try {
         $batchNo = 'ADJ' . date('YmdHis') . sprintf('%04d', random_int(0, 9999));
         $insert = $pdo->prepare('
             INSERT INTO inventory_batches
-            (product_id, condition_type, batch_no, purchase_price, suggested_price, total_qty, remaining_qty, supplier, remark)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (product_id, condition_type, batch_no, purchase_price, suggested_price, total_qty, remaining_qty, supplier, remark, store_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ');
         $insert->execute([
             $productId,
@@ -79,12 +81,13 @@ try {
             $adjustQty,
             $adjustQty,
             'manual-adjust',
-            $remark
+            $remark,
+            $storeId
         ]);
     }
 
-    $stmt = $pdo->prepare('SELECT SUM(remaining_qty) FROM inventory_batches WHERE product_id = ? AND condition_type = ?');
-    $stmt->execute([$productId, $conditionType]);
+    $stmt = $pdo->prepare('SELECT SUM(remaining_qty) FROM inventory_batches WHERE product_id = ? AND condition_type = ? AND store_id = ?');
+    $stmt->execute([$productId, $conditionType, $storeId]);
     $newStock = (int)$stmt->fetchColumn();
 
     $pdo->commit();

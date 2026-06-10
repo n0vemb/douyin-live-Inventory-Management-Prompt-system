@@ -1,6 +1,11 @@
 <?php
 date_default_timezone_set('Asia/Shanghai');
 
+if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params(['path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+    session_start();
+}
+
 function envOrDefault($key, $default = null) {
     $value = getenv($key);
     if ($value === false || $value === '') {
@@ -9,10 +14,10 @@ function envOrDefault($key, $default = null) {
     return $value;
 }
 #mysql数据库配置在这里，只要修改这里就好了
-define('DB_HOST', envOrDefault('PPMART_DB_HOST', '172.18.0.2'));
-define('DB_USER', envOrDefault('PPMART_DB_USER', 'ppmart'));
+define('DB_HOST', envOrDefault('PPMART_DB_HOST', 'localhost'));
+define('DB_USER', envOrDefault('PPMART_DB_USER', 'ppmart2'));
 define('DB_PASS', envOrDefault('PPMART_DB_PASS', ''));
-define('DB_NAME', envOrDefault('PPMART_DB_NAME', 'ppmart'));
+define('DB_NAME', envOrDefault('PPMART_DB_NAME', 'ppmart2'));
 
 // Windows 打印代理地址（启用后 direct_print.php 将发送标签到该代理打印）
 // 格式：http://192.168.x.x:9188
@@ -87,12 +92,39 @@ function calculateEAN13CheckDigit($digits) {
 
 /**
  * 生成带 EAN-13 校验位的条形码，并检查数据库中是否已存在
- * 格式：69414486 + 4位随机数 + 1位校验位 = 13位
+ * 格式：{prefix} + 4位随机数 + 1位校验位 = 13位
  * @param PDO $pdo 数据库连接
+ * @param string $prefix 店铺条码前缀（8位），默认 69414486
  * @return string|null 生成的条形码，失败返回 null
  */
-function generateBarcode($pdo) {
-    $prefix = '69414486';
+/**
+ * 原子化生成条码（使用 MySQL GET_LOCK 防止并发重复）
+ * 相比 generateBarcode() 在高并发下更安全
+ */
+function generateBarcodeAtomic($pdo, $prefix = '69414486') {
+    $lockName = 'barcode_gen_' . $prefix;
+    $pdo->exec("SELECT GET_LOCK('$lockName', 5)");
+    try {
+        $maxAttempts = 10;
+        for ($i = 0; $i < $maxAttempts; $i++) {
+            $randomPart = str_pad(mt_rand(0, 9999), 4, '0', STR_PAD_LEFT);
+            $digits = $prefix . $randomPart;
+            $checkDigit = calculateEAN13CheckDigit($digits);
+            $barcode = $digits . $checkDigit;
+
+            $stmt = $pdo->prepare('SELECT id FROM products WHERE barcode = ?');
+            $stmt->execute([$barcode]);
+            if (!$stmt->fetch()) {
+                return $barcode;
+            }
+        }
+        return null;
+    } finally {
+        $pdo->exec("SELECT RELEASE_LOCK('$lockName')");
+    }
+}
+
+function generateBarcode($pdo, $prefix = '69414486') {
     $maxAttempts = 10;
     for ($i = 0; $i < $maxAttempts; $i++) {
         $randomPart = str_pad(mt_rand(0, 9999), 4, '0', STR_PAD_LEFT);
@@ -107,6 +139,26 @@ function generateBarcode($pdo) {
         }
     }
     return null;
+}
+
+/**
+ * 生成唯一的店铺条码前缀（EAN-13 前8位）
+ * 格式：69 + 6位随机数，确保在 stores 表中唯一
+ * @param PDO $pdo 数据库连接
+ * @return string 8位数字前缀
+ */
+function generateStoreBarcodePrefix($pdo) {
+    $maxAttempts = 20;
+    for ($i = 0; $i < $maxAttempts; $i++) {
+        $prefix = '69' . str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
+        $stmt = $pdo->prepare('SELECT id FROM stores WHERE barcode_prefix = ?');
+        $stmt->execute([$prefix]);
+        if (!$stmt->fetch()) {
+            return $prefix;
+        }
+    }
+    // 保底：用时间戳后6位
+    return '69' . substr(strrev((string)time()), 0, 6);
 }
 
 /**
@@ -133,8 +185,35 @@ function sanitizeSeriesDir($series) {
     return $name === '' ? '_' : $name;
 }
 
+/**
+ * 安全地处理货币值：转为浮点数并保留2位小数
+ * PDO 返回的 DECIMAL 是字符串，直接使用可避免浮点精度问题
+ * 需要做算术运算时再转为 float 并 round 到2位
+ */
+function decimal($value, $precision = 2) {
+    return round((float)$value, $precision);
+}
+
 function success($data = []) {
     jsonResponse(array_merge(['success' => true], $data));
+}
+
+/**
+ * 结构化错误日志
+ * @param string $message 错误信息
+ * @param string $context 上下文标签（如 api/sell_product_live）
+ * @param array $extra 额外数据
+ */
+function logError($message, $context = 'general', $extra = []) {
+    $logData = array_merge([
+        'ts' => date('Y-m-d H:i:s'),
+        'ctx' => $context,
+        'msg' => $message,
+        'user' => $_SESSION['username'] ?? 'guest',
+        'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+        'uri' => $_SERVER['REQUEST_URI'] ?? '',
+    ], $extra);
+    error_log(json_encode($logData, JSON_UNESCAPED_UNICODE));
 }
 
 function error($message, $code = 400) {

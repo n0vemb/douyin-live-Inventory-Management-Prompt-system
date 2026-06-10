@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     error('请使用POST方法');
@@ -13,13 +14,14 @@ if (!isset($input['id']) && !isset($input['name'])) {
 
 try {
     $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
     if (isset($input['id'])) {
-        $stmt = $pdo->prepare('DELETE FROM label_templates WHERE id = ?');
-        $stmt->execute([$input['id']]);
+        $stmt = $pdo->prepare('DELETE FROM label_templates WHERE id = ?' . ($storeId ? ' AND store_id = ?' : ''));
+        $stmt->execute($storeId ? [$input['id'], $storeId] : [$input['id']]);
     } else {
-        $stmt = $pdo->prepare('DELETE FROM label_templates WHERE name = ?');
-        $stmt->execute([trim($input['name'])]);
+        $stmt = $pdo->prepare('DELETE FROM label_templates WHERE name = ?' . ($storeId ? ' AND store_id = ?' : ''));
+        $stmt->execute($storeId ? [trim($input['name']), $storeId] : [trim($input['name'])]);
     }
 
     if ($stmt->rowCount() === 0) {

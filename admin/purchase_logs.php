@@ -20,9 +20,9 @@ require_once __DIR__ . '/layout.php';
                     <input type="text" class="form-input" id="searchKeyword" placeholder="搜索商品...">
                 </div>
                 <div class="form-group" style="flex:1; min-width:150px;">
-                    <label class="form-label">状态类型</label>
+                    <label class="form-label">SKU类型</label>
                     <select class="form-input" id="conditionType">
-                        <option value="">全部状态</option>
+                        <option value="">全部SKU</option>
                     </select>
                 </div>
                 <div class="form-group" style="min-width:120px;">
@@ -47,7 +47,7 @@ require_once __DIR__ . '/layout.php';
                         <th>批次号</th>
                         <th>商品条码</th>
                         <th>商品名称</th>
-                        <th>状态</th>
+                        <th>SKU</th>
                         <th>数量</th>
                         <th>售价</th>
                         <th>操作</th>
@@ -143,7 +143,7 @@ require_once __DIR__ . '/layout.php';
                             <button class="btn btn-sm btn-primary" onclick="addFabricElement('barcodeText')" style="margin-bottom:5px; width:100%;">🔢 数字</button>
                             <button class="btn btn-sm btn-primary" onclick="addFabricElement('name')" style="margin-bottom:5px; width:100%;">🏷️ 名称</button>
                             <button class="btn btn-sm btn-primary" onclick="addFabricElement('price')" style="margin-bottom:5px; width:100%;">💰 价格</button>
-                            <button class="btn btn-sm btn-primary" onclick="addFabricElement('condition')" style="margin-bottom:5px; width:100%;">📋 状态</button>
+                            <button class="btn btn-sm btn-primary" onclick="addFabricElement('condition')" style="margin-bottom:5px; width:100%;">📋 SKU</button>
                         </div>
 
                         <div style="margin-top:15px; padding-top:12px; border-top:1px solid var(--border);">
@@ -222,6 +222,7 @@ require_once __DIR__ . '/layout.php';
     let conditionClassMap = {};
     let allConditionTypes = ['sealed', 'opened', 'boxless', 'flawed'];
     let labelTemplates = [];
+    let oneEachMode = false;
     
     let fabricCanvas = null;
     let fabricScale = 3;
@@ -639,9 +640,9 @@ require_once __DIR__ . '/layout.php';
                         conditionNameMap[c.key] = c.name;
                         conditionClassMap[c.key] = 'condition-' + c.key;
                     });
-                    
+
                     const select = document.getElementById('conditionType');
-                    select.innerHTML = '<option value="">全部状态</option>';
+                    select.innerHTML = '<option value="">全部SKU</option>';
                     conditionTypes.forEach(c => {
                         const opt = document.createElement('option');
                         opt.value = c.key;
@@ -649,10 +650,12 @@ require_once __DIR__ . '/layout.php';
                         select.appendChild(opt);
                     });
                 }
+                return settings.server_time || null;
             }
         } catch (err) {
             console.error(err);
         }
+        return null;
     }
 
     async function searchPurchaseLogs(page = 1) {
@@ -775,17 +778,24 @@ require_once __DIR__ . '/layout.php';
 
     function updateSelectedUI() {
         const totalQty = selectedItems.reduce((sum, item) => sum + item.qty, 0);
-        document.getElementById('selectedCount').textContent = 
+        document.getElementById('selectedCount').textContent =
             selectedItems.length > 0 ? `已选择 ${selectedItems.length} 条入库记录，共 ${totalQty} 个标签` : '';
 
         const container = document.getElementById('printButtonContainer');
         container.innerHTML = '';
         if (selectedItems.length > 0) {
-            const btn = document.createElement('button');
-            btn.className = 'btn btn-success';
-            btn.textContent = `🖨️ 批量打印标签 (${selectedItems.length} 条)`;
-            btn.onclick = openPrintModal;
-            container.appendChild(btn);
+            const btn1 = document.createElement('button');
+            btn1.className = 'btn btn-success';
+            btn1.textContent = `🖨️ 批量打印全部 (${totalQty}张)`;
+            btn1.style.marginRight = '8px';
+            btn1.onclick = openPrintModal;
+            container.appendChild(btn1);
+
+            const btn2 = document.createElement('button');
+            btn2.className = 'btn btn-primary';
+            btn2.textContent = `📋 每商品1张 (${selectedItems.length}张)`;
+            btn2.onclick = openPrintModalOneEach;
+            container.appendChild(btn2);
         }
     }
 
@@ -794,17 +804,31 @@ require_once __DIR__ . '/layout.php';
             alert('请先选择要打印标签的入库记录');
             return;
         }
+        oneEachMode = false;
+        openPrintModalCommon();
+    }
 
+    function openPrintModalOneEach() {
+        if (selectedItems.length === 0) {
+            alert('请先选择要打印标签的入库记录');
+            return;
+        }
+        oneEachMode = true;
+        openPrintModalCommon();
+    }
+
+    function openPrintModalCommon() {
         loadTemplates();
 
-        const totalQty = selectedItems.reduce((sum, item) => sum + item.qty, 0);
+        const labelQty = oneEachMode ? selectedItems.length : selectedItems.reduce((sum, item) => sum + item.qty, 0);
         document.getElementById('selectedPrintCount').textContent = selectedItems.length;
-        document.getElementById('totalLabels').textContent = totalQty;
+        document.getElementById('totalLabels').textContent = labelQty;
 
         let summaryHtml = '';
         selectedItems.forEach(item => {
+            const printNum = oneEachMode ? 1 : item.qty;
             summaryHtml += `<div style="padding:3px 0; border-bottom:1px solid var(--border);">
-                ${item.productName} ×${item.qty} <span style="color:var(--danger);">¥${parseFloat(item.price).toFixed(2)}</span>
+                ${item.productName} ×${printNum} <span style="color:var(--danger);">¥${parseFloat(item.price).toFixed(2)}</span>
             </div>`;
         });
         document.getElementById('selectedItemsSummary').innerHTML = summaryHtml || '<div style="color:var(--text-tertiary);">暂无选中</div>';
@@ -885,7 +909,7 @@ require_once __DIR__ . '/layout.php';
                 ${html}
             </div>
             <div style="text-align:center; padding-top:16px; font-size:13px; color:var(--text-secondary);">
-                尺寸: ${template.canvasWidth}×${template.canvasHeight}mm | 数量: ${selectedItems.reduce((s, i) => s + i.qty, 0)} 个
+                尺寸: ${template.canvasWidth}×${template.canvasHeight}mm | 数量: ${oneEachMode ? selectedItems.length : selectedItems.reduce((s, i) => s + i.qty, 0)} 个
             </div>
         `;
 
@@ -976,7 +1000,7 @@ require_once __DIR__ . '/layout.php';
         const printerName = document.getElementById('printerName').value.trim();
 
         const batchQty = {};
-        selectedItems.forEach(item => { batchQty[item.batch_id] = item.qty; });
+        selectedItems.forEach(item => { batchQty[item.batch_id] = oneEachMode ? 1 : item.qty; });
         const batchIds = selectedItems.map(item => item.batch_id);
 
         const btn = document.querySelector('.btn-success');
@@ -1215,7 +1239,8 @@ waitForJsBarcode(function() {
 
         let html = '';
         selectedItems.forEach(item => {
-            for (let i = 0; i < item.qty; i++) {
+            const count = oneEachMode ? 1 : item.qty;
+            for (let i = 0; i < count; i++) {
                 html += `<div class="label-page" style="position:relative; width:${template.canvasWidth}mm; min-height:${template.canvasHeight}mm; height:${template.canvasHeight}mm; filter:${densityFilter[density]}; box-sizing:border-box; overflow:hidden; page-break-after:always; page-break-inside:avoid; break-inside:avoid;">`;
 
                 template.elements.forEach(el => {
@@ -1446,13 +1471,25 @@ waitForJsBarcode(function() {
 
     document.addEventListener('DOMContentLoaded', () => {
         loadTemplates();
-        loadSystemSettings().then(() => {
-            const today = new Date().toISOString().split('T')[0];
-            const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        loadSystemSettings().then((serverTime) => {
+            // 使用服务器时间计算默认日期范围，避免客户端时钟偏差
+            const refDate = serverTime ? new Date(serverTime) : new Date();
+            function localDate(d) {
+                return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+            }
+            const today = localDate(refDate);
+            const thirtyDaysAgo = localDate(new Date(refDate.getTime() - 30 * 24 * 60 * 60 * 1000));
             document.getElementById('startDate').value = thirtyDaysAgo;
             document.getElementById('endDate').value = today;
             searchPurchaseLogs(1);
         });
+    });
+
+    document.getElementById('searchKeyword').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            searchPurchaseLogs(1);
+        }
     });
 
     document.addEventListener('keydown', (e) => {

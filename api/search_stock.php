@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $barcode = $_GET['barcode'] ?? '';
 
@@ -9,6 +10,7 @@ if (empty($barcode)) {
 
 try {
     $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
     $stmt = $pdo->prepare('
         SELECT
@@ -26,10 +28,10 @@ try {
             ib.purchased_at
         FROM inventory_batches ib
         JOIN products p ON ib.product_id = p.id
-        WHERE p.barcode = ? AND ib.remaining_qty > 0
+        WHERE p.barcode = ? AND ib.remaining_qty > 0' . ($storeId ? ' AND ib.store_id = ?' : '') . '
         ORDER BY ib.purchased_at ASC
     ');
-    $stmt->execute([$barcode]);
+    $stmt->execute($storeId ? [$barcode, $storeId] : [$barcode]);
     $batches = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $conditionNames = [
@@ -41,15 +43,30 @@ try {
 
     // 从数据库加载状态名称
     try {
-        $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types'");
-        $stmt->execute();
-        $result = $stmt->fetch();
-        if ($result && $result['setting_value']) {
-            $types = json_decode($result['setting_value'], true);
-            if ($types && is_array($types)) {
-                $conditionNames = [];
-                foreach ($types as $t) {
-                    $conditionNames[$t['key']] = $t['name'];
+        if ($storeId) {
+            $stmt = $pdo->prepare("SELECT condition_types FROM stores WHERE id = ?");
+            $stmt->execute([$storeId]);
+            $result = $stmt->fetch();
+            if ($result && $result['condition_types']) {
+                $types = json_decode($result['condition_types'], true);
+                if ($types && is_array($types)) {
+                    $conditionNames = [];
+                    foreach ($types as $t) {
+                        $conditionNames[$t['key']] = $t['name'];
+                    }
+                }
+            }
+        } else {
+            $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types' AND store_id IS NULL");
+            $stmt->execute();
+            $result = $stmt->fetch();
+            if ($result && $result['setting_value']) {
+                $types = json_decode($result['setting_value'], true);
+                if ($types && is_array($types)) {
+                    $conditionNames = [];
+                    foreach ($types as $t) {
+                        $conditionNames[$t['key']] = $t['name'];
+                    }
                 }
             }
         }

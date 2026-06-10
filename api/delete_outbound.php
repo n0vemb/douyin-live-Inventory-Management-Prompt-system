@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('HTTP/1.1 405 Method Not Allowed');
@@ -17,20 +18,22 @@ try {
     }
 
     $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
     // 开始事务
     $pdo->beginTransaction();
 
-    // 1. 找出该出库批次的所有记录
+    // 1. 找出该出库批次的所有记录（已按 store_id 过滤）
     $stmt = $pdo->prepare("
         SELECT
             o.id as outbound_id,
             o.batch_id,
-            o.qty
+            o.qty,
+            o.product_id
         FROM outbound_log o
-        WHERE o.outbound_batch_no = ?
+        WHERE o.outbound_batch_no = ?" . ($storeId ? " AND o.store_id = ?" : "") . "
     ");
-    $stmt->execute([$batchNo]);
+    $stmt->execute($storeId ? [$batchNo, $storeId] : [$batchNo]);
     $outbounds = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($outbounds)) {
@@ -55,9 +58,16 @@ try {
     // 3. 删除出库记录
     $deleteStmt = $pdo->prepare("
         DELETE FROM outbound_log
-        WHERE outbound_batch_no = ?
+        WHERE outbound_batch_no = ?" . ($storeId ? " AND store_id = ?" : "") . "
     ");
-    $deleteStmt->execute([$batchNo]);
+    $deleteStmt->execute($storeId ? [$batchNo, $storeId] : [$batchNo]);
+
+    // 4. 删除财务数据
+    $deleteFinanceStmt = $pdo->prepare("
+        DELETE FROM outbound_finance
+        WHERE outbound_batch_no = ?" . ($storeId ? " AND store_id = ?" : "") . "
+    ");
+    $deleteFinanceStmt->execute($storeId ? [$batchNo, $storeId] : [$batchNo]);
 
     // 提交事务
     $pdo->commit();

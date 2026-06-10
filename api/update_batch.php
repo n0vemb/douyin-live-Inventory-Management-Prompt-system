@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 
@@ -24,12 +25,13 @@ if ($purchasePrice <= 0 || $suggestedPrice <= 0) {
 }
 
 $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 $pdo->beginTransaction();
 
 try {
     // 查找批次
-    $stmt = $pdo->prepare('SELECT * FROM inventory_batches WHERE id = ?');
-    $stmt->execute([$batchId]);
+    $stmt = $pdo->prepare('SELECT * FROM inventory_batches WHERE id = ? AND store_id = ?');
+    $stmt->execute([$batchId, $storeId]);
     $batch = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$batch) {
@@ -47,30 +49,31 @@ try {
     }
     
     $stmt = $pdo->prepare('
-        UPDATE inventory_batches 
-        SET remaining_qty = ?, 
-            purchase_price = ?, 
+        UPDATE inventory_batches
+        SET remaining_qty = ?,
+            purchase_price = ?,
             suggested_price = ?,
             remark = ?
-        WHERE id = ?
+        WHERE id = ? AND store_id = ?
     ');
     $stmt->execute([
         $qty,
         $purchasePrice,
         $suggestedPrice,
         $updateRemark ?: $batch['remark'],
-        $batchId
+        $batchId,
+        $storeId
     ]);
     
     // 同时更新live_inventory（如果存在） - 通过 product_id 和 condition_type 匹配
     $stmt = $pdo->prepare('
-        UPDATE live_inventory 
-        SET current_stock = ?, 
+        UPDATE live_inventory
+        SET current_stock = ?,
             live_price = ?,
             suggested_price = ?
-        WHERE product_id = ? AND condition_type = ?
+        WHERE product_id = ? AND condition_type = ? AND store_id = ?
     ');
-    $stmt->execute([$qty, $suggestedPrice, $suggestedPrice, $productId, $conditionType]);
+    $stmt->execute([$qty, $suggestedPrice, $suggestedPrice, $productId, $conditionType, $storeId]);
     
     $pdo->commit();
     success([

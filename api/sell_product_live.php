@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 
@@ -22,16 +23,17 @@ if ($salePrice <= 0) {
 }
 
 $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
 $pdo->beginTransaction();
 
 try {
     $stmt = $pdo->prepare('
-        SELECT * FROM live_inventory 
-        WHERE live_session_id = ? AND product_id = ? AND condition_type = ?
+        SELECT * FROM live_inventory
+        WHERE live_session_id = ? AND product_id = ? AND condition_type = ? AND store_id = ?
         FOR UPDATE
     ');
-    $stmt->execute([$liveSessionId, $productId, $conditionType]);
+    $stmt->execute([$liveSessionId, $productId, $conditionType, $storeId]);
     $liveInv = $stmt->fetch();
 
     if (!$liveInv) {
@@ -53,11 +55,11 @@ try {
     $stmt->execute([$afterQty, $salePrice, $liveInv['id']]);
 
     $stmt = $pdo->prepare('
-        INSERT INTO sales_log 
-        (product_id, condition_type, sale_price, qty, live_session_id)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO sales_log
+        (product_id, condition_type, sale_price, qty, live_session_id, store_id)
+        VALUES (?, ?, ?, ?, ?, ?)
     ');
-    $stmt->execute([$productId, $conditionType, $salePrice, $qty, $liveSessionId]);
+    $stmt->execute([$productId, $conditionType, $salePrice, $qty, $liveSessionId, $storeId]);
 
     $pdo->commit();
 

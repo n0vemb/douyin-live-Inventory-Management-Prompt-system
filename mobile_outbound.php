@@ -1,6 +1,9 @@
 <?php
 // 手机出库页 - 独立页面，调用相机扫描条形码
 $pageTitle = '手机出库';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
+requireAuth();
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -255,8 +258,7 @@ $pageTitle = '手机出库';
     <div class="manual-bar" style="padding:10px 16px; background:#fff; border-bottom:1px solid #e5e5e7; display:flex; gap:8px;">
         <input type="text" id="manualBarcode" placeholder="手动输入条形码..." style="flex:1; padding:10px 14px; border:1.5px solid #d2d2d7; border-radius:10px; font-size:16px; outline:none; background:#f5f5f7;" onkeydown="if(event.key==='Enter')manualSearch()">
         <button onclick="manualSearch()" style="padding:10px 20px; border:none; border-radius:10px; background:#667eea; color:#fff; font-size:15px; font-weight:600; cursor:pointer; white-space:nowrap;">查询</button>
-        <button id="manualScanBtn" onclick="manualScan()" style="padding:10px 16px; border:none; border-radius:10px; background:#34d399; color:#fff; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap;">📷 拍照识别</button>
-        <button id="retryCameraBtn" onclick="startScanner()" style="display:none; padding:10px 16px; border:none; border-radius:10px; background:#86868b; color:#fff; font-size:13px; cursor:pointer; white-space:nowrap;">重试相机</button>
+        <button id="cameraToggleBtn" onclick="toggleCamera()" style="padding:10px 16px; border:none; border-radius:10px; background:#34d399; color:#fff; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap;">📷 关闭相机</button>
     </div>
 
     <!-- 扫描结果 -->
@@ -317,7 +319,6 @@ $pageTitle = '手机出库';
         if (el) el.textContent = msg;
         if (isError) {
             document.getElementById('scanOverlay').style.display = 'none';
-            document.getElementById('retryCameraBtn').style.display = 'block';
         }
     }
 
@@ -333,8 +334,6 @@ $pageTitle = '手机出库';
     }
 
     async function startScanner() {
-        var retryBtn = document.getElementById('retryCameraBtn');
-        retryBtn.style.display = 'none';
         updateCameraStatus('正在启动相机...');
 
         stopScanner();
@@ -370,8 +369,11 @@ $pageTitle = '手机出库';
             } else {
                 updateCameraStatus('⚠️ 当前浏览器不支持自动扫码', true);
                 document.getElementById('scanOverlay').style.display = 'none';
-                showToast('请使用手动输入或点击拍照识别');
+                showToast('请使用手动输入扫码');
             }
+
+            cameraOn = true;
+            updateCameraBtn();
         } catch (err) {
             console.error('Camera error:', err);
             var msg = err.message || String(err);
@@ -385,6 +387,8 @@ $pageTitle = '手机出库';
                 msg = '不支持的摄像头配置';
             }
             updateCameraStatus('⚠️ ' + msg, true);
+            cameraOn = false;
+            updateCameraBtn();
         }
     }
 
@@ -483,74 +487,33 @@ $pageTitle = '手机出库';
         }
     }
 
-    // ---- 拍照识别（一次性，兼容所有设备） ----
-    function manualScan() {
-        if (scanCooldown) return;
+    // ---- 相机开关 ----
+    let cameraOn = false;
 
-        // html5-qrcode 自动扫描模式下不需要手动拍照
-        if (scanMethod === 'library' && libScanner) {
-            showToast('已将条码对准相机，等待自动识别...');
-            return;
+    function updateCameraBtn() {
+        var btn = document.getElementById('cameraToggleBtn');
+        if (cameraOn) {
+            btn.textContent = '📷 关闭相机';
+            btn.style.background = '#34d399';
+        } else {
+            btn.textContent = '📷 打开相机';
+            btn.style.background = '#667eea';
         }
+    }
 
-        var video = document.getElementById('video');
-        if (!video || !video.videoWidth) {
-            showToast('⚠️ 相机未就绪');
-            return;
+    function toggleCamera() {
+        if (cameraOn) {
+            stopScanner();
+            cameraOn = false;
+            updateCameraBtn();
+            document.getElementById('scanOverlay').style.display = 'none';
+            document.getElementById('scanStatusBar').style.display = 'none';
+            document.getElementById('cameraPlaceholder').style.display = 'flex';
+            document.getElementById('cameraPlaceholder').querySelector('.icon').textContent = '⏸';
+            updateCameraStatus('相机已关闭');
+        } else {
+            startScanner();
         }
-
-        scanCooldown = true;
-        setTimeout(function() { scanCooldown = false; }, 2000);
-
-        // 先尝试原生 BarcodeDetector
-        if (window.BarcodeDetector) {
-            try {
-                var detector = new BarcodeDetector({ formats: ['ean_13','ean_8','code_128','code_39','upc_a','upc_e'] });
-                detector.detect(video).then(function(codes) {
-                    if (codes && codes.length > 0) {
-                        handleBarcode(codes[0].rawValue.trim());
-                    } else {
-                        showToast('未识别到条形码，请调整角度');
-                        scanCooldown = false;
-                    }
-                }).catch(function() {
-                    showToast('识别失败');
-                    scanCooldown = false;
-                });
-                return;
-            } catch(e) {}
-        }
-
-        // 兜底：截帧并用 Html5Qrcode 实例的 scanFile 做一次性识别
-        var canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-
-        canvas.toBlob(function(blob) {
-            try {
-                // 临时隐藏容器来避免干扰已有 DOM
-                var tempDiv = document.createElement('div');
-                tempDiv.style.display = 'none';
-                document.body.appendChild(tempDiv);
-                var tempScanner = new Html5Qrcode(tempDiv);
-                tempScanner.scanFile(new File([blob], 'frame.jpg', { type: 'image/jpeg' }), false)
-                    .then(function(text) {
-                        tempScanner.clear();
-                        document.body.removeChild(tempDiv);
-                        handleBarcode(text.trim());
-                    })
-                    .catch(function() {
-                        tempScanner.clear();
-                        document.body.removeChild(tempDiv);
-                        showToast('未识别到条形码');
-                        scanCooldown = false;
-                    });
-            } catch(e) {
-                showToast('当前设备不支持扫码识别');
-                scanCooldown = false;
-            }
-        }, 'image/jpeg', 0.8);
     }
 
     function stopScanner() {
@@ -812,14 +775,14 @@ $pageTitle = '手机出库';
     }
 
     // ---- Init ----
-    // 尝试自动启动相机，同时监听点击（iOS 需要用户手势）
+    // 尝试自动启动相机
     startScanner();
+    // iOS 可能需要用户手势才能启动相机，点击画面重试
     document.getElementById('camera-view').addEventListener('click', function() {
-        // 如果相机还没启动，点按触发
-        if (!videoStream) {
+        if (!cameraOn) {
             startScanner();
         }
-    }, { once: true });
+    });
     </script>
 </body>
 </html>

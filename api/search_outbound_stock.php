@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $keyword = $_GET['keyword'] ?? '';
 
@@ -8,6 +9,7 @@ if (empty($keyword)) {
 }
 
 $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
 // 条件类型映射
 $conditionNames = [
@@ -17,15 +19,30 @@ $conditionNames = [
     'flawed' => '微瑕'
 ];
 try {
-    $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types'");
-    $stmt->execute();
-    $result = $stmt->fetch();
-    if ($result && $result['setting_value']) {
-        $types = json_decode($result['setting_value'], true);
-        if ($types && is_array($types)) {
-            $conditionNames = [];
-            foreach ($types as $t) {
-                $conditionNames[$t['key']] = $t['name'];
+    if ($storeId) {
+        $stmt = $pdo->prepare("SELECT condition_types FROM stores WHERE id = ?");
+        $stmt->execute([$storeId]);
+        $result = $stmt->fetch();
+        if ($result && $result['condition_types']) {
+            $types = json_decode($result['condition_types'], true);
+            if ($types && is_array($types)) {
+                $conditionNames = [];
+                foreach ($types as $t) {
+                    $conditionNames[$t['key']] = $t['name'];
+                }
+            }
+        }
+    } else {
+        $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types' AND store_id IS NULL");
+        $stmt->execute();
+        $result = $stmt->fetch();
+        if ($result && $result['setting_value']) {
+            $types = json_decode($result['setting_value'], true);
+            if ($types && is_array($types)) {
+                $conditionNames = [];
+                foreach ($types as $t) {
+                    $conditionNames[$t['key']] = $t['name'];
+                }
             }
         }
     }
@@ -35,7 +52,7 @@ try {
 $stmt = $pdo->prepare('
     SELECT DISTINCT p.id as product_id, p.name as product_name, p.common_name, p.series, p.barcode, p.pinyin_initials
     FROM products p
-    WHERE p.pinyin_initials LIKE ? OR p.name LIKE ?
+    WHERE (p.pinyin_initials LIKE ? OR p.name LIKE ?)' . ($storeId ? ' AND p.store_id = ?' : '') . '
     ORDER BY
         CASE WHEN p.pinyin_initials = ? THEN 0
              WHEN p.pinyin_initials LIKE ? THEN 1
@@ -45,7 +62,10 @@ $stmt = $pdo->prepare('
     LIMIT 10
 ');
 $likeKeyword = "%{$keyword}%";
-$stmt->execute([$likeKeyword, $likeKeyword, $keyword, $likeKeyword, $likeKeyword]);
+$params = [$likeKeyword, $likeKeyword];
+if ($storeId) $params[] = $storeId;
+$params = array_merge($params, [$keyword, $likeKeyword, $likeKeyword]);
+$stmt->execute($params);
 $products = $stmt->fetchAll();
 
 if (empty($products)) {
@@ -72,10 +92,12 @@ $stmt = $pdo->prepare("
         ib.purchased_at
     FROM inventory_batches ib
     JOIN products p ON ib.product_id = p.id
-    WHERE p.id IN ({$placeholders}) AND ib.remaining_qty > 0
+    WHERE p.id IN ({$placeholders}) AND ib.remaining_qty > 0" . ($storeId ? " AND ib.store_id = ?" : "") . "
     ORDER BY p.id, ib.condition_type, ib.purchased_at ASC
 ");
-$stmt->execute($productIds);
+$params = $productIds;
+if ($storeId) $params[] = $storeId;
+$stmt->execute($params);
 $batches = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach ($batches as &$batch) {

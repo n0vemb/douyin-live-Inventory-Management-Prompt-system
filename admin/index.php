@@ -23,7 +23,13 @@ require_once __DIR__ . '/layout.php';
             <div style="background:linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding:24px; border-radius:16px; color:white; box-shadow:0 4px 15px rgba(245,158,11,0.25);">
                 <div style="font-size:42px; font-weight:bold; margin-bottom:6px;" id="stockValue">-</div>
                 <div style="font-size:16px; opacity:0.9; display:flex; align-items:center; gap:6px;">
-                    <span>💰</span> 库存总价值
+                    <span>💰</span> 库存售价总值
+                </div>
+            </div>
+            <div style="background:linear-gradient(135deg, #ec4899 0%, #be185d 100%); padding:24px; border-radius:16px; color:white; box-shadow:0 4px 15px rgba(236,72,153,0.25);">
+                <div style="font-size:42px; font-weight:bold; margin-bottom:6px;" id="stockCost">-</div>
+                <div style="font-size:16px; opacity:0.9; display:flex; align-items:center; gap:6px;">
+                    <span>🏷️</span> 库存实际成本
                 </div>
             </div>
             <div style="background:linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding:24px; border-radius:16px; color:white; box-shadow:0 4px 15px rgba(239,68,68,0.25);">
@@ -209,6 +215,7 @@ require_once __DIR__ . '/layout.php';
             document.getElementById('totalProducts').textContent = products.length;
             document.getElementById('totalStock').textContent = stockData.data.total_qty || 0;
             document.getElementById('stockValue').textContent = '¥' + parseFloat(stockData.data.total_value || 0).toLocaleString();
+            document.getElementById('stockCost').textContent = '¥' + parseFloat(stockData.data.total_cost || 0).toLocaleString();
             document.getElementById('todaySales').textContent = '¥' + (salesData.data.today_sales_amount || 0).toLocaleString();
             document.getElementById('todayProfit').textContent = '¥' + (salesData.data.today_profit || 0).toLocaleString();
             document.getElementById('monthProfit').textContent = '¥' + (salesData.data.month_profit || 0).toLocaleString();

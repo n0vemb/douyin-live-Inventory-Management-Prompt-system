@@ -50,6 +50,7 @@ register_shutdown_function(function() {
 
 header('Content-Type: application/json');
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/pinyin_helper.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -60,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 try {
     // 初始化数据库连接
     $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
     if ($pdo === null) {
         throw new Exception('数据库连接失败');
     }
@@ -208,7 +210,7 @@ try {
                     $productId = $existing['id'];
                     // 如果匹配到的商品也没有条码，自动补上
                     if (empty($existing['barcode'])) {
-                        $newBarcode = generateBarcode($pdo);
+                        $newBarcode = generateBarcode($pdo, $_SESSION['barcode_prefix'] ?? '69414486');
                         if ($newBarcode) {
                             $stmt = $pdo->prepare("UPDATE products SET barcode = ? WHERE id = ?");
                             $stmt->execute([$newBarcode, $productId]);
@@ -216,7 +218,7 @@ try {
                     }
                 } else {
                     // 未匹配到，自动生成条码新建商品
-                    $barcode = generateBarcode($pdo);
+                    $barcode = generateBarcode($pdo, $_SESSION['barcode_prefix'] ?? '69414486');
                     if (empty($barcode)) {
                         $errorMessages[] = "第{$product['row']}行：条码生成失败，请稍后重试";
                         continue;
@@ -240,8 +242,8 @@ try {
                 // 插入商品
                 $pinyinInitials = generatePinyinInitials($product['name']);
                 $stmt = $pdo->prepare("
-                    INSERT INTO products (name, pinyin_initials, common_name, series, brand, barcode, qiandao_price, release_date, product_description, image_url, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                    INSERT INTO products (name, pinyin_initials, common_name, series, brand, barcode, qiandao_price, release_date, product_description, image_url, created_at, updated_at, store_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)
                 ");
 
                 $stmt->execute([
@@ -254,7 +256,8 @@ try {
                     $product['qiandao_price'],
                     $product['release_date'],
                     $product['product_description'],
-                    $product['image_url']
+                    $product['image_url'],
+                    $storeId
                 ]);
 
                 $productId = $pdo->lastInsertId();
@@ -267,8 +270,8 @@ try {
                         $batchNo = 'B' . date('YmdHis') . rand(1000, 9999);
                         
                         $stmt = $pdo->prepare("
-                            INSERT INTO inventory_batches (product_id, condition_type, batch_no, purchase_price, suggested_price, total_qty, remaining_qty, supplier, remark, purchased_at, created_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                            INSERT INTO inventory_batches (product_id, condition_type, batch_no, purchase_price, suggested_price, total_qty, remaining_qty, supplier, remark, purchased_at, created_at, store_id)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)
                         ");
                         
                         $stmt->execute([
@@ -280,8 +283,15 @@ try {
                             $data['quantity'],
                             $data['quantity'],
                             $data['supplier'] ?? null,
-                            $data['remark'] ?? null
+                            $data['remark'] ?? null,
+                            $storeId
                         ]);
+
+                        $stmt = $pdo->prepare("
+                            INSERT INTO purchase_log (product_id, condition_type, purchase_price, qty, supplier, remark, store_id)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ");
+                        $stmt->execute([$productId, $condition, $data['purchase_price'], $data['quantity'], $data['supplier'] ?? null, $data['remark'] ?? null, $storeId]);
                     }
                 }
             }
@@ -464,6 +474,7 @@ function parseXlsxFile($fileName, $pdo) {
 }
 
 function parseExcelRow($header, $row, $rowIndex, $pdo) {
+    global $storeId;
     // 检查列数是否匹配
     if (count($header) !== count($row)) {
         // 如果列数不匹配，尝试填充缺失的列或截断多余的列
@@ -506,12 +517,20 @@ function parseExcelRow($header, $row, $rowIndex, $pdo) {
     ];
     
     try {
-        $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types'");
-        $stmt->execute();
-        $result = $stmt->fetch();
-        
-        if ($result && $result['setting_value']) {
-            $conditionTypes = json_decode($result['setting_value'], true);
+        if ($storeId) {
+            $stmt = $pdo->prepare("SELECT condition_types FROM stores WHERE id = ?");
+            $stmt->execute([$storeId]);
+            $result = $stmt->fetch();
+            if ($result && $result['condition_types']) {
+                $conditionTypes = json_decode($result['condition_types'], true);
+            }
+        } else {
+            $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types' AND store_id IS NULL");
+            $stmt->execute();
+            $result = $stmt->fetch();
+            if ($result && $result['setting_value']) {
+                $conditionTypes = json_decode($result['setting_value'], true);
+            }
         }
     } catch (Exception $e) {
         // 使用默认状态类型

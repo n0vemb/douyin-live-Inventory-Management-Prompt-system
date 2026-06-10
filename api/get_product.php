@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 $productId = $input['product_id'] ?? 0;
@@ -10,9 +11,10 @@ if (empty($productId)) {
 }
 
 $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
-$stmt = $pdo->prepare('SELECT * FROM products WHERE id = ?');
-$stmt->execute([$productId]);
+$stmt = $pdo->prepare('SELECT * FROM products WHERE id = ? AND store_id = ?');
+$stmt->execute([$productId, $storeId]);
 $product = $stmt->fetch();
 
 if (!$product) {
@@ -28,16 +30,31 @@ $conditionNames = [
 ];
 
 try {
-    $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types'");
-    $stmt->execute();
-    $result = $stmt->fetch();
-    
-    if ($result && $result['setting_value']) {
-        $conditionTypes = json_decode($result['setting_value'], true);
-        if ($conditionTypes && is_array($conditionTypes)) {
-            $conditionNames = [];
-            foreach ($conditionTypes as $condition) {
-                $conditionNames[$condition['key']] = $condition['name'];
+    if ($storeId) {
+        $stmt = $pdo->prepare("SELECT condition_types FROM stores WHERE id = ?");
+        $stmt->execute([$storeId]);
+        $result = $stmt->fetch();
+        if ($result && $result['condition_types']) {
+            $decoded = json_decode($result['condition_types'], true);
+            if ($decoded && is_array($decoded)) {
+                $conditionNames = [];
+                foreach ($decoded as $condition) {
+                    $conditionNames[$condition['key']] = $condition['name'];
+                }
+            }
+        }
+    } else {
+        $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types' AND store_id IS NULL");
+        $stmt->execute();
+        $result = $stmt->fetch();
+
+        if ($result && $result['setting_value']) {
+            $conditionTypes = json_decode($result['setting_value'], true);
+            if ($conditionTypes && is_array($conditionTypes)) {
+                $conditionNames = [];
+                foreach ($conditionTypes as $condition) {
+                    $conditionNames[$condition['key']] = $condition['name'];
+                }
             }
         }
     }
@@ -47,10 +64,10 @@ try {
 
 $stmt = $pdo->prepare('
     SELECT * FROM inventory_batches
-    WHERE product_id = ? AND remaining_qty > 0
+    WHERE product_id = ? AND remaining_qty > 0 AND store_id = ?
     ORDER BY condition_type, purchased_at ASC
 ');
-$stmt->execute([$productId]);
+$stmt->execute([$productId, $storeId]);
 $batches = $stmt->fetchAll();
 
 $inventoryData = [];

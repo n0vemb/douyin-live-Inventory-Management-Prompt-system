@@ -16,3 +16,12 @@ Thumbs.db
 
 # Uploads (if any)
 uploads/
+*.bak
+*.bak.*
+*.tmp
+*.tar.gz
+ppmart.sql
+.user.ini
+.well-known/
+config.local.php
+*.local.php

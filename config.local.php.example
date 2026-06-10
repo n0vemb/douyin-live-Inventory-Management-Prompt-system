@@ -1,0 +1,18 @@
+<?php
+/**
+ * 本地数据库配置覆盖文件
+ * 复制此文件为 config.local.php 并填写实际凭据
+ * config.local.php 已被 .gitignore 忽略，不会提交到仓库
+ *
+ * 服务器真实密码应通过环境变量设置（优先级更高）：
+ *   PPMART_DB_HOST
+ *   PPMART_DB_USER
+ *   PPMART_DB_PASS
+ *   PPMART_DB_NAME
+ *   PPMART_PRINT_PROXY
+ *   PPMART_ENABLE_MAINTENANCE_API
+ */
+define('DB_HOST', 'localhost');
+define('DB_USER', 'ppmart2');
+define('DB_PASS', 'your_password_here');
+define('DB_NAME', 'ppmart2');

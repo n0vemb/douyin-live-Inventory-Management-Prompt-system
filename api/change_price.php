@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 
@@ -21,9 +22,10 @@ if (empty($liveSessionId)) {
 }
 
 $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
-$stmt = $pdo->prepare('SELECT * FROM live_inventory WHERE live_session_id = ? AND product_id = ? AND condition_type = ?');
-$stmt->execute([$liveSessionId, $productId, $conditionType]);
+$stmt = $pdo->prepare('SELECT * FROM live_inventory WHERE live_session_id = ? AND product_id = ? AND condition_type = ? AND store_id = ?');
+$stmt->execute([$liveSessionId, $productId, $conditionType, $storeId]);
 $inventory = $stmt->fetch();
 
 if (!$inventory) {

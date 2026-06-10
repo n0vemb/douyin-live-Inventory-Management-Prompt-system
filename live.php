@@ -1,3 +1,8 @@
+<?php
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
+requireAuth();
+?>
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -501,7 +506,7 @@
 
         .operation-toast {
             position: fixed;
-            top: 20px;
+            bottom: 68px;
             left: 20px;
             background: var(--bg-elevated);
             border: 1px solid var(--border);
@@ -722,9 +727,121 @@
                 padding: 10px;
                 max-width: 300px;
             }
-            .stock-info {
-                min-width: 80px;
-            }
+            .stock-info { min-width: 80px; }
+        }
+
+        /* ── live_v3 库存卡片网格 ── */
+        .grid-wrap {
+            display: none;
+            position: fixed; top: 0; left: 0; right: 0; bottom: 72px;
+            overflow: hidden; padding: 6px; z-index: 5;
+        }
+        .grid-wrap.show { display: block; }
+        .grid-container {
+            display: grid;
+            gap: 6px;
+            width: 100%; height: 100%;
+        }
+        .product-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 10px 14px;
+            display: flex; flex-direction: column;
+            min-width: 0; min-height: 0; overflow: hidden;
+        }
+        .product-card.low-stock { border-color: rgba(251,191,36,0.5); background: rgba(251,191,36,0.04); }
+        .product-card.sold-out {
+            opacity: 0.35; background: rgba(26,26,38,0.4);
+            order: 999;
+        }
+        .card-name {
+            font-size: calc(32px * var(--card-scale, 1)); font-weight: 800; color: var(--text);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            margin-bottom: 6px; line-height: 1.1; flex-shrink: 0;
+        }
+        .sku-list { display: flex; flex-direction: column; gap: calc(2px * var(--card-scale, 1)); flex: 1; justify-content: center; overflow: hidden; }
+        .sku-row {
+            display: flex; align-items: center; gap: calc(8px * var(--card-scale, 1));
+            padding: calc(3px * var(--card-scale, 1)) 0; border-top: 1px solid rgba(42,42,58,0.3);
+            flex-shrink: 0;
+        }
+        .sku-row:first-child { border-top: none; }
+        .sku-badge {
+            font-size: calc(20px * var(--card-scale, 1)); padding: calc(3px * var(--card-scale, 1)) calc(8px * var(--card-scale, 1)); border-radius: 4px;
+            font-weight: 700; white-space: nowrap; flex-shrink: 0;
+        }
+        .sku-price {
+            font-size: calc(36px * var(--card-scale, 1)); font-weight: 700; color: var(--success);
+            margin-left: auto; white-space: nowrap; flex-shrink: 0;
+        }
+        .sku-stock {
+            font-size: calc(36px * var(--card-scale, 1)); font-weight: 800; min-width: calc(36px * var(--card-scale, 1)); text-align: right;
+            white-space: nowrap; flex-shrink: 0;
+        }
+        .sku-stock.low  { color: var(--warning); }
+        .sku-stock.zero { color: var(--text-tertiary); }
+
+        /* ── 网格模式下的单品详情覆盖层 ── */
+        .product-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 72px;
+            background: radial-gradient(circle at 50% 40%, #1a1a2e 0%, #0a0a0f 100%);
+            z-index: 50; display: none; overflow: hidden;
+        }
+        .product-overlay.show { display: block; }
+        .product-overlay .prod-name {
+            position: absolute; font-weight: 800; color: var(--text);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .product-overlay .prod-series { position: absolute; font-weight: 600; }
+        .product-overlay .prod-common { position: absolute; }
+        .product-overlay .prod-image {
+            position: absolute; display: flex; align-items: center; justify-content: center;
+            background: var(--bg-card); border-radius: 20px; overflow: hidden;
+        }
+        .product-overlay .prod-image img { width: 100%; height: 100%; object-fit: contain; }
+        .product-overlay .prod-image .no-img { font-size: 120px; opacity: 0.2; }
+        .product-overlay .prod-desc {
+            position: absolute; overflow: hidden; text-overflow: ellipsis;
+            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+            line-height: 1.4;
+        }
+        .product-overlay .prod-prices {
+            position: absolute; display: flex; flex-direction: column;
+        }
+        .product-overlay .prod-price-row {
+            background: var(--bg-elevated); border: 1px solid var(--border);
+            border-radius: 14px; display: flex; align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px; cursor: default;
+        }
+        .product-overlay .prod-price-row:hover { border-color: var(--primary); }
+        .product-overlay .prod-price-row.low-row { border-color: rgba(251,191,36,0.4); background: rgba(251,191,36,0.04); }
+        .product-overlay .ppr-badge { font-weight: 700; white-space: nowrap; padding: 4px 10px; border-radius: 5px; }
+        .product-overlay .ppr-condition { flex: 1; }
+        .product-overlay .ppr-condition-num { font-size: 36px; font-weight: 800; margin-bottom: 5px; display: block; }
+        .product-overlay .ppr-condition-name { font-size: 28px; }
+        .product-overlay .ppr-price-wrap { text-align: center; }
+        .product-overlay .ppr-suggested { font-size: 24px; text-decoration: line-through; color: var(--text-tertiary); margin-bottom: 5px; }
+        .product-overlay .ppr-live-price { font-weight: 800; }
+        .product-overlay .ppr-stock-wrap { text-align: center; min-width: 100px; }
+        .product-overlay .ppr-stock-num { font-size: 52px; font-weight: 800; line-height: 1; }
+        .product-overlay .ppr-stock-label { font-size: 20px; color: var(--text-tertiary); margin-top: 5px; }
+        .product-overlay .prod-qiandao,
+        .product-overlay .prod-purchase {
+            position: absolute; display: flex; align-items: center;
+        }
+
+        .prod-timer {
+            position: fixed; top: 12px; right: 20px; z-index: 60;
+            font-size: 18px; color: var(--text-tertiary);
+        }
+        .prod-timer.warn { color: var(--warning); }
+        .prod-back-btn {
+            position: fixed; top: 8px; left: 20px; z-index: 60;
+            background: rgba(255,255,255,0.1); border: 1px solid var(--border);
+            color: var(--text); padding: 8px 16px; border-radius: 8px;
+            font-size: 16px; cursor: pointer;
         }
     </style>
 </head>
@@ -746,8 +863,11 @@
         <h1 id="standbyTitle">直播辅助系统</h1>
         <p>请扫描商品条码...</p>
         <div class="live-status" id="liveSessionInfo">准备中</div>
-        <div style="margin-top:20px; font-size:14px; opacity:0.7;">按 <kbd style="background:rgba(255,255,255,0.3);padding:5px 10px;border-radius:5px;">F11</kbd> 全屏效果更佳</div>
+        <div style="margin-top:20px; font-size:14px; opacity:0.7;">按 <kbd style="background:rgba(94,92,230,0.3);padding:5px 10px;border-radius:5px;">Space</kbd> 立即进入 · 按 <kbd style="background:rgba(255,255,255,0.3);padding:5px 10px;border-radius:5px;">F11</kbd> 全屏</div>
     </div>
+
+    <!-- 库存卡片网格 -->
+    <div class="grid-wrap" id="gridWrap"><div class="grid-container" id="gridContainer"></div></div>
 
     <div class="product-display" id="productDisplay">
         <div class="broadcaster-view">
@@ -784,6 +904,20 @@
         </div>
     </div>
 
+    <!-- 网格模式单品详情覆盖层 -->
+    <div class="product-overlay" id="productOverlay">
+        <div class="prod-back-btn" onclick="backToGridFromOverlay()">← 返回总览</div>
+        <div class="prod-timer" id="prodTimer">30s</div>
+        <div class="prod-name" id="prodName"></div>
+        <div class="prod-series" id="prodSeriesEl"></div>
+        <div class="prod-common" id="prodCommon"></div>
+        <div class="prod-qiandao" id="prodSuggestedPrice">参考价: <span id="prodQiandaoPrice"></span></div>
+        <div class="prod-purchase" id="prodPurchasePrice">进价: <span id="prodPurchasePriceVal"></span></div>
+        <div class="prod-image" id="prodImageWrap"><img id="prodImage" src="" alt=""><span id="prodNoImg" class="no-img">📦</span></div>
+        <div class="prod-desc" id="prodDesc"></div>
+        <div class="prod-prices" id="prodPrices"></div>
+    </div>
+
     <div class="operation-toast" id="operationToast"></div>
 
     <div class="keyboard-hint" id="keyboardHint">
@@ -791,7 +925,7 @@
         <span><kbd>Shift</kbd>+<kbd>Num</kbd> 加</span>
         <span>左键减 · 中键加</span>
         <span><kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd> 改价</span>
-        <span><kbd>Space</kbd> 关闭</span>
+        <span><kbd>Space</kbd> 返回卡片</span>
         <span><kbd>ESC</kbd> 切换模式</span>
     </div>
 
@@ -823,10 +957,15 @@
         let CONDITION_NUMBERS = ['❶', '❷', '❸', '❹'];
 
         let currentProduct = null;
+        let currentView = 'standby'; // 'standby' | 'grid' | 'product' | 'product_overlay'
+        let allProducts = [];
+        let gridProductTimer = null;
+        let gridProductSeconds = 30;
         let liveSessionId = null;
         let currentPriceChangeCondition = null;
         let voiceEnabled = false;
         let lastScannedBarcode = '';
+        let lastViewedBarcode = '';
         let scanDebounceTimer = null;
         let searchDebounceTimer = null;
         let searchResults = [];
@@ -905,6 +1044,11 @@
                     } else {
                         standbyIcon.style.display = 'none';
                     }
+
+                    // 如果已有商品在显示，用新的配置重新渲染
+                    if (currentProduct) {
+                        displayProduct();
+                    }
                 }
             } catch (e) {
                 console.log('使用默认设置', e);
@@ -968,8 +1112,8 @@
             }
         }
 
-        function init() {
-            loadSettings();
+        async function init() {
+            await loadSettings();
 
             fetch('api/get_current_session.php')
                 .then(r => r.json())
@@ -999,6 +1143,41 @@
                 if (currentProduct && !isPinyinSearch) {
                     this.select();
                 }
+            });
+
+            loadInventory();
+            setInterval(loadInventory, 8000);
+
+            // 启动画面：待机 10 秒后自动进入库存卡片网格
+            document.getElementById('standbyScreen').style.display = 'flex';
+            document.getElementById('standbyTitle').textContent = systemSettings.system_name || '直播辅助系统';
+            var splashCount = 10;
+            var splashHint = document.getElementById('liveSessionInfo');
+            window._splashDone = false;
+            window._splashTimer = setInterval(function() {
+                splashCount--;
+                if (splashHint) splashHint.textContent = '🔴 ' + (splashCount > 0 ? splashCount + 's 后进入库存总览...' : '进入中...');
+                if (splashCount <= 0) {
+                    clearInterval(window._splashTimer);
+                    window._splashDone = true;
+                    if (currentView === 'standby') showGridView();
+                }
+            }, 1000);
+            // 启动画面期间按 Space 可立即进入
+            var skipSplash = function(e) {
+                if (e.key === ' ' || e.key === 'Spacebar') {
+                    e.preventDefault();
+                    clearInterval(window._splashTimer);
+                    window._splashDone = true;
+                    if (currentView === 'standby') showGridView();
+                    document.removeEventListener('keydown', skipSplash);
+                }
+            };
+            document.addEventListener('keydown', skipSplash);
+
+            // 网格覆盖层点击重置计时器
+            document.getElementById('productOverlay').addEventListener('click', function(e) {
+                if (currentView === 'product_overlay') resetGridTimer();
             });
         }
 
@@ -1521,13 +1700,12 @@
             document.getElementById('standbyScreen').style.display = 'none';
             document.getElementById('productDisplay').classList.add('show');
             document.getElementById('keyboardHint').classList.add('show');
+            currentView = 'product';
 
             // 保持当前键盘模式（input = 继续聚焦, shortcut = 已失焦）
         }
 
         document.addEventListener('keydown', function(e) {
-            if (!currentProduct) return;
-
             // newPriceInput: only handle ESC to close modal, skip everything else
             if (e.target.id === 'newPriceInput') {
                 if (e.key === 'Escape') {
@@ -1537,14 +1715,21 @@
                 return;
             }
 
-            // Space: always close product regardless of mode
-            if (e.key === ' ' || e.key === 'Spacebar') {
+            // Space: 卡片网格 ↔ 商品详情 (skip if price modal open)
+            if ((e.key === ' ' || e.key === 'Spacebar') && !document.getElementById('priceModal').classList.contains('show')) {
                 e.preventDefault();
-                closeProduct();
+                if (currentView === 'product_overlay') {
+                    backToGridFromOverlay();
+                } else if (currentView === 'product') {
+                    closeProduct();
+                } else if (currentView === 'grid' && lastViewedBarcode) {
+                    // 从网格切回上次查看的商品
+                    processBarcode(lastViewedBarcode);
+                }
                 return;
             }
 
-            // ESC: close price modal → hide search → toggle mode
+            // ESC: close price modal → hide search → hide overlay → toggle mode
             if (e.key === 'Escape') {
                 e.preventDefault();
                 if (document.getElementById('priceModal').classList.contains('show')) {
@@ -1555,10 +1740,16 @@
                     hideSearchResults();
                     return;
                 }
+                if (currentView === 'product_overlay') {
+                    backToGridFromOverlay();
+                    return;
+                }
                 // Toggle keyboard mode
                 setKeyboardMode(keyboardMode === 'input' ? 'shortcut' : 'input');
                 return;
             }
+
+            if (!currentProduct && currentView !== 'grid') return;
 
             // Input mode: no shortcuts (except Space/ESC above)
             if (keyboardMode === 'input') return;
@@ -1787,8 +1978,9 @@
         }
 
         function closeProduct() {
+            // 记住条码，方便从网格 Space 切回
+            if (currentProduct) lastViewedBarcode = currentProduct.barcode;
             document.getElementById('productDisplay').classList.remove('show');
-            document.getElementById('standbyScreen').style.display = 'flex';
             document.getElementById('keyboardHint').classList.remove('show');
             currentProduct = null;
             lastScannedBarcode = '';
@@ -1796,6 +1988,8 @@
             document.getElementById('searchModeBadge').classList.remove('show');
             document.getElementById('barcodeInput').value = '';
             setKeyboardMode('input');
+            // 返回卡片网格
+            showGridView();
         }
 
         function showToast(message) {
@@ -1926,6 +2120,9 @@
                             if (currentProduct) {
                                 displayProduct();
                             }
+                            if (currentView === 'grid') {
+                                renderGrid();
+                            }
                         }
                     }
                 }
@@ -1946,10 +2143,408 @@
 
         document.addEventListener('click', function(e) {
             if (e.target.closest('.price-modal') || e.target.closest('.voice-toggle') || e.target.closest('.search-results') || e.target.closest('#kbModeBadge')) return;
+            if (e.target.closest('#gridWrap') && currentView === 'grid') {
+                // 点击网格空白区域不抢焦点
+                return;
+            }
             if (keyboardMode === 'input' && document.activeElement.id !== 'newPriceInput') {
                 document.getElementById('barcodeInput').focus();
             }
         });
+
+        /* ═══════════════════════════════════════════
+           live_v3 库存卡片网格 + 单品覆盖层
+           ═══════════════════════════════════════════ */
+
+        function getDisplayName(p) {
+            return p.common_name || p.name || '';
+        }
+
+        function hasAnyStock(p) {
+            var inv = p.inventory_summary || {};
+            return Object.values(inv).some(function(v) { return parseInt(v.total_stock) > 0; });
+        }
+
+        async function loadInventory() {
+            try {
+                const res = await fetch('api/list_live_inventory.php');
+                const data = await res.json();
+                if (!data.success) return;
+                allProducts = (data.data && data.data.products) ? data.data.products : [];
+                if (currentView === 'grid') renderGrid();
+            } catch(e) {}
+        }
+
+        function showGridView() {
+            currentView = 'grid';
+            document.getElementById('standbyScreen').style.display = 'none';
+            document.getElementById('productDisplay').classList.remove('show');
+            document.getElementById('productOverlay').classList.remove('show');
+            document.getElementById('keyboardHint').classList.remove('show');
+            if (gridProductTimer) { clearInterval(gridProductTimer); gridProductTimer = null; }
+            document.getElementById('gridWrap').classList.add('show');
+            renderGrid();
+            document.getElementById('barcodeInput').focus();
+        }
+
+        function renderGrid() {
+            var products = [...allProducts];
+
+            products.sort(function(a, b) {
+                var aHas = hasAnyStock(a), bHas = hasAnyStock(b);
+                if (aHas && !bHas) return -1;
+                if (!aHas && bHas) return 1;
+                return getDisplayName(a).length - getDisplayName(b).length;
+            });
+
+            var grid = document.getElementById('gridContainer');
+            if (!products.length) { grid.innerHTML = ''; return; }
+
+            var wrap = document.getElementById('gridWrap');
+            var w = wrap.clientWidth;
+            var h = wrap.clientHeight;
+            var cols = Math.max(1, Math.floor((w - 12) / 250));
+            var rows = Math.ceil(products.length / cols);
+            grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+            grid.style.gridTemplateRows = 'repeat(' + rows + ', minmax(0, 1fr))';
+
+            var ct = systemSettings.condition_types || [
+                {key:'sealed',name:'原盒未拆',color:'#10b981'},
+                {key:'opened',name:'拆盒无瑕',color:'#3b82f6'},
+                {key:'boxless',name:'无盒无瑕',color:'#f59e0b'},
+                {key:'flawed',name:'微瑕',color:'#ef4444'}
+            ];
+
+            // 根据卡片实际高度缩放字号，防止文字溢出
+            var usableH = h - 12 - (rows - 1) * 6;
+            var cardH = usableH / rows;
+            var maxSkus = 0;
+            products.forEach(function(p) {
+                var inv = p.inventory_summary || {};
+                var n = 0;
+                ct.forEach(function(c) { if (inv[c.key] && parseInt(inv[c.key].total_stock) > 0) n++; });
+                if (n > maxSkus) maxSkus = n;
+            });
+            maxSkus = Math.max(maxSkus, 1);
+            var idealH = 32 * 1.1 + 6 + 20 + maxSkus * 42; // 42 = row height at scale 1.0
+            var scale = Math.min(1, cardH / idealH);
+            grid.style.setProperty('--card-scale', scale);
+            var colors = {}; ct.forEach(function(c) { colors[c.key] = c.color; });
+
+            grid.innerHTML = products.map(function(p) {
+                var inv = p.inventory_summary || {};
+                var skuHtml = '';
+                ct.forEach(function(c) {
+                    var info = inv[c.key];
+                    if (!info || parseInt(info.total_stock) <= 0) return;
+                    var stock = parseInt(info.total_stock);
+                    skuHtml += '<div class="sku-row">' +
+                        '<span class="sku-badge" style="background:' + colors[c.key] + '22;color:' + colors[c.key] + '">' + c.name + '</span>' +
+                        '<span class="sku-price">¥' + parseFloat(info.suggested_price || 0).toFixed(0) + '</span>' +
+                        '<span class="sku-stock' + (stock <= 2 ? ' low' : '') + '">' + stock + '</span>' +
+                        '</div>';
+                });
+                var hasStock = skuHtml !== '';
+                if (!hasStock) skuHtml = '<div style="font-size:calc(14px*var(--card-scale,1));color:var(--text-tertiary);padding:calc(6px*var(--card-scale,1)) 0;">已售罄</div>';
+                var name = getDisplayName(p);
+                return '<div class="product-card' + (hasStock ? '' : ' sold-out') + '" data-barcode="' + (p.barcode || '') + '">' +
+                    '<div class="card-name" title="' + name + '">' + name + '</div>' +
+                    '<div class="sku-list">' + skuHtml + '</div>' +
+                    '</div>';
+            }).join('');
+
+            // 点击卡片显示单品详情
+            grid.querySelectorAll('.product-card').forEach(function(card) {
+                card.addEventListener('click', function() {
+                    var barcode = this.dataset.barcode;
+                    if (barcode) showProductInOverlay(barcode);
+                });
+            });
+        }
+
+        // ── 网格模式下的单品详情覆盖层 ──
+
+        function showProductInOverlay(barcode) {
+            var p = null;
+            for (var i = 0; i < allProducts.length; i++) {
+                if (allProducts[i].barcode === barcode) { p = allProducts[i]; break; }
+            }
+            if (!p) {
+                // 如果本地没找到，通过 API 查询
+                fetch('api/scan_product_live.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({barcode: barcode, live_session_id: liveSessionId || null})
+                }).then(function(r) { return r.json(); })
+                  .then(function(data) {
+                      if (data.success && data.data) {
+                          renderProductOverlay(data.data);
+                      }
+                  }).catch(function() {});
+                return;
+            }
+
+            // 将 list_products.php 的 inventory_summary (key=英文) 转为
+            // scan_product_live.php 的 inventory 格式 (key=中文)
+            var ct = systemSettings.condition_types || [
+                {key:'sealed',name:'原盒未拆',color:'#10b981'},
+                {key:'opened',name:'拆盒无瑕',color:'#3b82f6'},
+                {key:'boxless',name:'无盒无瑕',color:'#f59e0b'},
+                {key:'flawed',name:'微瑕',color:'#ef4444'}
+            ];
+            var normalized = {
+                id: p.id,
+                name: p.name,
+                common_name: p.common_name,
+                product_description: p.product_description,
+                series: p.series,
+                barcode: p.barcode,
+                qiandao_price: p.qiandao_price,
+                image_url: p.image_url,
+                purchase_prices: p.overall_purchase_price || null,
+                inventory: {}
+            };
+            var summary = p.inventory_summary || {};
+            ct.forEach(function(c) {
+                var info = summary[c.key];
+                if (info && parseInt(info.total_stock) > 0) {
+                    normalized.inventory[c.name] = {
+                        stock: parseInt(info.total_stock),
+                        suggested_price: info.suggested_price,
+                        live_price: null
+                    };
+                }
+            });
+
+            renderProductOverlay(normalized);
+        }
+
+        function renderProductOverlay(p) {
+            currentView = 'product_overlay';
+
+            var nameCfg = getElementConfig('productName');
+            var seriesCfg = getElementConfig('productSeries');
+            var commonCfg = getElementConfig('commonName');
+            var suggestedPriceCfg = getElementConfig('suggestedPrice');
+            var purchasePriceCfg = getElementConfig('purchasePrice');
+            var descCfg = getElementConfig('productDescription');
+            var imgCfg = getElementConfig('image');
+            var condCfg = getElementConfig('condition');
+
+            var pn = document.getElementById('prodName');
+            pn.textContent = p.common_name || p.name;
+            pn.style.left = (nameCfg.left || 60) + 'px';
+            pn.style.top = (nameCfg.top || 60) + 'px';
+            pn.style.width = (nameCfg.width || 900) + 'px';
+            pn.style.minHeight = (nameCfg.height || 80) + 'px';
+            pn.style.fontSize = nameCfg.fontSize || '72px';
+            pn.style.display = nameCfg.enabled !== false ? '' : 'none';
+
+            var ps = document.getElementById('prodSeriesEl');
+            if (seriesCfg.enabled !== false && p.series) {
+                ps.textContent = p.series;
+                ps.style.left = (seriesCfg.left || 60) + 'px';
+                ps.style.top = (seriesCfg.top || 150) + 'px';
+                ps.style.width = (seriesCfg.width || 600) + 'px';
+                ps.style.minHeight = (seriesCfg.height || 60) + 'px';
+                ps.style.fontSize = seriesCfg.fontSize || '48px';
+                ps.style.color = '#5e5ce6';
+                ps.style.display = '';
+            } else { ps.style.display = 'none'; }
+
+            var pc = document.getElementById('prodCommon');
+            if (commonCfg.enabled !== false && p.common_name && p.common_name !== p.name) {
+                pc.textContent = p.common_name;
+                pc.style.left = (commonCfg.left || 60) + 'px';
+                pc.style.top = (commonCfg.top || 220) + 'px';
+                pc.style.width = (commonCfg.width || 600) + 'px';
+                pc.style.minHeight = (commonCfg.height || 80) + 'px';
+                pc.style.fontSize = commonCfg.fontSize || '42px';
+                pc.style.color = '#9d9daf';
+                pc.style.display = '';
+            } else { pc.style.display = 'none'; }
+
+            // 参考价
+            var spe = document.getElementById('prodSuggestedPrice');
+            if (suggestedPriceCfg.enabled !== false) {
+                document.getElementById('prodQiandaoPrice').textContent = '¥' + parseFloat(p.qiandao_price || 0).toFixed(2);
+                spe.style.left = (suggestedPriceCfg.left || 60) + 'px';
+                spe.style.top = (suggestedPriceCfg.top || 310) + 'px';
+                spe.style.width = (suggestedPriceCfg.width || 500) + 'px';
+                spe.style.minHeight = (suggestedPriceCfg.height || 100) + 'px';
+                spe.style.fontSize = suggestedPriceCfg.fontSize || '72px';
+                spe.style.color = suggestedPriceCfg.color || '#e8e8ed';
+                spe.style.display = '';
+            } else { spe.style.display = 'none'; }
+
+            // 进价
+            var ppe = document.getElementById('prodPurchasePrice');
+            if (purchasePriceCfg.enabled !== false && p.purchase_prices) {
+                document.getElementById('prodPurchasePriceVal').textContent = '¥' + String(p.purchase_prices).split('/').map(function(v) { return parseFloat(v).toFixed(2); }).join('/¥');
+                ppe.style.left = (purchasePriceCfg.left || 60) + 'px';
+                ppe.style.top = (purchasePriceCfg.top || 420) + 'px';
+                ppe.style.width = (purchasePriceCfg.width || 500) + 'px';
+                ppe.style.minHeight = (purchasePriceCfg.height || 60) + 'px';
+                ppe.style.fontSize = purchasePriceCfg.fontSize || '28px';
+                ppe.style.color = purchasePriceCfg.color || '#9d9daf';
+                ppe.style.display = '';
+            } else { ppe.style.display = 'none'; }
+
+            var imgEl = document.getElementById('prodImageWrap');
+            if (imgCfg.enabled !== false) {
+                imgEl.style.left = (imgCfg.left || 60) + 'px';
+                imgEl.style.top = (imgCfg.top || 540) + 'px';
+                imgEl.style.width = (imgCfg.width || 600) + 'px';
+                imgEl.style.minHeight = (imgCfg.height || 600) + 'px';
+                imgEl.style.display = '';
+                var prodImg = document.getElementById('prodImage');
+                var noImg = document.getElementById('prodNoImg');
+                if (p.image_url) {
+                    prodImg.src = p.image_url; prodImg.style.display = ''; noImg.style.display = 'none';
+                } else {
+                    prodImg.style.display = 'none'; noImg.style.display = '';
+                }
+            } else { imgEl.style.display = 'none'; }
+
+            var descEl = document.getElementById('prodDesc');
+            if (descCfg.enabled !== false && p.product_description) {
+                descEl.textContent = p.product_description;
+                descEl.style.left = (descCfg.left || 60) + 'px';
+                descEl.style.top = (descCfg.top || 430) + 'px';
+                descEl.style.width = (descCfg.width || 800) + 'px';
+                descEl.style.minHeight = (descCfg.height || 80) + 'px';
+                descEl.style.fontSize = descCfg.fontSize || '32px';
+                descEl.style.color = '#e8e8ed';
+                descEl.style.display = '';
+            } else { descEl.style.display = 'none'; }
+
+            var ct = systemSettings.condition_types || [
+                {key:'sealed',name:'原盒未拆',color:'#10b981'},
+                {key:'opened',name:'拆盒无瑕',color:'#3b82f6'},
+                {key:'boxless',name:'无盒无瑕',color:'#f59e0b'},
+                {key:'flawed',name:'微瑕',color:'#ef4444'}
+            ];
+            var colors = {}; ct.forEach(function(c) { colors[c.key] = c.color; });
+
+            var inv = p.inventory || {};
+            var pricesHtml = '';
+            var statusSize = condCfg.statusFontSize || '28px';
+            var statusColor = condCfg.statusColor || '#9d9daf';
+            var priceFontSize = condCfg.priceFontSize || '46px';
+            var priceColor = condCfg.priceColor || '#34d399';
+            var px = condCfg.priceOffsetX || 0;
+            var sx = condCfg.stockOffsetX || 0;
+
+            ct.forEach(function(c, index) {
+                var info = inv[c.name];
+                if (!info || parseInt(info.stock || 0) <= 0) return;
+                var color = colors[c.key] || '#667eea';
+                var stock = parseInt(info.stock);
+                var price = parseFloat(info.live_price || info.suggested_price || 0);
+                var changed = info.live_price && info.live_price !== info.suggested_price;
+                var pColor = changed ? '#fbbf24' : priceColor;
+
+                pricesHtml += '<div class="prod-price-row' + (stock <= 2 ? ' low-row' : '') + '">' +
+                    '<div class="ppr-condition">' +
+                        '<div class="ppr-condition-num">' + (CONDITION_NUMBERS[index] || '') + '</div>' +
+                        '<div class="ppr-condition-name" style="font-size:' + statusSize + ';color:' + statusColor + '">' + c.name + '</div>' +
+                    '</div>' +
+                    '<div class="ppr-price-wrap" style="transform:translateX(' + px + 'px)">' +
+                        (info.suggested_price && changed ? '<div class="ppr-suggested">¥' + parseFloat(info.suggested_price).toFixed(2) + '</div>' : '') +
+                        '<div class="ppr-live-price' + (changed ? ' changed' : '') + '" style="font-size:' + priceFontSize + ';color:' + pColor + '">¥' + price.toFixed(2) + '</div>' +
+                    '</div>' +
+                    '<div class="ppr-stock-wrap" style="transform:translateX(' + sx + 'px)">' +
+                        '<div class="ppr-stock-num">' + stock + '</div>' +
+                        '<div class="ppr-stock-label">库存</div>' +
+                    '</div>' +
+                    '</div>';
+            });
+
+            var pricesEl = document.getElementById('prodPrices');
+            pricesEl.innerHTML = pricesHtml || '<div style="color:var(--text-tertiary);font-size:24px;">暂无库存</div>';
+            pricesEl.style.left = (condCfg.left || 750) + 'px';
+            pricesEl.style.top = (condCfg.top || 450) + 'px';
+            pricesEl.style.width = (condCfg.width || 1100) + 'px';
+            pricesEl.style.minHeight = (condCfg.height || 600) + 'px';
+            pricesEl.style.gap = (condCfg.itemSpacing || 30) + 'px';
+            pricesEl.style.display = condCfg.enabled !== false ? '' : 'none';
+
+            document.getElementById('productOverlay').classList.add('show');
+            document.getElementById('barcodeInput').value = '';
+            hideSearchResults();
+            document.getElementById('searchModeBadge').classList.remove('show');
+            resetGridTimer();
+        }
+
+        function backToGridFromOverlay() {
+            document.getElementById('productOverlay').classList.remove('show');
+            currentView = 'grid';
+            if (gridProductTimer) { clearInterval(gridProductTimer); gridProductTimer = null; }
+            document.getElementById('barcodeInput').value = '';
+            hideSearchResults();
+            document.getElementById('searchModeBadge').classList.remove('show');
+            document.getElementById('barcodeInput').focus();
+        }
+
+        function resetGridTimer() {
+            gridProductSeconds = 30;
+            updateGridTimerUI();
+            if (gridProductTimer) clearInterval(gridProductTimer);
+            gridProductTimer = setInterval(function() {
+                gridProductSeconds--;
+                updateGridTimerUI();
+                if (gridProductSeconds <= 0) backToGridFromOverlay();
+            }, 1000);
+        }
+
+        function updateGridTimerUI() {
+            var el = document.getElementById('prodTimer');
+            if (!el) return;
+            el.textContent = gridProductSeconds + 's';
+            el.className = 'prod-timer' + (gridProductSeconds <= 10 ? ' warn' : '');
+        }
+
+        // ── 覆盖 handleInputChange：网格模式下也支持扫码/拼音 ──
+
+        var _origHandleInputChange = null;
+        // 拦截 scanBarcode / selectSearchResult 在网格模式下的行为
+        var _origProcessBarcode = processBarcode;
+        processBarcode = function(barcode) {
+            if (currentView === 'product_overlay') {
+                showProductInOverlay(barcode);
+                return;
+            }
+            if (currentView === 'grid') {
+                // 从网格扫码 → 切到待机模式再走完整 product 流程
+                currentView = 'standby';
+                lastScannedBarcode = '';
+                document.getElementById('gridWrap').classList.remove('show');
+                if (gridProductTimer) { clearInterval(gridProductTimer); gridProductTimer = null; }
+                _origProcessBarcode(barcode);
+                return;
+            }
+            _origProcessBarcode(barcode);
+        };
+
+        var _origSelectSearchResult = selectSearchResult;
+        selectSearchResult = function(index) {
+            if (currentView === 'product_overlay') {
+                var product = searchResults[index];
+                if (!product) return;
+                hideSearchResults();
+                document.getElementById('searchModeBadge').classList.remove('show');
+                document.getElementById('barcodeInput').value = '';
+                showProductInOverlay(product.barcode);
+                return;
+            }
+            if (currentView === 'grid') {
+                // 从网格拼音检索 → 切到待机模式再走完整 product 流程
+                currentView = 'standby';
+                document.getElementById('gridWrap').classList.remove('show');
+                if (gridProductTimer) { clearInterval(gridProductTimer); gridProductTimer = null; }
+            }
+            _origSelectSearchResult(index);
+        };
     </script>
 </body>
 </html>

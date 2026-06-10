@@ -1,10 +1,13 @@
 <?php
-require_once '../config.php';
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 header('Content-Type: application/json');
 
 try {
     $pdo = getDB();
+    requireAuth();
+    $storeId = getStoreId();
 
     $data = json_decode(file_get_contents('php://input'), true);
     
@@ -35,11 +38,12 @@ try {
             p.barcode
         FROM inventory_batches ib
         LEFT JOIN products p ON ib.product_id = p.id
-        WHERE 1=1
+        WHERE 1=1" . ($storeId ? " AND ib.store_id = ?" : "") . "
             AND ib.remaining_qty > 0
     ";
 
     $params = [];
+    if ($storeId) $params[] = $storeId;
 
     if ($startDate) {
         $sql .= " AND COALESCE(ib.purchased_at, ib.created_at) >= ?";
@@ -52,8 +56,9 @@ try {
     }
 
     if ($keyword) {
-        $sql .= " AND (p.name LIKE ? OR p.common_name LIKE ? OR p.barcode LIKE ?)";
+        $sql .= " AND (p.name LIKE ? OR p.common_name LIKE ? OR p.barcode LIKE ? OR p.pinyin_initials LIKE ?)";
         $likeKeyword = "%$keyword%";
+        $params[] = $likeKeyword;
         $params[] = $likeKeyword;
         $params[] = $likeKeyword;
         $params[] = $likeKeyword;

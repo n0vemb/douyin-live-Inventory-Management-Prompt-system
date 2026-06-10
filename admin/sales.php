@@ -37,7 +37,7 @@ require_once __DIR__ . '/layout.php';
                         <th>时间</th>
                         <th>商品</th>
                         <th>条码</th>
-                        <th>状态</th>
+                        <th>SKU</th>
                         <th>进价</th>
                         <th>售价</th>
                         <th>数量</th>
@@ -163,10 +163,13 @@ require_once __DIR__ . '/layout.php';
     const urlParams = new URLSearchParams(window.location.search);
     const urlSessionId = urlParams.get('session_id');
 
+    function localDate(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
     const today = new Date();
-    document.getElementById('endDate').value = today.toISOString().split('T')[0];
+    document.getElementById('endDate').value = localDate(today);
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    document.getElementById('startDate').value = firstDay.toISOString().split('T')[0];
+    document.getElementById('startDate').value = localDate(firstDay);
 
     async function initializePage() {
         await loadSettings();

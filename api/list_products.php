@@ -1,10 +1,12 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $keyword = $_GET['keyword'] ?? '';
 $series = $_GET['series'] ?? '';
 
 $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
 $conditionTypes = [
     'sealed' => '原盒未拆',
@@ -17,8 +19,14 @@ $sql = "SELECT p.* FROM products p";
 $params = [];
 $conditions = [];
 
+if ($storeId) {
+    $conditions[] = 'p.store_id = ?';
+    $params[] = $storeId;
+}
+
 if (!empty($keyword)) {
-    $conditions[] = '(p.name LIKE ? OR p.common_name LIKE ? OR p.barcode LIKE ?)';
+    $conditions[] = '(p.name LIKE ? OR p.common_name LIKE ? OR p.barcode LIKE ? OR p.pinyin_initials LIKE ?)';
+    $params[] = "%{$keyword}%";
     $params[] = "%{$keyword}%";
     $params[] = "%{$keyword}%";
     $params[] = "%{$keyword}%";
@@ -107,7 +115,8 @@ foreach ($products as &$p) {
     $p['overall_suggested_price'] = !empty($suggestedPrices) ? min($suggestedPrices) : null;
 }
 
-$stmt = $pdo->query('SELECT DISTINCT series FROM products WHERE series IS NOT NULL AND series != "" ORDER BY series');
+$stmt = $pdo->prepare('SELECT DISTINCT series FROM products WHERE series IS NOT NULL AND series != ""' . ($storeId ? ' AND store_id = ?' : '') . ' ORDER BY series');
+$stmt->execute($storeId ? [$storeId] : []);
 $seriesList = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
 success(['data' => ['products' => $products, 'series_list' => $seriesList, 'inventory_data' => $inventoryData]]);

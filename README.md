@@ -45,18 +45,29 @@ Bug Fix：
 
 ```
 ├── admin/                        # 管理后台页面
-│   ├── layout.php                # 管理后台布局
+│   ├── layout.php                # 管理后台布局（含认证检查、角色感知）
 │   ├── index.php                 # 管理后台首页
 │   ├── products.php              # 商品管理页面（全选/批量删除/导入）
 │   ├── sessions.php              # 直播场次管理
 │   ├── outbound.php              # 商品出库
 │   ├── sales.php                 # 销售记录
-│   ├── settings.php              # 系统配置页面
+│   ├── settings.php              # 系统/店铺配置页面（角色感知）
+│   ├── stores.php                # 【超管】店铺管理
+│   ├── users.php                 # 【超管】用户管理
 │   └── assets/css/style.css      # 样式
 │
 ├── api/                          # 后端接口
-│   ├── get_settings.php          # 获取系统配置
-│   ├── save_settings.php         # 保存系统配置
+│   ├── auth.php                  # 认证中间件（requireAuth/getStoreId/getCurrentUser）
+│   ├── login.php                 # 登录（POST，返回 JSON）
+│   ├── logout.php                # 登出
+│   ├── register_store.php        # 注册新店铺+管理员
+│   ├── list_stores.php           # 【超管】店铺列表
+│   ├── list_users.php            # 【超管】用户列表
+│   ├── create_user.php           # 【超管】创建用户
+│   ├── update_user.php           # 【超管】更新用户
+│   ├── delete_store.php          # 【超管】删除店铺
+│   ├── get_settings.php          # 获取系统/店铺配置
+│   ├── save_settings.php         # 保存系统/店铺配置
 │   ├── list_products.php         # 商品列表（含进价/售价聚合）
 │   ├── add_product.php           # 添加商品
 │   ├── update_product.php        # 更新商品
@@ -74,11 +85,17 @@ Bug Fix：
 │   ├── get_product.php           # 获取商品详情
 │   ├── adjust_inventory.php      # 库存调整
 │   ├── purchase.php              # 价格调整（兼容接口）
+│   ├── upload_image.php          # 图片上传
 │   └── scan_product_live.php     # 直播扫码
 │
+├── login.php                     # 登录页（支持 GET 表单 / POST 认证）
+├── register.php                  # 注册页
 ├── live.php                      # 直播辅助页面
+├── mobile_outbound.php           # 移动端出库页
 ├── config.php                    # 数据库与系统配置
-└── logo.png                      # 系统 Logo
+├── auth.php                      # 认证函数库
+├── logo.png                      # 系统 Logo
+└── database_v3_multitenant.sql   # 多租户数据库迁移脚本
 ```
 
 ## 功能模块
@@ -228,35 +245,80 @@ Bug Fix：
 | `/api/get_settings.php` | GET | 获取系统配置 |
 | `/api/save_settings.php` | POST | 保存系统配置 |
 
-## 本地开发
+## 服务器环境要求
 
-### 环境要求
+### 系统与Web服务器
 
-- PHP 7.4+
-- MySQL 5.7+
-- ZipArchive 扩展（XLSX 导入需要）
+- PHP 8.0+
+- MySQL 5.7+ / MariaDB 10.3+
+- Nginx 或 Apache
 
-### 快速启动
+### 必要 PHP 扩展
+
+| 扩展 | 用途 |
+|---|---|
+| `pdo_mysql` | 数据库连接 |
+| `mbstring` | 中文多字节字符串处理 |
+| `fileinfo` | 图片上传 MIME 类型检测 |
+| `openssl` | `password_hash()` / `password_verify()` 密码哈希 |
+| `json` | JSON 编解码 |
+| `zip` | XLSX 导入 |
+
+## 快速启动
+
+### 1. 数据库初始化
 
 ```bash
-# 1. 初始化数据库
-mysql -u root -p < database_v2_batch_system.sql
+# 多租户模式（v3，推荐新装）
+mysql -u root -p ppmart < database_v3_multitenant.sql
 
-# 2. 启动 PHP 内置服务
-php -S 127.0.0.1:8000 -t /path/to/ppmart
-
-# 3. 浏览器访问
-open http://127.0.0.1:8000/admin/
-open http://127.0.0.1:8000/live.php
+# 旧版单用户模式（v2，已废弃）
+mysql -u root -p ppmart < database_v2_batch_system.sql
 ```
 
-### 环境变量
+### 2. 数据库配置
 
-- `PPMART_DB_HOST` — 数据库主机，默认 `172.18.0.2`
-- `PPMART_DB_USER` — 数据库用户，默认 `ppmart`
-- `PPMART_DB_PASS` — 数据库密码
-- `PPMART_DB_NAME` — 数据库名，默认 `ppmart`
-- `PPMART_ENABLE_MAINTENANCE_API` — 是否启用维护接口
+编辑 `config.php` 中的数据库连接信息：
+
+```php
+define('DB_HOST', 'localhost');
+define('DB_USER', 'ppmart');
+define('DB_PASS', 'your_password');
+define('DB_NAME', 'ppmart');
+```
+
+也支持通过环境变量覆盖（优先级更高）：
+
+| 环境变量 | 说明 | 默认值 |
+|---|---|---|
+| `PPMART_DB_HOST` | 数据库主机 | `localhost` |
+| `PPMART_DB_USER` | 数据库用户 | `ppmart` |
+| `PPMART_DB_PASS` | 数据库密码 | `''` |
+| `PPMART_DB_NAME` | 数据库名 | `ppmart` |
+| `PPMART_PRINT_PROXY` | Windows 打印代理地址 | `''` |
+| `PPMART_ENABLE_MAINTENANCE_API` | 维护接口开关 | `''` |
+
+### 3. 启动 PHP 内置服务
+
+```bash
+php -S 127.0.0.1:8000 -t /path/to/ppmart
+```
+
+### 4. 浏览器访问
+
+```
+http://127.0.0.1:8000/login.php    # 登录页
+http://127.0.0.1:8000/admin/        # 管理后台（未登录自动跳转）
+http://127.0.0.1:8000/live.php      # 直播辅助页
+http://127.0.0.1:8000/register.php  # 注册新店铺
+```
+
+### 默认账号
+
+| 用户名 | 密码 | 角色 | 说明 |
+|---|---|---|---|
+| `admin` | `admin123` | super_admin | 系统管理员，可管理所有店铺 |
+| `store1` | `store123` | store_admin | 默认店铺管理员，仅管理本店数据 |
 
 ## 关键业务规则
 

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 
@@ -16,16 +17,17 @@ if (empty($liveSessionId)) {
 }
 
 $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
 $pdo->beginTransaction();
 
 try {
     $stmt = $pdo->prepare('
         SELECT * FROM live_inventory
-        WHERE live_session_id = ? AND product_id = ? AND condition_type = ?
+        WHERE live_session_id = ? AND product_id = ? AND condition_type = ? AND store_id = ?
         FOR UPDATE
     ');
-    $stmt->execute([$liveSessionId, $productId, $conditionType]);
+    $stmt->execute([$liveSessionId, $productId, $conditionType, $storeId]);
     $liveInv = $stmt->fetch();
 
     if (!$liveInv) {
@@ -35,17 +37,17 @@ try {
     $stmt = $pdo->prepare('
         SELECT COALESCE(SUM(qty), 0) as total_sold
         FROM sales_log
-        WHERE product_id = ? AND condition_type = ? AND live_session_id = ?
+        WHERE product_id = ? AND condition_type = ? AND live_session_id = ? AND store_id = ?
     ');
-    $stmt->execute([$productId, $conditionType, $liveSessionId]);
+    $stmt->execute([$productId, $conditionType, $liveSessionId, $storeId]);
     $totalSold = $stmt->fetch()['total_sold'];
 
     $stmt = $pdo->prepare("
         SELECT COALESCE(SUM(qty_change), 0) as total_returned
         FROM inventory_log
-        WHERE product_id = ? AND condition_type = ? AND live_session_id = ? AND change_type = 'return'
+        WHERE product_id = ? AND condition_type = ? AND live_session_id = ? AND change_type = 'return' AND store_id = ?
     ");
-    $stmt->execute([$productId, $conditionType, $liveSessionId]);
+    $stmt->execute([$productId, $conditionType, $liveSessionId, $storeId]);
     $totalReturned = $stmt->fetch()['total_returned'];
 
     $maxReturnable = $totalSold - $totalReturned;
@@ -67,19 +69,19 @@ try {
     // 更新 sales_log 的 returned_qty（取最近一条可退的记录）
     $stmt = $pdo->prepare('
         UPDATE sales_log SET returned_qty = returned_qty + 1
-        WHERE product_id = ? AND condition_type = ? AND live_session_id = ?
+        WHERE product_id = ? AND condition_type = ? AND live_session_id = ? AND store_id = ?
         AND returned_qty < qty
         ORDER BY id DESC LIMIT 1
     ');
-    $stmt->execute([$productId, $conditionType, $liveSessionId]);
+    $stmt->execute([$productId, $conditionType, $liveSessionId, $storeId]);
 
     // 记录 inventory_log
     $stmt = $pdo->prepare('
         INSERT INTO inventory_log
-        (product_id, condition_type, change_type, qty_change, before_qty, after_qty, live_session_id, remark)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (product_id, condition_type, change_type, qty_change, before_qty, after_qty, live_session_id, remark, store_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ');
-    $stmt->execute([$productId, $conditionType, 'return', 1, $beforeQty, $afterQty, $liveSessionId, '直播退还']);
+    $stmt->execute([$productId, $conditionType, 'return', 1, $beforeQty, $afterQty, $liveSessionId, '直播退还', $storeId]);
 
     $pdo->commit();
 

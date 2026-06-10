@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     error('请使用POST方法');
@@ -17,6 +18,7 @@ if (!isset($input['config']) || !is_array($input['config'])) {
 
 try {
     $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
     // 确保表存在
     $pdo->exec("
@@ -41,15 +43,15 @@ try {
 
     // 使用 INSERT ... ON DUPLICATE KEY UPDATE 来实现 upsert
     $stmt = $pdo->prepare("
-        INSERT INTO label_templates (name, config)
-        VALUES (?, ?)
+        INSERT INTO label_templates (name, config, store_id)
+        VALUES (?, ?, ?)
         ON DUPLICATE KEY UPDATE config = ?, updated_at = CURRENT_TIMESTAMP
     ");
-    $stmt->execute([$name, $config, $config]);
+    $stmt->execute([$name, $config, $storeId, $config]);
 
     // 获取刚插入或更新的记录
-    $stmt = $pdo->prepare('SELECT id, name, config, created_at, updated_at FROM label_templates WHERE name = ?');
-    $stmt->execute([$name]);
+    $stmt = $pdo->prepare('SELECT id, name, config, created_at, updated_at FROM label_templates WHERE name = ?' . ($storeId ? ' AND store_id = ?' : ''));
+    $stmt->execute($storeId ? [$name, $storeId] : [$name]);
     $template = $stmt->fetch(PDO::FETCH_ASSOC);
 
     $configDecoded = json_decode($template['config'], true);

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 $sessionId = $input['session_id'] ?? 0;
@@ -9,12 +10,13 @@ if (empty($sessionId)) {
 }
 
 $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
 $pdo->beginTransaction();
 
 try {
-    $stmt = $pdo->prepare('SELECT status FROM live_sessions WHERE id = ?');
-    $stmt->execute([$sessionId]);
+    $stmt = $pdo->prepare('SELECT status FROM live_sessions WHERE id = ? AND store_id = ?');
+    $stmt->execute([$sessionId, $storeId]);
     $session = $stmt->fetch();
 
     if (!$session) {
@@ -25,6 +27,7 @@ try {
         throw new Exception('无法删除进行中的场次，请先结束直播');
     }
 
+    // Session already verified by store_id above, cascade by session_id
     $stmt = $pdo->prepare('DELETE FROM live_inventory WHERE live_session_id = ?');
     $stmt->execute([$sessionId]);
 
@@ -37,8 +40,8 @@ try {
     $stmt = $pdo->prepare('DELETE FROM broadcast_messages WHERE session_id = ?');
     $stmt->execute([$sessionId]);
 
-    $stmt = $pdo->prepare('DELETE FROM live_sessions WHERE id = ?');
-    $stmt->execute([$sessionId]);
+    $stmt = $pdo->prepare('DELETE FROM live_sessions WHERE id = ? AND store_id = ?');
+    $stmt->execute([$sessionId, $storeId]);
 
     $pdo->commit();
     success(['message' => '删除成功']);

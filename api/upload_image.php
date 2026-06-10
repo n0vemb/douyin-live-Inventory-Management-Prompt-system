@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $response = ['success' => false, 'error' => '', 'data' => null];
 
@@ -35,14 +36,25 @@ try {
 
     $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
 
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime = finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
-
-    if (!in_array($mime, $allowedTypes)) {
-        $response['error'] = '文件类型不支持: ' . $mime;
-        echo json_encode($response, JSON_UNESCAPED_UNICODE);
-        exit;
+    // finfo 可能不可用，优先使用 mime_content_type 做备选
+    $mime = '';
+    if (function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+    } elseif (function_exists('mime_content_type')) {
+        $mime = mime_content_type($file['tmp_name']);
+    }
+    if (empty($mime) || !in_array($mime, $allowedTypes)) {
+        // 降级：通过扩展名判断
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $extMap = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif', 'webp' => 'image/webp', 'svg' => 'image/svg+xml'];
+        $mime = $extMap[$ext] ?? '';
+        if (empty($mime)) {
+            $response['error'] = '文件类型不支持';
+            echo json_encode($response, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
     }
 
     $fileSize = $file['size'];
@@ -55,12 +67,23 @@ try {
     $uploadDir = __DIR__ . '/../uploads/';
     $subDir = '';
 
-    // 支持按系列分目录存储
-    $series = isset($_POST['series']) ? trim($_POST['series']) : '';
-    if ($series !== '') {
-        $subDir = sanitizeSeriesDir($series) . '/';
-        $uploadDir .= $subDir;
+    requireAuth(); $storeId = getStoreId();
+    $storePrefix = ($storeId ? $storeId : '0') . '/';
+
+    $uploadType = $_POST['type'] ?? 'product';
+    if ($uploadType === 'logo') {
+        // Logo：uploads/{store_id}/logo/
+        $subDir = $storePrefix . 'logo/';
+    } else {
+        // 商品图片：uploads/{store_id}/products/{series}/
+        $series = isset($_POST['series']) ? trim($_POST['series']) : '';
+        if ($series !== '') {
+            $subDir = $storePrefix . 'products/' . sanitizeSeriesDir($series) . '/';
+        } else {
+            $subDir = $storePrefix . 'products/default/';
+        }
     }
+    $uploadDir .= $subDir;
 
     if (!is_dir($uploadDir)) {
         mkdir($uploadDir, 0755, true);

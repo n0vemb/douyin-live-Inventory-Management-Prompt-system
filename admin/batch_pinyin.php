@@ -77,7 +77,7 @@ tr.done td { color: #999; }
     <th style="width:60px;">ID</th>
     <th>商品名称</th>
     <th style="width:160px;">拼音首字母</th>
-    <th style="width:80px;">状态</th>
+    <th style="width:80px;">SKU</th>
 </tr>
 </thead>
 <tbody id="productList"></tbody>

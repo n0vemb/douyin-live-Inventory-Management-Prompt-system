@@ -1,12 +1,13 @@
 <?php
-ob_start();
+// 安全缓冲：只在无缓冲时启动，避免与 config.php 的 ob_clean 冲突
+if (!ob_get_level()) ob_start();
 header('Content-Type: application/json');
 
 // 致命错误兜底
 register_shutdown_function(function() {
     $err = error_get_last();
     if ($err && in_array($err['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR))) {
-        if (ob_get_level()) ob_clean();
+        while (ob_get_level()) ob_end_clean();
         http_response_code(500);
         header('Content-Type: application/json');
         echo json_encode(array('success' => false, 'error' => 'PHP: ' . $err['message']), JSON_UNESCAPED_UNICODE);
@@ -40,15 +41,18 @@ try {
     // 支持 batch_ids 模式：从数据库重新查最新数据，避免前端缓存导致打印错误
     if (isset($input['batch_ids']) && is_array($input['batch_ids'])) {
         $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
         $placeholders = implode(',', array_fill(0, count($input['batch_ids']), '?'));
         $stmt = $pdo->prepare("
             SELECT ib.id AS batch_id, ib.remaining_qty, ib.suggested_price, ib.condition_type,
                    p.barcode, COALESCE(p.common_name, p.name) AS product_name
             FROM inventory_batches ib
             JOIN products p ON ib.product_id = p.id
-            WHERE ib.id IN ({$placeholders})
+            WHERE ib.id IN ({$placeholders})" . ($storeId ? " AND ib.store_id = ?" : "") . "
         ");
-        $stmt->execute(array_map('intval', $input['batch_ids']));
+        $params = array_map('intval', $input['batch_ids']);
+        if ($storeId) $params[] = $storeId;
+        $stmt->execute($params);
         $batchRows = $stmt->fetchAll();
 
         $batchQtyMap = isset($input['batch_qty']) ? $input['batch_qty'] : array();
@@ -239,7 +243,7 @@ try {
     }
 
 } catch (Exception $e) {
-    if (ob_get_level()) ob_clean();
+    while (ob_get_level()) ob_end_clean();
     http_response_code(500);
     header('Content-Type: application/json');
     echo json_encode(array('success' => false, 'error' => $e->getMessage()), JSON_UNESCAPED_UNICODE);

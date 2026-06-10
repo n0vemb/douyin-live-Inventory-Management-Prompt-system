@@ -1,5 +1,6 @@
 <?php $pageTitle = '系统配置'; $currentPage = 'settings'; ?>
 <?php require_once __DIR__ . '/layout.php'; ?>
+<?php $isSuperAdmin = ($currentUser['role'] ?? '') === 'super_admin'; ?>
 
 <style>
 .config-section {
@@ -282,16 +283,16 @@ input:checked + .toggle-slider:before {
 </style>
 
 <div class="page-header">
-    <h1>系统配置</h1>
-    <p>配置系统名称、库存状态和直播页面布局</p>
+    <h1><?= $isSuperAdmin ? '平台设置' : '店铺设置' ?></h1>
+    <p><?= $isSuperAdmin ? '配置平台名称和Logo' : '配置店铺名称、Logo、SKU和直播页面布局' ?></p>
 </div>
 
 <div class="card">
-    <h3 class="card-title">基本设置</h3>
+    <h3 class="card-title"><?= $isSuperAdmin ? '平台名称' : '店铺名称' ?></h3>
     <div class="form-row">
         <div class="form-group">
-            <label class="form-label">系统名称</label>
-            <input type="text" id="systemName" class="form-input" placeholder="泡泡玛特进销存">
+            <label class="form-label"><?= $isSuperAdmin ? '系统名称' : '店铺名称' ?></label>
+            <input type="text" id="systemName" class="form-input" placeholder="<?= $isSuperAdmin ? '系统名称' : '输入店铺名称' ?>">
         </div>
         <div class="form-group">
             <label class="form-label">Logo</label>
@@ -311,10 +312,28 @@ input:checked + .toggle-slider:before {
     </div>
 </div>
 
+<?php if (!$isSuperAdmin): ?>
 <div class="card">
-    <h3 class="card-title">库存状态</h3>
+    <h3 class="card-title">SKU 管理</h3>
     <div id="conditionTypesContainer"></div>
-    <button class="btn btn-secondary" onclick="addConditionType()">+ 添加状态</button>
+    <button class="btn btn-secondary" onclick="addConditionType()">+ 添加 SKU</button>
+</div>
+
+<div class="card">
+    <h3 class="card-title">财务设置</h3>
+    <div class="form-row">
+        <div class="form-group">
+            <label class="form-label">快递费 (元/单)</label>
+            <input type="number" id="shippingFee" class="form-input" step="0.01" min="0" placeholder="3.00"
+                onchange="tempSettings.shipping_fee = parseFloat(this.value) || 0; markChanged();">
+        </div>
+        <div class="form-group">
+            <label class="form-label">平台抽成率</label>
+            <input type="number" id="platformFeeRate" class="form-input" step="0.0001" min="0" max="1" placeholder="0.05"
+                onchange="tempSettings.platform_fee_rate = parseFloat(this.value) || 0; markChanged();">
+            <span style="font-size:11px; color:var(--text-tertiary);">例如 0.05 表示 5%</span>
+        </div>
+    </div>
 </div>
 
 <div class="card">
@@ -416,6 +435,8 @@ input:checked + .toggle-slider:before {
     </div>
 </div>
 
+<?php endif; ?>
+
 <div class="save-bar">
     <div class="save-status" id="saveStatus">
         <span>•</span> 未保存修改
@@ -469,7 +490,9 @@ const defaultSettings = {
             {type: 'image', enabled: true, left: 60, top: 540, width: 600, height: 600, fontSize: '0px', zIndex: 1},
             {type: 'condition', enabled: true, left: 750, top: 450, width: 1100, height: 600, fontSize: '40px', zIndex: 1, itemSpacing: 30, statusFontSize: '28px', statusColor: '#9d9daf', priceFontSize: '46px', priceColor: '#34d399', priceOffsetX: 0, stockOffsetX: 0}
         ]
-    }
+    },
+    shipping_fee: 3.00,
+    platform_fee_rate: 0.05
 };
 
 let savedSettings = JSON.parse(JSON.stringify(defaultSettings));
@@ -485,16 +508,18 @@ async function loadSettings() {
         if (data.success && data.settings) {
             savedSettings = JSON.parse(JSON.stringify(data.settings));
             tempSettings = JSON.parse(JSON.stringify(data.settings));
-            
-            // 确保有 productSeries 元素
-            if (tempSettings.live_display && tempSettings.live_display.elements) {
+
+            // 如果 live_display 缺失或 elements 为空，从默认值继承
+            if (!tempSettings.live_display || !tempSettings.live_display.elements || tempSettings.live_display.elements.length === 0) {
+                if (!tempSettings.live_display) tempSettings.live_display = {};
+                tempSettings.live_display.elements = JSON.parse(JSON.stringify(defaultSettings.live_display.elements));
+            } else {
+                // 确保有 productSeries 元素
                 const hasProductSeries = tempSettings.live_display.elements.some(e => e.type === 'productSeries');
                 if (!hasProductSeries) {
-                    // 找到 productName 的位置，在它后面插入 productSeries
                     const productNameIndex = tempSettings.live_display.elements.findIndex(e => e.type === 'productName');
                     const productName = tempSettings.live_display.elements[productNameIndex];
                     if (productName) {
-                        // 基于 productName 的位置创建 productSeries
                         const productSeries = {
                             type: 'productSeries',
                             enabled: true,
@@ -508,10 +533,8 @@ async function loadSettings() {
                         tempSettings.live_display.elements.splice(productNameIndex + 1, 0, productSeries);
                     }
                 }
-            }
-            
-            // 确保有 purchasePrice 元素
-            if (tempSettings.live_display && tempSettings.live_display.elements) {
+
+                // 确保有 purchasePrice 元素
                 const hasPurchasePrice = tempSettings.live_display.elements.some(e => e.type === 'purchasePrice');
                 if (!hasPurchasePrice) {
                     const suggestedIndex = tempSettings.live_display.elements.findIndex(e => e.type === 'suggestedPrice');
@@ -543,12 +566,18 @@ async function loadSettings() {
 }
 
 function applySettings() {
-    document.getElementById('systemName').value = tempSettings.system_name || '';
+    const isStoreAdmin = <?= $isSuperAdmin ? 'false' : 'true' ?>;
+    document.getElementById('systemName').value = isStoreAdmin ? (tempSettings.store_name || '') : (tempSettings.system_name || '');
     if (tempSettings.logo_path) {
         showLogoPreview(tempSettings.logo_path);
     } else {
         document.getElementById('logoPreviewGroup').style.display = 'none';
     }
+    // 财务设置
+    const sfEl = document.getElementById('shippingFee');
+    const pfrEl = document.getElementById('platformFeeRate');
+    if (sfEl) sfEl.value = parseFloat(tempSettings.shipping_fee ?? 3).toFixed(2);
+    if (pfrEl) pfrEl.value = parseFloat(tempSettings.platform_fee_rate ?? 0.05).toFixed(4);
     renderConditionTypes();
     renderElementList();
     updateSaveStatus(false);
@@ -556,6 +585,7 @@ function applySettings() {
 
 function renderConditionTypes() {
     const container = document.getElementById('conditionTypesContainer');
+    if (!container) return;
     container.innerHTML = '';
     
     (tempSettings.condition_types || []).forEach((condition, index) => {
@@ -595,18 +625,14 @@ function deleteConditionType(index) {
 
 function renderElementList() {
     const container = document.getElementById('elementList');
+    if (!container) return;
     container.innerHTML = '';
     
-    const elements = tempSettings.live_display.elements || defaultSettings.live_display.elements;
-    
-    // 调试信息
-    console.log('renderElementList - elements:', elements);
-    console.log('renderElementList - tempSettings:', tempSettings);
-    console.log('renderElementList - defaultSettings:', defaultSettings);
-    console.log('renderElementList - productDescription config:', elements.find(item => item.type === 'productDescription'));
-    
-    console.log('renderElementList - about to render', elements.length, 'elements');
-    
+    let elements = tempSettings.live_display.elements;
+    if (!elements || elements.length === 0) {
+        elements = defaultSettings.live_display.elements;
+    }
+
     elements.forEach((item, index) => {
         console.log(`renderElementList - rendering item ${index}:`, item.type, item);
         
@@ -639,7 +665,9 @@ function renderElementList() {
     console.log('renderElementList - completed rendering, container children:', container.children.length);
 }
 
-document.getElementById('elementList').addEventListener('click', function(e) {
+const elList = document.getElementById('elementList');
+if (elList) {
+elList.addEventListener('click', function(e) {
     try {
         const card = e.target.closest('.element-card');
         if (!card) return;
@@ -653,14 +681,16 @@ document.getElementById('elementList').addEventListener('click', function(e) {
         console.error('elementList click error:', e);
     }
 });
+}
 
 function selectElement(index) {
     try {
         selectedElementIndex = index;
         const elements = tempSettings.live_display.elements || defaultSettings.live_display.elements;
         const item = elements[index];
-        
+
         const panel = document.getElementById('configPanel');
+        if (!panel) return;
         panel.style.display = 'block';
         
         document.getElementById('configPanelTitle').textContent = elementLabels[item.type] || item.type;
@@ -837,8 +867,13 @@ function resetToSaved() {
 
 async function saveSettings() {
     try {
-        tempSettings.system_name = document.getElementById('systemName').value;
-        
+        const isStoreAdmin = <?= $isSuperAdmin ? 'false' : 'true' ?>;
+        if (isStoreAdmin) {
+            tempSettings.store_name = document.getElementById('systemName').value;
+        } else {
+            tempSettings.system_name = document.getElementById('systemName').value;
+        }
+
         const saveBtn = document.querySelector('.save-bar .btn.btn-primary');
         saveBtn.textContent = '保存中...';
         saveBtn.disabled = true;
@@ -878,6 +913,7 @@ document.getElementById('logoFile').addEventListener('change', function(e) {
     if (!file) return;
     const formData = new FormData();
     formData.append('image', file);
+    formData.append('type', 'logo');
 
     fetch('../api/upload_image.php', {
         method: 'POST',
@@ -917,16 +953,28 @@ function clearLogo() {
 
 function showLogoPreview(path) {
     const img = document.getElementById('logoPreview');
-    if (path && !path.startsWith('http://') && !path.startsWith('https://') && !path.startsWith('data:')) {
-        img.src = '../' + path;
-    } else {
-        img.src = path || '';
+    if (!path) {
+        img.src = '';
+        document.getElementById('logoPreviewGroup').style.display = 'none';
+        return;
     }
-    document.getElementById('logoPreviewGroup').style.display = path ? 'block' : 'none';
+    let url = path;
+    if (!/^(https?:|data:|\/)/i.test(url)) {
+        url = '../' + url;
+    }
+    img.src = url;
+    img.onerror = function() { this.style.display = 'none'; };
+    img.onload = function() { this.style.display = ''; };
+    document.getElementById('logoPreviewGroup').style.display = 'block';
 }
 
 document.getElementById('systemName').addEventListener('input', () => {
-    tempSettings.system_name = document.getElementById('systemName').value;
+    const isStoreAdmin = <?= $isSuperAdmin ? 'false' : 'true' ?>;
+    if (isStoreAdmin) {
+        tempSettings.store_name = document.getElementById('systemName').value;
+    } else {
+        tempSettings.system_name = document.getElementById('systemName').value;
+    }
     updateSaveStatus(true);
 });
 

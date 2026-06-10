@@ -1,12 +1,14 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 $period = $_GET['period'] ?? 'day';
 $days = isset($_GET['days']) ? (int)$_GET['days'] : 30;
 
 $pdo = getDB();
+requireAuth(); $storeId = getStoreId();
 
-// 从 sales_log (直播销售) 和 outbound_log (手动出库) 汇总
+// 从 outbound_log (出库) 汇总，不含直播销售
 switch ($period) {
     case 'week':
         $dateFormat = '%x-W%v';
@@ -26,49 +28,30 @@ switch ($period) {
         break;
     default: // day
         $dateFormat = '%Y-%m-%d';
-        $labelExpr = "DATE(sold_at)";
         $labelExprOut = "DATE(outbound_at)";
-        $orderExpr = "sold_at";
         $orderExprOut = "outbound_at";
         break;
 }
 
 $since = date('Y-m-d', strtotime("-{$days} days"));
 
-// sales_log (直播销售)
-$stmt = $pdo->prepare("
-    SELECT {$labelExpr} AS date_label, SUM(sale_price * (qty - returned_qty)) AS amount, SUM(qty - returned_qty) AS qty
-    FROM sales_log
-    WHERE sold_at >= ?
-    GROUP BY date_label
-    ORDER BY {$orderExpr}
-");
-$stmt->execute([$since]);
-$salesData = $stmt->fetchAll();
-
-// outbound_log (手动出库)
+// outbound_log (出库销售，不含直播)
 $stmt = $pdo->prepare("
     SELECT {$labelExprOut} AS date_label, SUM(outbound_price * qty) AS amount, SUM(qty) AS qty
     FROM outbound_log
-    WHERE outbound_at >= ?
+    WHERE outbound_at >= ?" . ($storeId ? " AND store_id = ?" : "") . "
     GROUP BY date_label
     ORDER BY {$orderExprOut}
 ");
-$stmt->execute([$since]);
+$stmt->execute($storeId ? [$since, $storeId] : [$since]);
 $outboundData = $stmt->fetchAll();
 
 // 合并数据
 $merged = [];
-foreach ($salesData as $row) {
-    $label = $row['date_label'];
-    if (!isset($merged[$label])) $merged[$label] = ['amount' => 0, 'qty' => 0];
-    $merged[$label]['amount'] += floatval($row['amount']);
-    $merged[$label]['qty'] += intval($row['qty']);
-}
 foreach ($outboundData as $row) {
     $label = $row['date_label'];
     if (!isset($merged[$label])) $merged[$label] = ['amount' => 0, 'qty' => 0];
-    $merged[$label]['amount'] += floatval($row['amount']);
+    $merged[$label]['amount'] = decimal($merged[$label]['amount'] + floatval($row['amount']));
     $merged[$label]['qty'] += intval($row['qty']);
 }
 
