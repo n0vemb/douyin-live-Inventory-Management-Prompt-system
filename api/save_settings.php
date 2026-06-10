@@ -16,7 +16,7 @@ try {
 
     if ($storeId) {
         // 店铺管理员：保存到 stores 表
-        $allowedFields = ['system_name', 'logo_path', 'condition_types', 'live_display', 'shipping_fee', 'platform_fee_rate'];
+        $allowedFields = ['system_name', 'logo_path', 'condition_types', 'live_display', 'shipping_fee', 'actual_shipping_fee', 'platform_fee_rate'];
         // store_name 映射到 name 字段
         $fieldMap = ['store_name' => 'name'];
         // 数值字段，不需要 JSON 编码

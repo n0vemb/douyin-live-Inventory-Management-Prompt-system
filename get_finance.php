@@ -12,14 +12,16 @@ requireAuth(); $storeId = getStoreId();
 
 try {
     // 加载店铺财务设置
-    $shippingFee = 3.00;
+    $shippingFee = 3.00;       // 售价中含的快递费（用于退货回收）
+    $actualShippingFee = 3.00; // 实际快递成本（用于成本计算）
     $platformFeeRate = 0.05;
     if ($storeId) {
-        $stmt = $pdo->prepare('SELECT shipping_fee, platform_fee_rate FROM stores WHERE id = ?');
+        $stmt = $pdo->prepare('SELECT shipping_fee, actual_shipping_fee, platform_fee_rate FROM stores WHERE id = ?');
         $stmt->execute([$storeId]);
         $store = $stmt->fetch();
         if ($store) {
             $shippingFee = floatval($store['shipping_fee'] ?? 3.00);
+            $actualShippingFee = floatval($store['actual_shipping_fee'] ?? $shippingFee);
             $platformFeeRate = floatval($store['platform_fee_rate'] ?? 0.05);
         }
     } else {
@@ -116,19 +118,17 @@ try {
         if ($platformFilter && ($b['platform'] ?? '') !== $platformFilter) continue;
         if ($accountFilter && ($b['account'] ?? '') !== $accountFilter) continue;
 
-        // 利润公式
+        // 利润公式：快递成本=订单数×实际成本，退货回收=(件数-订单数)×售价中含的快递费
         if ($b['gmv'] !== null && $b['gmv'] > 0) {
             $platformFee = $b['gmv'] * $platformFeeRate;
-            $shipping = ($b['order_count'] ?? 0) * $shippingFee;
-            $recovery = ($b['total_qty'] - ($b['order_count'] ?? 0)) * $shippingFee;
+            $shipping = ($b['order_count'] ?? 0) * $actualShippingFee;
             $b['platform_fee'] = round($platformFee, 2);
             $b['shipping_cost'] = round($shipping, 2);
             $b['profit'] = round(
                 $b['gmv'] * (1 - $platformFeeRate)
-                - ($b['order_count'] ?? 0) * $shippingFee
+                - $shipping
                 - $b['total_cost']
-                - ($b['ad_spend'] ?? 0)
-                + $recovery,
+                - ($b['ad_spend'] ?? 0),
                 2
             );
 

@@ -20,6 +20,20 @@ if (empty($items)) {
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
 
+// 读取当前快递费设置（写入批次，历史不漂移）
+$shippingFee = null;
+if ($storeId) {
+    $stmt = $pdo->prepare('SELECT actual_shipping_fee FROM stores WHERE id = ?');
+    $stmt->execute([$storeId]);
+    $row = $stmt->fetch();
+    if ($row) $shippingFee = decimal($row['actual_shipping_fee']);
+}
+if ($shippingFee === null) {
+    $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE store_id IS NULL AND setting_key = 'default_shipping_fee'");
+    $row = $stmt->fetch();
+    $shippingFee = $row ? decimal($row['setting_value']) : 3.00;
+}
+
 $pdo->beginTransaction();
 
 try {
@@ -67,10 +81,10 @@ try {
 
         $stmt = $pdo->prepare('
             INSERT INTO outbound_log
-            (batch_id, product_id, condition_type, qty, outbound_price, order_no, outbound_batch_no, remark, platform, account, store_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (batch_id, product_id, condition_type, qty, outbound_price, order_no, outbound_batch_no, remark, platform, account, store_id, shipping_fee)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ');
-        $stmt->execute([$batchId, $productId, $conditionType, $qty, $price, $orderNo, $outboundBatchNo, $remark, $platform, $account, $outboundStoreId]);
+        $stmt->execute([$batchId, $productId, $conditionType, $qty, $price, $orderNo, $outboundBatchNo, $remark, $platform, $account, $outboundStoreId, $shippingFee]);
 
         $outboundRecords[] = [
             'batch_id' => $batchId,

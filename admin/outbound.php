@@ -5,12 +5,19 @@ require_once __DIR__ . '/layout.php';
 ?>
         <div class="page-title">商品出库</div>
 
-        <div style="display:flex; gap:20px; align-items:flex-start;">
-            <div style="flex:1; display:flex; flex-direction:column; gap:12px;">
+<style>
+@media (max-width: 768px) {
+  .ob-layout { flex-wrap: wrap !important; }
+}
+</style>
+
+        <div class="ob-layout" style="display:flex; gap:20px; align-items:flex-start;">
+            <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:12px;">
                 <!-- 扫码区（在待出库商品上方） -->
                 <div class="scan-bar">
             <div class="scan-bar-inner">
                 <input type="text" id="scanInput" placeholder="📷 扫描条码或输入拼音搜索..." class="scan-input">
+                <button type="button" id="voiceBtn" class="voice-btn" onclick="toggleVoiceInput()" title="语音录入（例如：梦游 未拆 2个）">🎤</button>
                 <div class="scan-result" id="obResult" style="display:none;">
                     <span class="sr-product" id="obProductName"></span>
                     <span class="sr-sep">|</span>
@@ -27,6 +34,13 @@ require_once __DIR__ . '/layout.php';
                 </div>
                 <div class="search-dropdown" id="obSearchDropdown"></div>
             </div>
+        </div>
+
+        <!-- 语音识别提示浮层 -->
+        <div id="voiceToast" class="voice-toast">
+            <div class="vt-text">🎤 说 商品名+SKU名+数量，如「梦游 未拆 2个」</div>
+            <div class="vt-recognized" id="vtText"></div>
+            <div class="vt-confirm" id="vtConfirm"></div>
         </div>
 
                 <div class="card">
@@ -151,6 +165,50 @@ require_once __DIR__ . '/layout.php';
             transition: border-color 0.2s; box-sizing: border-box;
         }
         .scan-input:focus { border-color: var(--primary); }
+        .voice-btn {
+            background: var(--bg-hover);
+            border: none;
+            width: 42px; height: 42px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .voice-btn:hover { background: var(--bg-active); }
+        .voice-btn.listening {
+            background: var(--danger);
+            color: white;
+            animation: voice-pulse 1s ease-in-out infinite;
+        }
+        @keyframes voice-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(248,113,113,0.5); }
+            50% { box-shadow: 0 0 0 12px rgba(248,113,113,0); }
+        }
+        .voice-btn.processing {
+            background: var(--warning);
+            color: black;
+        }
+        .voice-toast {
+            position: fixed;
+            top: 70px; left: 50%; transform: translateX(-50%);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 20px;
+            z-index: 9999;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            display: none;
+            min-width: 200px;
+            max-width: 90vw;
+            text-align: center;
+            font-size: 15px;
+        }
+        .voice-toast.show { display: block; }
+        .voice-toast .vt-text { color: var(--text-secondary); font-size: 12px; margin-bottom: 4px; }
+        .voice-toast .vt-recognized { font-size: 18px; font-weight: 600; }
+        .voice-toast .vt-confirm { font-size: 13px; color: var(--success); margin-top: 6px; }
         .scan-result { display: flex; align-items: center; gap: 8px; }
         .sr-product { font-weight: bold; font-size: 15px; white-space: nowrap; }
         .sr-sep { color: var(--text-tertiary); font-size: 16px; }
@@ -279,6 +337,37 @@ require_once __DIR__ . '/layout.php';
         </div>
     </div>
 
+    <!-- 退单弹窗 -->
+    <div class="modal" id="returnModal">
+        <div class="modal-content" style="max-width:380px;">
+            <div class="modal-header">
+                <h3 class="modal-title">↩ 退单</h3>
+                <button class="modal-close" onclick="closeReturnModal()">&times;</button>
+            </div>
+            <div style="padding:16px 0;">
+                <div id="returnProductInfo" style="margin-bottom:16px;">
+                    <div style="font-size:16px;font-weight:600;" id="retProductName"></div>
+                    <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">
+                        <span id="retConditionName"></span> · 可退还: <span id="retMaxQty">0</span> 件
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">退还数量</label>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <button class="btn btn-sm" onclick="adjReturnQty(-1)" style="width:36px;height:36px;font-size:20px;">−</button>
+                        <input type="number" id="retQty" value="1" min="1" step="1" style="width:80px;text-align:center;font-size:18px;font-weight:bold;padding:8px;border:2px solid var(--border);border-radius:8px;">
+                        <button class="btn btn-sm" onclick="adjReturnQty(1)" style="width:36px;height:36px;font-size:20px;">+</button>
+                        <button class="btn btn-sm" onclick="document.getElementById('retQty').value = document.getElementById('retMaxQty').textContent" style="font-size:12px;">全部</button>
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:20px;">
+                    <button class="btn btn-primary" onclick="confirmReturn()" id="returnBtn" style="flex:1;">确认退单</button>
+                    <button class="btn btn-secondary" onclick="closeReturnModal()" style="flex:1;">取消</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 财务数据编辑弹窗 -->
     <div class="modal" id="financeModal">
         <div class="modal-content" style="max-width:420px;">
@@ -332,6 +421,113 @@ require_once __DIR__ . '/layout.php';
     let stockSortAsc = true;
     let scanTimer = null;
     let conditionNameMap = { sealed: '原盒未拆', opened: '拆盒无瑕', boxless: '无盒无瑕', flawed: '微瑕' };
+
+    // ---- 待出库持久化 (localStorage) ----
+    const PENDING_CART_KEY = 'ppmart_pending_cart_' + window.location.hostname;
+
+    function savePendingCart() {
+        try {
+            const data = cart.map(item => ({
+                product_id: item.product_id,
+                product_name: item.product_name,
+                common_name: item.common_name,
+                series: item.series,
+                condition_type: item.condition_type,
+                condition_name: item.condition_name,
+                price: item.price,
+                qty: item.qty,
+                batches: item.batches.map(b => ({
+                    batch_id: b.batch_id,
+                    batch_no: b.batch_no,
+                    purchase_price: b.purchase_price,
+                    available: b.available,
+                    qty: b.qty
+                }))
+            }));
+            localStorage.setItem(PENDING_CART_KEY, JSON.stringify(data));
+        } catch(e) {
+            console.warn('待出库保存失败:', e);
+        }
+    }
+
+    function loadPendingCart() {
+        try {
+            const raw = localStorage.getItem(PENDING_CART_KEY);
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            if (!Array.isArray(data) || data.length === 0) return;
+            const valid = data.filter(item =>
+                item.product_id && item.condition_type &&
+                item.price > 0 && item.qty > 0 &&
+                Array.isArray(item.batches) && item.batches.length > 0
+            );
+            if (valid.length === 0) return;
+            cart = valid;
+            renderCart();
+            updateStats();
+            refreshStockDisplay();
+        } catch(e) {
+            console.warn('待出库恢复失败:', e);
+            localStorage.removeItem(PENDING_CART_KEY);
+        }
+    }
+
+    function clearPendingCart() {
+        localStorage.removeItem(PENDING_CART_KEY);
+    }
+
+    // ---- 服务端待出库清单（Agent/语音远程添加的） ----
+    async function loadServerPendingCart() {
+        try {
+            const res = await fetch('../api/get_pending_outbound.php');
+            const data = await res.json();
+            if (!data.success || !data.data.items || data.data.items.length === 0) return;
+
+            for (const item of data.data.items) {
+                // 在 stockData 中找该产品的可用批次
+                const batches = stockData.filter(s =>
+                    s.product_id == item.product_id && s.condition_type === item.condition_type && s.remaining_qty > 0
+                );
+                if (batches.length === 0) continue;
+
+                const totalStock = batches.reduce((s, b) => s + parseInt(b.remaining_qty), 0);
+
+                // 如果购物车已有同产品+SKU，累加数量
+                const existing = cart.find(c =>
+                    c.product_id == item.product_id && c.condition_type === item.condition_type
+                );
+                if (existing) {
+                    existing.qty += parseInt(item.qty);
+                    allocateFIFO(existing);
+                    // 超量则截断
+                    if (existing.qty > totalStock) existing.qty = totalStock;
+                    continue;
+                }
+
+                const sku = {
+                    product_id: item.product_id,
+                    product_name: item.product_name || '',
+                    common_name: item.common_name || '',
+                    series: '',
+                    condition_type: item.condition_type,
+                    condition_name: getConditionName(item.condition_type),
+                    suggested_price: item.price || batches[0].suggested_price,
+                    total_stock: totalStock,
+                    batches: batches
+                };
+                upsertCartItem(sku, parseInt(item.qty));
+            }
+
+            renderCart();
+            updateStats();
+            refreshStockDisplay();
+
+            // 注入完成后删掉DB记录，避免刷新又回来
+            await fetch('../api/clear_pending_outbound.php', { method: 'POST' }).catch(()=>{});
+        } catch(e) {
+            console.warn('加载服务端待出库失败:', e);
+        }
+    }
 
     // ---- 扫码工作流 ----
     let scanResult = [];    // 当前扫码返回的批次列表
@@ -505,6 +701,8 @@ require_once __DIR__ . '/layout.php';
         renderCart();
         updateStats();
         refreshStockDisplay();
+            refreshSearchDropdown();
+        savePendingCart();
     }
 
     // 重置浮层
@@ -598,12 +796,15 @@ require_once __DIR__ . '/layout.php';
                 ${mergedSKUs.map(sku => {
                     const id = 'add_' + (addId++);
                     addMap[id] = sku;
+                    const reserved = getCartReservedBySku(sku.product_id, sku.condition_type);
+                    const remain = Math.max(0, sku.total_stock - reserved);
+                    const dimmed = remain <= 0;
                     return `
-                    <div class="search-dropdown-item">
+                    <div class="search-dropdown-item" style="${dimmed ? 'opacity:0.5;' : ''}">
                         <span class="condition-badge condition-${sku.condition_type}">${escapeHtml(sku.condition_name)}</span>
-                        <span class="sdi-stock">库存 ${sku.total_stock}</span>
+                        <span class="sdi-stock">库存 ${remain}${reserved > 0 ? `<span style="color:var(--text-tertiary);font-weight:normal;">(-${reserved})</span>` : ''}</span>
                         <span class="sdi-price" style="color:var(--success);">¥${parseFloat(sku.suggested_price || 0).toFixed(2)}</span>
-                        <button class="sdi-add-btn" data-add-id="${id}">添加</button>
+                        <button class="sdi-add-btn" data-add-id="${id}"${dimmed ? ' disabled' : ''}>${dimmed ? '已占完' : '添加'}</button>
                     </div>
                 `;}).join('')}
             `;
@@ -632,23 +833,39 @@ require_once __DIR__ . '/layout.php';
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 const sku = addMap[this.dataset.addId];
-                if (sku) {
-                    upsertCartItem(sku, 1);
-                    renderCart();
-                    updateStats();
-                    refreshStockDisplay();
-                    this.textContent = '✓';
-                    this.style.background = '#34d399';
-                    setTimeout(() => { this.textContent = '添加'; this.style.background = ''; }, 600);
-                    document.getElementById('scanInput').value = '';
-                    var floatInput = document.getElementById('scanFloatInput');
-                    if (floatInput) floatInput.value = '';
-                    document.getElementById('obSearchDropdown').classList.remove('show');
-                    // 浮层可见时聚焦浮层输入框，避免页面滚回顶部
-                    if (scanFloatBar.classList.contains('show')) {
-                        scanFloatInput.focus({ preventScroll: true });
-                    } else {
-                        document.getElementById('scanInput').focus({ preventScroll: true });
+                if (!sku) return;
+
+                try {
+                    const reserved = getCartReservedBySku(sku.product_id, sku.condition_type);
+                    const remain = sku.total_stock - reserved;
+                    if (remain > 0) {
+                        upsertCartItem(sku, 1);
+                        renderCart();
+                        updateStats();
+                        refreshStockDisplay();
+                    }
+                } catch(ex) {
+                    console.error('add err:', ex);
+                }
+
+                // 无论如何都更新库存显示（即使上面出错也不阻塞）
+                var pn = this.parentNode;
+                if (pn) {
+                    var ss = pn.querySelector('.sdi-stock');
+                    if (ss) {
+                        var newRsv = getCartReservedBySku(sku.product_id, sku.condition_type);
+                        var newRem = Math.max(0, sku.total_stock - newRsv);
+                        ss.innerHTML = '库存 ' + newRem +
+                            (newRsv > 0 ? '<span style="color:var(--text-tertiary);font-weight:normal;">(-' + newRsv + ')</span>' : '');
+                        if (newRem <= 0) {
+                            pn.style.opacity = '0.5';
+                            this.disabled = true;
+                            this.textContent = '已占完';
+                        } else {
+                            this.textContent = '✓';
+                            this.style.background = '#34d399';
+                            setTimeout(() => { this.textContent = '添加'; this.style.background = ''; }, 300);
+                        }
                     }
                 }
             });
@@ -671,6 +888,17 @@ require_once __DIR__ . '/layout.php';
         }
     });
 
+    // 获取购物车中已占用的数量（按商品+SKU）
+    function getCartReservedBySku(productId, conditionType) {
+        let reserved = 0;
+        cart.forEach(item => {
+            if (item.product_id === productId && item.condition_type === conditionType) {
+                reserved += item.qty;
+            }
+        });
+        return reserved;
+    }
+
     function upsertCartItem(sku, qty = 1) {
         const index = cart.findIndex(item =>
             item.product_id === sku.product_id && item.condition_type === sku.condition_type
@@ -686,6 +914,7 @@ require_once __DIR__ . '/layout.php';
                 item.qty = nextQty;
             }
             allocateFIFO(item);
+            savePendingCart();
             return;
         }
 
@@ -708,6 +937,7 @@ require_once __DIR__ . '/layout.php';
         };
         allocateFIFO(newItem);
         cart.push(newItem);
+        savePendingCart();
     }
 
     function allocateFIFO(item) {
@@ -782,6 +1012,7 @@ require_once __DIR__ . '/layout.php';
         if (price > 0) {
             cart[index].price = price;
             updateStats();
+            savePendingCart();
         }
     }
 
@@ -799,11 +1030,17 @@ require_once __DIR__ . '/layout.php';
             renderCart();
             updateStats();
             refreshStockDisplay();
+            refreshSearchDropdown();
+            savePendingCart();
         }
     }
 
-    function refreshStockDisplay() {
-        if (stockData.length) renderStockList(stockData);
+    function refreshSearchDropdown() {
+        const dd = document.getElementById('obSearchDropdown');
+        // 只在下拉框打开时刷新
+        if (dd.classList.contains('show') && obSearchResults.length) {
+            showSearchDropdown();
+        }
     }
 
     function removeItem(index) {
@@ -811,6 +1048,8 @@ require_once __DIR__ . '/layout.php';
         renderCart();
         updateStats();
         refreshStockDisplay();
+            refreshSearchDropdown();
+        savePendingCart();
     }
 
     function updateStats() {
@@ -860,6 +1099,9 @@ require_once __DIR__ . '/layout.php';
             if (result.success) {
                 alert(`出库成功！\n批次号: ${result.data.batch_no}\n共 ${result.data.total_items} 个商品，合计 ¥${result.data.total_amount.toFixed(2)}`);
                 cart = [];
+                clearPendingCart();
+                // 清空服务端待出库
+                fetch('../api/clear_pending_outbound.php', { method: 'POST' }).catch(()=>{});
                 renderCart();
                 updateStats();
                 document.getElementById('orderNo').value = '';
@@ -1003,6 +1245,7 @@ require_once __DIR__ . '/layout.php';
         renderCart();
         updateStats();
         refreshStockDisplay();
+            refreshSearchDropdown();
     }
 
     async function showOutboundList() {
@@ -1055,11 +1298,15 @@ require_once __DIR__ . '/layout.php';
                                         <th>售价</th>
                                         <th>盈利</th>
                                         <th>金额</th>
+                                        <th>操作</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     ${batch.items.map(item => {
-                                        const itemProfit = (item.outbound_price - item.batch_purchase_price) * item.qty;
+                                        const returned = parseInt(item.returned_qty || 0);
+                                        const actual = item.qty - returned;
+                                        const itemProfit = (item.outbound_price - item.batch_purchase_price) * actual;
+                                        const canReturn = actual > 0;
                                         return `
                                         <tr>
                                             <td>
@@ -1067,11 +1314,17 @@ require_once __DIR__ . '/layout.php';
                                                 ${item.common_name && item.product_name ? `<br><span style="font-size:11px;color:var(--text-tertiary);">${escHtml(item.product_name)}</span>` : ''}
                                             </td>
                                             <td><span class="condition-badge condition-${item.condition_type}">${getConditionName(item.condition_type)}</span></td>
-                                            <td>${item.qty}</td>
+                                            <td>
+                                                ${actual}
+                                                ${returned > 0 ? `<br><span style="font-size:11px;color:var(--text-tertiary);text-decoration:line-through;">${item.qty}</span><span style="color:var(--warning);font-size:11px;"> 退${returned}</span>` : ''}
+                                            </td>
                                             <td>¥${parseFloat(item.batch_purchase_price).toFixed(2)}</td>
                                             <td>¥${parseFloat(item.outbound_price).toFixed(2)}</td>
                                             <td style="${itemProfit >= 0 ? 'color:var(--success);' : 'color:var(--danger);'} font-weight:bold;">${itemProfit >= 0 ? '+' : ''}¥${itemProfit.toFixed(2)}</td>
-                                            <td style="font-weight:bold;">¥${(parseFloat(item.outbound_price) * item.qty).toFixed(2)}</td>
+                                            <td style="font-weight:bold;">¥${(parseFloat(item.outbound_price) * actual).toFixed(2)}</td>
+                                            <td>
+                                                ${canReturn ? `<button class="btn btn-sm" onclick="returnOutboundItem(${item.id}, ${item.batch_id}, '${escHtml(item.common_name || item.product_name || '')}', '${item.condition_type}', ${actual})" style="color:var(--warning); border-color:var(--warning);">↩ 退单</button>` : '<span style="font-size:11px;color:var(--text-tertiary);">已退完</span>'}
+                                            </td>
                                         </tr>
                                     `}).join('')}
                                 </tbody>
@@ -1109,6 +1362,71 @@ require_once __DIR__ . '/layout.php';
         return conditionNameMap[type] || type;
     }
 
+    // ---- 退单功能 ----
+    let returnLogId = 0;
+    let returnBatchId = 0;
+    let returnMaxQty = 0;
+
+    function returnOutboundItem(logId, batchId, productName, conditionType, maxQty) {
+        returnLogId = logId;
+        returnBatchId = batchId;
+        returnMaxQty = maxQty;
+        document.getElementById('retProductName').textContent = productName;
+        document.getElementById('retConditionName').textContent = getConditionName(conditionType);
+        document.getElementById('retMaxQty').textContent = maxQty;
+        document.getElementById('retQty').value = Math.min(1, maxQty);
+        document.getElementById('returnBtn').disabled = maxQty <= 0;
+        document.getElementById('returnModal').classList.add('show');
+    }
+
+    function adjReturnQty(delta) {
+        const input = document.getElementById('retQty');
+        let v = parseInt(input.value) || 1;
+        v += delta;
+        if (v < 1) v = 1;
+        if (v > returnMaxQty) v = returnMaxQty;
+        input.value = v;
+    }
+
+    function closeReturnModal() {
+        document.getElementById('returnModal').classList.remove('show');
+    }
+
+    async function confirmReturn() {
+        const qty = parseInt(document.getElementById('retQty').value) || 1;
+        if (qty <= 0 || qty > returnMaxQty) {
+            alert('请输入有效数量（1-' + returnMaxQty + '）');
+            return;
+        }
+
+        const btn = document.getElementById('returnBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ 提交中...';
+
+        try {
+            const res = await fetch('../api/return_outbound.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ outbound_log_id: returnLogId, batch_id: returnBatchId, qty })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                alert('✅ ' + data.data.message);
+                closeReturnModal();
+                showOutboundList();
+                loadStockOverview();
+            } else {
+                alert('❌ 退单失败: ' + (data.error || '未知错误'));
+            }
+        } catch (err) {
+            alert('❌ 请求失败: ' + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '确认退单';
+        }
+    }
+
     function closeHistoryModal() {
         document.getElementById('historyModal').classList.remove('show');
     }
@@ -1140,9 +1458,13 @@ require_once __DIR__ . '/layout.php';
         }
     }
 
-    loadConditionSettings();
-    loadStockOverview();
-    document.getElementById('scanInput').focus();
+    (async function init() {
+        await loadConditionSettings();
+        await loadStockOverview();
+        loadPendingCart();
+        await loadServerPendingCart();
+        document.getElementById('scanInput').focus();
+    })();
 
     // 扫码栏浮层：主扫码栏滚出屏时在顶部显示
     const scanBar = document.querySelector('.scan-bar');
@@ -1223,6 +1545,317 @@ require_once __DIR__ . '/layout.php';
 
     function closeFinanceModal() {
         document.getElementById('financeModal').classList.remove('show');
+    }
+
+    /* ═══════════════════════════════════
+       语音出库 — Web Speech API
+       ═══════════════════════════════════ */
+    var voiceRecognition = null;
+    var voiceListening = false;
+    var recognizer = null;
+
+    // 中文数字映射
+    var CN_NUM = {
+        '零':0,'一':1,'二':2,'两':2,'三':3,'四':4,'五':5,
+        '六':6,'七':7,'八':8,'九':9,'十':10,
+        '百':100,'千':1000,'万':10000
+    };
+
+    function parseCnNumber(str) {
+        // 先尝试直接解析数字
+        var n = parseInt(str);
+        if (!isNaN(n)) return n;
+        // 中文数字：十一 = 11, 二十 = 20, 三十四 = 34, 一百 = 100
+        var total = 0, cur = 0;
+        for (var i = 0; i < str.length; i++) {
+            var c = str[i];
+            var v = CN_NUM[c];
+            if (v === undefined) return NaN;
+            if (v >= 10) {
+                if (cur === 0) cur = 1;
+                total += cur * v;
+                cur = 0;
+            } else {
+                cur = v;
+            }
+        }
+        total += cur;
+        return total || NaN;
+    }
+
+    function parseVoiceText(text) {
+        // 解析语音："商品名 [SKU关键词] 数量个"
+        // e.g. "白日梦游 未拆 1个", "梦游 已拆2个"
+        // 返回: { keyword, conditionKeyword, qty, price } 或 null
+        if (!text || !text.trim()) return null;
+        var t = text.trim();
+
+        // 提取价格：末尾的 "数字+块/元"
+        var price = null;
+        var priceMatch = t.match(/(\d+\.?\d*)\s*(?:块|元|块钱|元钱)\s*$/);
+        if (priceMatch) {
+            price = parseFloat(priceMatch[1]);
+            t = t.slice(0, t.lastIndexOf(priceMatch[0]));
+        }
+
+        // 提取数量和单位
+        var qty = null;
+        var qtyStr = '';
+        // 匹配末尾或中间的 "数字+个/包/盒/箱/件..."
+        var unitMatch = t.match(/(\d+|[一二两三四五六七八九十百千]+)\s*(?:个|包|盒|箱|件|支|瓶|袋|条|双|对|只|瓶|罐|桶|板|枚|片|张|台|套|副|根|卷|粒|颗|把|块)\s*/);
+        if (unitMatch) {
+            qty = parseCnNumber(unitMatch[1]);
+            qtyStr = unitMatch[0];
+            t = t.replace(qtyStr, '');
+        }
+
+        // 如果没有单位词，试试末尾的纯数字
+        if (!qty) {
+            var plainNum = t.match(/(\d+|[一二两三四五六七八九十百千]+)$/);
+            if (plainNum) {
+                qty = parseCnNumber(plainNum[1]);
+                if (qty > 100 || isNaN(qty)) {
+                    qty = null;
+                } else {
+                    t = t.slice(0, t.lastIndexOf(plainNum[1]));
+                }
+            }
+        }
+
+        // 提取价格（第二次尝试）：末尾纯数字（可能之前被当数量但太大被过滤了）
+        if (!price) {
+            var endNum = t.match(/(\d+\.?\d*)\s*$/);
+            if (endNum) {
+                var lastNum = parseFloat(endNum[1]);
+                if (!isNaN(lastNum) && lastNum > 0 && lastNum < 99999) {
+                    price = lastNum;
+                    t = t.slice(0, t.lastIndexOf(endNum[1]));
+                }
+            }
+        }
+
+        // 提取 SKU 条件关键词（在剩余文本中匹配已知SKU名）
+        var conditionKeyword = '';
+        var knownConditions = ['未拆','原盒','已拆','拆盒','无盒','微瑕','瑕'];
+        for (var ci = 0; ci < knownConditions.length; ci++) {
+            var ck = knownConditions[ci];
+            var idx = t.indexOf(ck);
+            if (idx >= 0) {
+                conditionKeyword = ck;
+                t = t.slice(0, idx) + t.slice(idx + ck.length);
+                break;
+            }
+        }
+
+        // 清理剩余文本
+        var keyword = t.replace(/[,，、。！？:：（）()\s]+/g, ' ').trim();
+        if (!keyword) return null;
+
+        return { keyword: keyword, conditionKeyword: conditionKeyword, qty: qty || 1, price: price };
+    }
+
+    function toggleVoiceInput() {
+        var btn = document.getElementById('voiceBtn');
+
+        if (voiceListening) {
+            stopVoiceInput();
+            return;
+        }
+
+        // 检查浏览器是否支持
+        var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+            alert('⚠️ 您的浏览器不支持语音识别。请使用 Chrome 或 Edge。');
+            return;
+        }
+
+        // 请求麦克风权限
+        try {
+            recognizer = new SR();
+            recognizer.lang = 'zh-CN';
+            recognizer.continuous = false;
+            recognizer.interimResults = true;
+            recognizer.maxAlternatives = 3;
+
+            recognizer.onresult = function(event) {
+                var finalText = '';
+                var interimText = '';
+                for (var i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        finalText += event.results[i][0].transcript;
+                    } else {
+                        interimText += event.results[i][0].transcript;
+                    }
+                }
+
+                var display = finalText || interimText;
+                document.getElementById('vtText').textContent = display;
+
+                if (finalText) {
+                    stopVoiceInput();
+                    handleVoiceResult(finalText);
+                }
+            };
+
+            recognizer.onerror = function(event) {
+                console.error('语音识别错误:', event.error);
+                stopVoiceInput();
+                if (event.error === 'not-allowed') {
+                    alert('⚠️ 麦克风权限被拒绝，请在浏览器设置中允许麦克风访问。');
+                } else if (event.error === 'no-speech') {
+                    // 静默失败
+                } else {
+                    alert('语音识别失败: ' + event.error);
+                }
+            };
+
+            recognizer.onend = function() {
+                // 如果没有结果（用户没有说话），正常停止
+                if (voiceListening) {
+                    stopVoiceInput();
+                }
+            };
+
+            recognizer.start();
+            voiceListening = true;
+            btn.classList.add('listening');
+            btn.title = '点击停止聆听';
+
+            // 显示浮层
+            document.getElementById('voiceToast').classList.add('show');
+            document.getElementById('vtText').textContent = '正在听...';
+            document.getElementById('vtConfirm').textContent = '';
+
+            // 5秒超时
+            setTimeout(function() {
+                if (voiceListening) {
+                    stopVoiceInput();
+                }
+            }, 5000);
+
+        } catch(e) {
+            console.error('语音启动失败:', e);
+            alert('启动语音识别失败，请使用 Chrome 浏览器。');
+        }
+    }
+
+    function stopVoiceInput() {
+        voiceListening = false;
+        var btn = document.getElementById('voiceBtn');
+        btn.classList.remove('listening', 'processing');
+        btn.title = '语音录入';
+
+        if (recognizer) {
+            try { recognizer.stop(); } catch(e) {}
+            recognizer = null;
+        }
+
+        // 3秒后隐藏浮层
+        setTimeout(function() {
+            document.getElementById('voiceToast').classList.remove('show');
+        }, 3000);
+    }
+
+    function handleVoiceResult(text) {
+        var btn = document.getElementById('voiceBtn');
+        btn.classList.add('processing');
+
+        var parsed = parseVoiceText(text);
+        if (!parsed || !parsed.keyword) {
+            document.getElementById('vtConfirm').textContent = '❌ 未能识别商品，请重试';
+            return;
+        }
+
+        // 显示解析结果
+        var confirmMsg = '🔍 "' + parsed.keyword + '" × ' + parsed.qty;
+        if (parsed.price) confirmMsg += '  ¥' + parsed.price;
+        document.getElementById('vtConfirm').textContent = confirmMsg;
+
+        // 填入搜索框并触发搜索
+        var input = document.getElementById('scanInput');
+        input.value = parsed.keyword;
+
+        // 触发 input 事件（仅作为备用，优先走本地索引）
+        var evt = new Event('input', { bubbles: true });
+        input.dispatchEvent(evt);
+
+        // 直接通过本地索引匹配，无需等待API
+        voiceDirectAdd(parsed);
+    }
+
+    // 使用本地 stockData 索引快速添加，无需 API 调用
+    function voiceDirectAdd(parsed) {
+        var kw = parsed.keyword.toLowerCase();
+        var conditionKw = (parsed.conditionKeyword || '').toLowerCase();
+        var qty = parsed.qty || 1;
+        var price = parsed.price || null;
+
+        if (!stockData || stockData.length === 0) {
+            document.getElementById('vtConfirm').textContent += ' ❌ 库存数据未加载，请刷新页面';
+            return;
+        }
+
+        // 在 stockData 中查找匹配的商品
+        var matches = [];
+        var seen = {};
+        for (var i = 0; i < stockData.length; i++) {
+            var s = stockData[i];
+            var name = (s.common_name || s.product_name || '').toLowerCase();
+            var series = (s.series || '').toLowerCase();
+            if (name.indexOf(kw) >= 0 || series.indexOf(kw) >= 0 || (s.pinyin_initials && s.pinyin_initials.toLowerCase().indexOf(kw) >= 0)) {
+                var key = s.product_id + '_' + s.condition_type;
+                if (!seen[key]) {
+                    seen[key] = true;
+                    matches.push(s);
+                }
+            }
+        }
+
+        // 按条件过滤
+        if (conditionKw) {
+            var filtered = matches.filter(function(s) {
+                return s.condition_name.indexOf(conditionKw) >= 0;
+            });
+            if (filtered.length > 0) matches = filtered;
+        }
+
+        if (matches.length === 0) {
+            document.getElementById('vtConfirm').textContent += ' ❌ 未找到"' + parsed.keyword + '"';
+            return;
+        }
+
+        var bestMatch = matches[0];
+        // 该SKU的所有可用批次
+        var allBatches = stockData.filter(function(s) {
+            return s.product_id === bestMatch.product_id && s.condition_type === bestMatch.condition_type;
+        });
+
+        var totalStock = 0;
+        for (var b = 0; b < allBatches.length; b++) {
+            totalStock += parseInt(allBatches[b].remaining_qty || 0);
+        }
+
+        var sku = {
+            product_id: bestMatch.product_id,
+            product_name: bestMatch.product_name,
+            common_name: bestMatch.common_name || '',
+            series: bestMatch.series || '',
+            condition_type: bestMatch.condition_type,
+            condition_name: bestMatch.condition_name,
+            suggested_price: price || bestMatch.suggested_price,
+            total_stock: totalStock,
+            batches: allBatches
+        };
+
+        var name = bestMatch.common_name || bestMatch.product_name;
+        upsertCartItem(sku, qty);
+        renderCart();
+        updateStats();
+        refreshStockDisplay();
+        savePendingCart();
+        refreshSearchDropdown();
+
+        document.getElementById('vtConfirm').textContent = '✅ ' + name + ' ' + bestMatch.condition_name + ' ×' + qty + ' 已添加';
     }
     </script>
 </body>

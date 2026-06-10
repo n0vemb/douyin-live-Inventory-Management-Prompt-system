@@ -12,14 +12,16 @@ requireAuth(); $storeId = getStoreId();
 
 try {
     // 加载店铺财务设置
-    $shippingFee = 3.00;
+    $shippingFee = 3.00;       // 售价中含的快递费（用于退货回收）
+    $actualShippingFee = 3.00; // 实际快递成本（用于成本计算）
     $platformFeeRate = 0.05;
     if ($storeId) {
-        $stmt = $pdo->prepare('SELECT shipping_fee, platform_fee_rate FROM stores WHERE id = ?');
+        $stmt = $pdo->prepare('SELECT shipping_fee, actual_shipping_fee, platform_fee_rate FROM stores WHERE id = ?');
         $stmt->execute([$storeId]);
         $store = $stmt->fetch();
         if ($store) {
             $shippingFee = decimal($store['shipping_fee'] ?? 3.00);
+            $actualShippingFee = decimal($store['actual_shipping_fee'] ?? $shippingFee);
             $platformFeeRate = decimal($store['platform_fee_rate'] ?? 0.05);
         }
     } else {
@@ -37,7 +39,8 @@ try {
             MIN(o.outbound_at) as outbound_at,
             SUM(o.qty) as total_qty,
             SUM(o.qty * o.outbound_price) as total_amount,
-            SUM(o.qty * COALESCE(b.purchase_price, 0)) as total_cost
+            SUM(o.qty * COALESCE(b.purchase_price, 0)) as total_cost,
+            MIN(o.shipping_fee) as shipping_fee
         FROM outbound_log o
         LEFT JOIN inventory_batches b ON o.batch_id = b.id
         WHERE DATE(o.outbound_at) BETWEEN ? AND ?
@@ -56,7 +59,7 @@ try {
     if (empty($batches)) {
         success(['data' => [
             'batches' => [],
-            'settings' => ['shipping_fee' => $shippingFee, 'platform_fee_rate' => $platformFeeRate],
+            'settings' => ['shipping_fee' => $shippingFee, 'actual_shipping_fee' => $actualShippingFee, 'platform_fee_rate' => $platformFeeRate],
             'summary' => ['total_gmv' => 0, 'total_cost' => 0, 'total_shipping' => 0, 'total_platform_fee' => 0, 'total_ad_spend' => 0, 'total_profit' => 0]
         ]]);
         exit;
@@ -116,19 +119,19 @@ try {
         if ($platformFilter && ($b['platform'] ?? '') !== $platformFilter) continue;
         if ($accountFilter && ($b['account'] ?? '') !== $accountFilter) continue;
 
-        // 利润公式（每步都 round 到2位，防止浮点精度累积误差）
+        // 利润公式：
+        //   快递成本 = 订单数 × 实际快递成本
+        //   退货回收 = (卖出件数 - 订单数) × 售价中含的快递费
         if ($b['gmv'] !== null && $b['gmv'] > 0) {
             $platformFee = decimal($b['gmv'] * $platformFeeRate);
-            $shipping = decimal(($b['order_count'] ?? 0) * $shippingFee);
-            $recovery = decimal(($b['total_qty'] - ($b['order_count'] ?? 0)) * $shippingFee);
+            $shipping = decimal(($b['order_count'] ?? 0) * $actualShippingFee);
             $b['platform_fee'] = $platformFee;
             $b['shipping_cost'] = $shipping;
             $b['profit'] = decimal(
                 decimal($b['gmv'] * (1 - $platformFeeRate))
-                - decimal(($b['order_count'] ?? 0) * $shippingFee)
+                - $shipping
                 - $b['total_cost']
                 - ($b['ad_spend'] ?? 0)
-                + $recovery
             );
 
             $totalGmv += $b['gmv'];
@@ -148,6 +151,7 @@ try {
             'batches' => $batches,
             'settings' => [
                 'shipping_fee' => $shippingFee,
+                'actual_shipping_fee' => $actualShippingFee,
                 'platform_fee_rate' => $platformFeeRate,
             ],
             'summary' => [

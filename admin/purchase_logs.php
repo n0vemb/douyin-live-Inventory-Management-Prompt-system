@@ -17,7 +17,10 @@ require_once __DIR__ . '/layout.php';
                 </div>
                 <div class="form-group" style="flex:1; min-width:200px;">
                     <label class="form-label">商品名称/条码</label>
-                    <input type="text" class="form-input" id="searchKeyword" placeholder="搜索商品...">
+                    <div style="position:relative;">
+                        <input type="text" class="form-input" id="searchKeyword" placeholder="搜索商品名称/拼音/条码..." oninput="liveSearchProducts()">
+                        <div class="search-dropdown" id="plSearchDropdown" style="position:absolute;top:100%;left:0;right:0;z-index:200;"></div>
+                    </div>
                 </div>
                 <div class="form-group" style="flex:1; min-width:150px;">
                     <label class="form-label">SKU类型</label>
@@ -43,13 +46,13 @@ require_once __DIR__ . '/layout.php';
                 <thead>
                     <tr>
                         <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
-                        <th>入库时间</th>
-                        <th>批次号</th>
-                        <th>商品条码</th>
-                        <th>商品名称</th>
-                        <th>SKU</th>
-                        <th>数量</th>
-                        <th>售价</th>
+                        <th onclick="sortLogsBy('date')" class="sortable">入库时间 <span class="sort-indicator" id="sortDate"></span></th>
+                        <th onclick="sortLogsBy('batch_no')" class="sortable">批次号 <span class="sort-indicator" id="sortBatchNo"></span></th>
+                        <th onclick="sortLogsBy('barcode')" class="sortable">商品条码 <span class="sort-indicator" id="sortBarcode"></span></th>
+                        <th onclick="sortLogsBy('name')" class="sortable">商品名称 <span class="sort-indicator" id="sortName"></span></th>
+                        <th onclick="sortLogsBy('sku')" class="sortable">SKU <span class="sort-indicator" id="sortSku"></span></th>
+                        <th onclick="sortLogsBy('qty')" class="sortable">数量 <span class="sort-indicator" id="sortQty"></span></th>
+                        <th onclick="sortLogsBy('price')" class="sortable">售价 <span class="sort-indicator" id="sortPrice"></span></th>
                         <th>操作</th>
                     </tr>
                 </thead>
@@ -208,6 +211,30 @@ require_once __DIR__ . '/layout.php';
     .element-tool:active {
         cursor: grabbing;
     }
+    .pl-search-dropdown {
+        position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+        background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px;
+        overflow: hidden; display: none; max-height: 300px; overflow-y: auto;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3); z-index: 300;
+    }
+    .pl-search-dropdown.show { display: block; }
+    .pl-sd-item {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 14px; border-bottom: 1px solid var(--border);
+        font-size: 13px; cursor: pointer; transition: background 0.15s;
+    }
+    .pl-sd-item:hover { background: var(--bg-hover); }
+    .pl-sd-item:last-child { border-bottom: none; }
+    .pl-sd-item .pl-sd-name { font-weight: 600; flex:1; }
+    .pl-sd-item .pl-sd-sku { font-size: 11px; color: var(--text-tertiary); }
+    .pl-sd-empty {
+        padding: 30px; text-align: center; color: var(--text-tertiary); font-size: 14px;
+    }
+    .sortable { cursor: pointer; user-select: none; }
+    .sortable:hover { background: var(--bg-hover); }
+    .sort-indicator { font-size: 11px; margin-left: 3px; color: var(--text-tertiary); }
+    .sort-asc::after { content: ' ▲'; color: var(--primary); }
+    .sort-desc::after { content: ' ▼'; color: var(--primary); }
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
@@ -217,6 +244,58 @@ require_once __DIR__ . '/layout.php';
     let totalPages = 1;
     let selectedItems = [];
     let allRecords = [];
+    let logSort = { field: null, dir: 'asc' };
+
+    function clearLogSortIndicators() {
+        document.querySelectorAll('.sort-indicator').forEach(function(el) {
+            el.className = 'sort-indicator';
+        });
+    }
+
+    function sortLogsBy(field) {
+        if (logSort.field === field) {
+            logSort.dir = logSort.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            logSort.field = field;
+            logSort.dir = 'asc';
+        }
+        clearLogSortIndicators();
+        var idMap = {date:'Date',batch_no:'BatchNo',barcode:'Barcode',name:'Name',sku:'Sku',qty:'Qty',price:'Price'};
+        var el = document.getElementById('sort' + (idMap[field] || field));
+        if (el) el.className = 'sort-indicator ' + (logSort.dir === 'asc' ? 'sort-asc' : 'sort-desc');
+        searchPurchaseLogs(currentPage);
+    }
+
+    function applyLogSort(records) {
+        var f = logSort.field;
+        if (!f || !records) return records;
+        return records.sort(function(a, b) {
+            var va, vb;
+            switch (f) {
+                case 'date':
+                    va = a.purchased_at || ''; vb = b.purchased_at || ''; break;
+                case 'batch_no':
+                    va = a.batch_no || ''; vb = b.batch_no || ''; break;
+                case 'barcode':
+                    va = a.barcode || ''; vb = b.barcode || ''; break;
+                case 'name':
+                    va = (a.product_name || a.common_name || '').toLowerCase();
+                    vb = (b.product_name || b.common_name || '').toLowerCase(); break;
+                case 'sku':
+                    va = a.condition_type || ''; vb = b.condition_type || ''; break;
+                case 'qty':
+                    va = parseInt(a.qty) || 0; vb = parseInt(b.qty) || 0; break;
+                case 'price':
+                    va = parseFloat(a.suggested_price) || 0; vb = parseFloat(b.suggested_price) || 0; break;
+                default: return 0;
+            }
+            if (typeof va === 'string') {
+                return logSort.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            }
+            return logSort.dir === 'asc' ? va - vb : vb - va;
+        });
+    }
+
     let conditionTypes = [];
     let conditionNameMap = {};
     let conditionClassMap = {};
@@ -682,7 +761,7 @@ require_once __DIR__ . '/layout.php';
             const data = await res.json();
             if (data.success) {
                 allRecords = data.data.records;
-                renderPurchaseLogs(data.data.records);
+                renderPurchaseLogs(applyLogSort(data.data.records));
                 renderPagination(data.data.total, data.data.page_size);
             } else {
                 document.getElementById('purchaseLogList').innerHTML = 
@@ -1445,6 +1524,69 @@ waitForJsBarcode(function() {
 
         pagination.innerHTML = html;
     }
+
+    // ---- 拼音搜索下拉 ----
+    function escHtml(str) {
+        if (!str) return '';
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    let plSearchTimer = null;
+
+    function liveSearchProducts() {
+        clearTimeout(plSearchTimer);
+        const kw = document.getElementById('searchKeyword').value.trim();
+        const dd = document.getElementById('plSearchDropdown');
+        if (!kw) {
+            dd.classList.remove('show');
+            dd.innerHTML = '';
+            return;
+        }
+        plSearchTimer = setTimeout(() => {
+            fetch('../api/search_outbound_stock.php?keyword=' + encodeURIComponent(kw))
+                .then(r => r.json())
+                .then(data => {
+                    const items = data.success && data.data ? data.data : [];
+                    if (!items.length) {
+                        dd.innerHTML = '<div class="pl-sd-empty">未找到匹配商品</div>';
+                        dd.classList.add('show');
+                        return;
+                    }
+                    // 按产品去重
+                    const seen = {};
+                    const products = [];
+                    items.forEach(item => {
+                        if (!seen[item.product_id]) {
+                            seen[item.product_id] = true;
+                            products.push(item);
+                        }
+                    });
+                    dd.innerHTML = products.map(p => {
+                        const name = p.common_name || p.product_name;
+                        return '<div class="pl-sd-item" onclick="selectSearchResult(\'' + escHtml(name) + '\')">' +
+                            '<span class="pl-sd-name">' + escHtml(name) + '</span>' +
+                            '<span class="pl-sd-sku">' + escHtml(p.barcode || '') + '</span>' +
+                        '</div>';
+                    }).join('');
+                    dd.classList.add('show');
+                })
+                .catch(() => {});
+        }, 250);
+    }
+
+    function selectSearchResult(name) {
+        document.getElementById('searchKeyword').value = name;
+        document.getElementById('plSearchDropdown').classList.remove('show');
+        searchPurchaseLogs(1);
+    }
+
+    // 点击外部关闭下拉
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#searchKeyword') && !e.target.closest('#plSearchDropdown')) {
+            var dd = document.getElementById('plSearchDropdown');
+            if (dd) dd.classList.remove('show');
+        }
+    });
 
     function resetFilters() {
         document.getElementById('startDate').value = '';

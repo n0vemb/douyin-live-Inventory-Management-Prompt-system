@@ -496,7 +496,7 @@ require_once __DIR__ . '/layout.php';
             const salesRes = await fetch('../api/sales_summary.php');
             const salesData = await salesRes.json();
             if (salesData.success) {
-                document.getElementById('statMonthPurchase').textContent = salesData.data.month_purchase_count || '-';
+                document.getElementById('statMonthPurchase').textContent = (salesData.data.month_purchase_qty || 0) + ' 件';
                 document.getElementById('statMonthSales').textContent = '¥' + (salesData.data.month_sales_amount || 0).toLocaleString();
             }
         } catch (err) {

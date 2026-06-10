@@ -720,9 +720,22 @@ code {
     transform: translateX(-100%);
   }
   .sidebar-toggle { display: block; }
+  
+  /* Sidebar dimmed overlay */
+  .sidebar-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 98;
+    display: none;
+  }
+  body.sidebar-open .sidebar-overlay {
+    display: block;
+  }
+
   .container {
     margin-left: 0;
-    padding: 20px 14px;
+    padding: 16px 10px;
   }
   body.sidebar-hidden .sidebar {
     transform: translateX(-100%);
@@ -731,15 +744,253 @@ code {
     transform: translateX(0);
     box-shadow: 4px 0 30px rgba(0,0,0,0.5);
   }
+
+  /* Header responsive */
   .header-brand {
     width: auto;
-    padding-left: 12px;
+    padding-left: 8px;
   }
   .header-brand h1 {
-    font-size: 14px;
+    font-size: 13px;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .live-badge span { display: none; }
+  .header-logo {
+    display: none;
+  }
+  .header-user {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px !important;
+  }
+  .header-user > span,
+  .header-user > select {
+    font-size: 11px !important;
+  }
+  .header-user a {
+    font-size: 11px;
+  }
+
+  /* Page title */
+  .page-title {
+    font-size: 17px;
+    margin-bottom: 14px;
+  }
+
+  /* Card spacing */
+  .card {
+    padding: 14px;
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: 14px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+  }
+
+  /* Form elements full width on mobile */
+  .form-input, .form-select, input, select, textarea {
+    font-size: 16px !important;
+    max-width: 100% !important;
+  }
   .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  /* Buttons touch-friendly */
+  .btn {
+    padding: 8px 14px !important;
+    min-height: 38px;
+  }
+  .btn-sm {
+    padding: 6px 10px !important;
+    min-height: 32px;
+    font-size: 13px !important;
+  }
+
+  /* Tables: horizontal scroll */
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -10px;
+    padding: 0 10px;
+  }
+  table {
+    min-width: 600px;
+  }
+  th, td {
+    padding: 8px 10px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  /* Modals bottom sheet */
+  .modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal-content {
+    width: 100%;
+    max-width: 100%;
+    max-height: 85vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    margin: 0;
+  }
+  .modal.show {
+    animation: modal-mobile-up 0.25s ease-out;
+  }
+  @keyframes modal-mobile-up {
+    from { transform: translateY(40px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  /* Search bars */
+  .search-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .search-bar input[type="text"] {
+    min-width: 100%;
+  }
+
+  .filter-group {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .filter-group select,
+  .filter-group input {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .stock-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Outbound page: product detail table */
+  .outbound-product-detail {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* Finance/sales filter row */
+  div[style*="display:flex"]:not(.header):not(.sidebar-nav):not(.nav-item) > select,
+  div[style*="display:flex"]:not(.header):not(.sidebar-nav):not(.nav-item) > input[type="date"] {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .live-badge span { display: none; }
+
+  /* ── PRODUCTS PAGE ── */
+  /* Stats cards smaller */
+  div[style*="grid-template-columns:repeat(auto-fit, minmax(200px, 1fr))"] > div {
+    padding: 12px !important;
+  }
+  div[style*="grid-template-columns:repeat(auto-fit, minmax(200px, 1fr))"] > div > div:last-child {
+    font-size: 24px !important;
+  }
+
+  /* Products filter bar: flex items wrap */
+  .card > div[style*="justify-content:space-between"][style*="align-items:center"] {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .card > div[style*="justify-content:space-between"][style*="align-items:center"] .search-bar {
+    width: 100%;
+  }
+  .card > div[style*="justify-content:space-between"][style*="align-items:center"] > button {
+    margin-left: 0 !important;
+    width: 48%;
+    font-size: 12px !important;
+    padding: 8px 6px !important;
+  }
+  .card > div[style*="justify-content:space-between"][style*="align-items:center"] > button:nth-last-child(-n+2) {
+    width: 100%;
+  }
+
+  /* Stock detail modal: inline charts */
+  #stockDetailBatches {
+    min-width: 500px;
+  }
+  #stockDetailModal > div > div:first-of-type {
+    grid-template-columns: 1fr;
+  }
+  #stockDetailModal div[style*="display:flex"][style*="align-items:flex-start"] {
+    flex-direction: column;
+  }
+  #stockDetailModal div[style*="flex:none; max-width:50%"] {
+    max-width: 100% !important;
+    flex: none !important;
+  }
+
+  /* Purchase modal condition grid */
+  div#purchaseConditionsContainer > div[style*="display:grid"] {
+    grid-template-columns: 1fr;
+  }
+
+  /* Stock detail distribution cards */
+  #stockDetailDistribution {
+    flex-direction: column;
+  }
+  #stockDetailDistribution > div {
+    min-width: 100% !important;
+  }
+
+  /* Price trend filter */
+  #priceTrendSection > div:first-child > div:first-child {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 6px;
+  }
+  #priceTrendSection input[type="date"] {
+    width: 100%;
+    max-width: 120px;
+  }
+
+  /* ── SKU CONVERT PAGE ── */
+  .scan-bar-inner {
+    flex-direction: column;
+  }
+  .scan-input {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .search-dropdown {
+    max-height: 50vh;
+  }
+  div#convertArea > div[style*="display:flex"][style*="gap"] {
+    flex-direction: column;
+  }
+  .sku-card .stock-num {
+    font-size: 28px !important;
+  }
+  div#convertArea > div[style*="display:flex"][style*="gap"] > div[style*="flex:1"] {
+    width: 100%;
+  }
+  div#convertArea > div[style*="display:flex"][style*="gap"] > .card {
+    width: 100% !important;
+    order: -1;
+  }
+
+  /* ── FINANCE / SALES ── */
+  div#finChart, div#salesChart {
+    height: 200px !important;
+  }
+
+  /* ── SESSIONS ── */
+  .session-filters {
+    flex-direction: column;
+  }
+  .session-filters > * {
+    width: 100%;
+  }
+
+  /* ── SETTINGS ── */
+  .settings-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -749,4 +1000,5 @@ code {
   body:not(.sidebar-hidden):not(.sidebar-open) .sidebar-toggle {
     display: block;
   }
+  .sidebar-overlay { display: none !important; }
 }

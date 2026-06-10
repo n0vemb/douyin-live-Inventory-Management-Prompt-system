@@ -9,7 +9,7 @@ try {
 
     if ($storeId) {
         // 店铺管理员：从 stores 表读取店铺级配置
-        $stmt = $pdo->prepare('SELECT name, system_name, logo_path, condition_types, live_display, shipping_fee, platform_fee_rate FROM stores WHERE id = ?');
+        $stmt = $pdo->prepare('SELECT name, system_name, logo_path, condition_types, live_display, shipping_fee, actual_shipping_fee, platform_fee_rate FROM stores WHERE id = ?');
         $stmt->execute([$storeId]);
         $store = $stmt->fetch();
 
@@ -42,6 +42,7 @@ try {
             $formatted['live_display'] = ['elements' => []];
         }
         $formatted['shipping_fee'] = decimal($store['shipping_fee'] ?? 3.00);
+        $formatted['actual_shipping_fee'] = decimal($store['actual_shipping_fee'] ?? 3.00);
         $formatted['platform_fee_rate'] = decimal($store['platform_fee_rate'] ?? 0.05);
 
         $formatted['server_time'] = date('Y-m-d H:i:s');

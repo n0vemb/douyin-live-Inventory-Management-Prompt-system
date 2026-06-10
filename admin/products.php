@@ -67,21 +67,29 @@ require_once __DIR__ . '/layout.php';
                 <thead>
                     <tr>
                         <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)" title="全选"></th>
-                        <th>图片</th>
-                        <th>条码</th>
-                        <th>商品名称</th>
-                        <th>系列</th>
-                        <th>简介</th>
-                        <th>SKU</th>
-                        <th>库存总量</th>
-                        <th>进价</th>
-                        <th>售价</th>
+                        <th onclick="sortProductsBy('image')" class="sortable">图片 <span class="sort-indicator" id="sortImage"></span></th>
+                        <th onclick="sortProductsBy('barcode')" class="sortable">条码 <span class="sort-indicator" id="sortBarcode"></span></th>
+                        <th onclick="sortProductsBy('name')" class="sortable">商品名称 <span class="sort-indicator" id="sortName"></span></th>
+                        <th onclick="sortProductsBy('series')" class="sortable">系列 <span class="sort-indicator" id="sortSeries"></span></th>
+                        <th onclick="sortProductsBy('description')" class="sortable">简介 <span class="sort-indicator" id="sortDescription"></span></th>
+                        <th onclick="sortProductsBy('sku')" class="sortable">SKU <span class="sort-indicator" id="sortSku"></span></th>
+                        <th onclick="sortProductsBy('stock')" class="sortable">库存总量 <span class="sort-indicator" id="sortStock"></span></th>
+                        <th onclick="sortProductsBy('purchase_price')" class="sortable">进价 <span class="sort-indicator" id="sortPurchasePrice"></span></th>
+                        <th onclick="sortProductsBy('suggested_price')" class="sortable">售价 <span class="sort-indicator" id="sortSuggestedPrice"></span></th>
                         <th>操作</th>
                     </tr>
                 </thead>
                 <tbody id="productList"></tbody>
             </table>
         </div>
+
+<style>
+.sortable { cursor: pointer; user-select: none; }
+.sortable:hover { background: var(--bg-hover); }
+.sort-indicator { font-size: 11px; margin-left: 3px; color: var(--text-tertiary); }
+.sort-asc::after { content: ' ▲'; color: var(--primary); }
+.sort-desc::after { content: ' ▼'; color: var(--primary); }
+</style>
 
         <!-- 添加/编辑商品模态框 -->
         <div class="modal" id="productModal">
@@ -451,12 +459,69 @@ require_once __DIR__ . '/layout.php';
 
     <script>
     let allProducts = [];
+    let productSort = { field: null, dir: 'asc' };
     let productDetails = {};
     let currentProductDetailId = null;
 
     function escapeHtml(text) {
         if (!text) return '';
         return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    // ---- 排序 ----
+    function clearSortIndicators() {
+        document.querySelectorAll('.sort-indicator').forEach(el => {
+            el.className = 'sort-indicator';
+        });
+    }
+
+    function sortProductsBy(field) {
+        if (productSort.field === field) {
+            productSort.dir = productSort.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            productSort.field = field;
+            productSort.dir = 'asc';
+        }
+        clearSortIndicators();
+        const id = 'sort' + field.replace(/_./g, s => s[1].toUpperCase()).replace(/^./, s => s.toUpperCase());
+        const el = document.getElementById('sort' + field.replace(/_./g, s => s[1].toUpperCase()).replace(/^./, s => s.toUpperCase()));
+        if (el) el.className = 'sort-indicator ' + (productSort.dir === 'asc' ? 'sort-asc' : 'sort-desc');
+        searchProducts();
+    }
+
+    function applySort(products) {
+        const f = productSort.field;
+        if (!f) return products;
+        return products.sort((a, b) => {
+            let va, vb;
+            switch (f) {
+                case 'image':
+                    va = a.image_url ? 1 : 0; vb = b.image_url ? 1 : 0; break;
+                case 'barcode':
+                    va = a.barcode || ''; vb = b.barcode || ''; break;
+                case 'name':
+                    va = (a.common_name || a.name || '').toLowerCase();
+                    vb = (b.common_name || b.name || '').toLowerCase(); break;
+                case 'series':
+                    va = (a.series || '').toLowerCase(); vb = (b.series || '').toLowerCase(); break;
+                case 'description':
+                    va = a.product_description ? 1 : 0; vb = b.product_description ? 1 : 0; break;
+                case 'sku':
+                    va = a.inventory_summary ? Object.keys(a.inventory_summary).length : 0;
+                    vb = b.inventory_summary ? Object.keys(b.inventory_summary).length : 0; break;
+                case 'stock':
+                    va = getTotalStock(a.inventory_summary); vb = getTotalStock(b.inventory_summary); break;
+                case 'purchase_price':
+                    va = parseFloat(a.overall_purchase_price) || 0; vb = parseFloat(b.overall_purchase_price) || 0; break;
+                case 'suggested_price':
+                    va = parseFloat(a.overall_suggested_price) || 0; vb = parseFloat(b.overall_suggested_price) || 0; break;
+                default: return 0;
+            }
+            if (typeof va === 'string') {
+                return productSort.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            }
+            return productSort.dir === 'asc' ? va - vb : vb - va;
+        });
     }
 
     async function loadProducts() {
@@ -496,7 +561,7 @@ require_once __DIR__ . '/layout.php';
             const salesRes = await fetch('../api/sales_summary.php');
             const salesData = await salesRes.json();
             if (salesData.success) {
-                document.getElementById('statMonthPurchase').textContent = salesData.data.month_purchase_count || '-';
+                document.getElementById('statMonthPurchase').textContent = (salesData.data.month_purchase_qty || 0) + ' 件';
                 document.getElementById('statMonthSales').textContent = '¥' + (salesData.data.month_sales_amount || 0).toLocaleString();
             }
         } catch (err) {
@@ -528,7 +593,7 @@ require_once __DIR__ . '/layout.php';
             return matchKeyword && matchSeries && matchStock;
         });
 
-        renderProducts(filtered);
+        renderProducts(applySort(filtered));
     }
 
     function renderProducts(products) {

@@ -164,6 +164,10 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
                 <span class="nav-label">用户管理</span>
             </a>
+            <a href="mobile.php" class="nav-item <?= ($currentPage ?? '') === 'mobile' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></span>
+                <span class="nav-label">📱 移动端管理</span>
+            </a>
         </div>
         <?php endif; ?>
         <div class="sidebar-footer">
@@ -210,40 +214,38 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
         }
     }
 
-    (function() {
-        /**
-         * 切换侧边栏展开/收起
-         */
-        function toggleSidebar() {
-            var body = document.body;
-            var isHidden = body.classList.contains('sidebar-hidden');
-            body.classList.remove('sidebar-hidden', 'sidebar-open');
-            if (isHidden) {
-                body.classList.add('sidebar-open');
+    /**
+     * 切换侧边栏展开/收起（全局函数，供 onclick 调用）
+     */
+    function toggleSidebar() {
+        var body = document.body;
+        var isHidden = body.classList.contains('sidebar-hidden');
+        body.classList.remove('sidebar-hidden', 'sidebar-open');
+        if (isHidden) {
+            body.classList.add('sidebar-open');
+        } else {
+            var isOpen = body.classList.contains('sidebar-open');
+            if (isOpen) {
+                body.classList.add('sidebar-hidden');
             } else {
-                var isOpen = body.classList.contains('sidebar-open');
-                if (isOpen) {
-                    body.classList.add('sidebar-hidden');
-                } else {
-                    body.classList.add('sidebar-open');
-                }
+                body.classList.add('sidebar-open');
             }
         }
+    }
 
-        // 点击侧边栏外部区域（移动端）自动关闭
-        document.addEventListener('click', function(e) {
-            var sidebar = document.getElementById('sidebar');
-            var toggle = document.querySelector('.sidebar-toggle');
-            if (document.body.classList.contains('sidebar-open') &&
-                sidebar &&
-                !sidebar.contains(e.target) &&
-                toggle &&
-                !toggle.contains(e.target)) {
-                document.body.classList.remove('sidebar-open');
-                document.body.classList.add('sidebar-hidden');
-            }
-        });
-    })();
+    // 点击侧边栏外部区域（移动端）自动关闭
+    document.addEventListener('click', function(e) {
+        var sidebar = document.getElementById('sidebar');
+        var toggle = document.querySelector('.sidebar-toggle');
+        if (document.body.classList.contains('sidebar-open') &&
+            sidebar &&
+            !sidebar.contains(e.target) &&
+            toggle &&
+            !toggle.contains(e.target)) {
+            document.body.classList.remove('sidebar-open');
+            document.body.classList.add('sidebar-hidden');
+        }
+    });
 
     // 全局模态框：点击背景关闭 + Esc 键关闭
     document.addEventListener('click', function(e) {
@@ -258,4 +260,17 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
             });
         }
     });
+
+    // 移动端：自动包裹表格以支持横向滚动
+    (function() {
+        if (window.innerWidth > 768) return;
+        document.querySelectorAll('table').forEach(function(t) {
+            if (!t.parentNode.classList.contains('table-wrap')) {
+                var w = document.createElement('div');
+                w.className = 'table-wrap';
+                t.parentNode.insertBefore(w, t);
+                w.appendChild(t);
+            }
+        });
+    })();
     </script>

@@ -1654,7 +1654,7 @@ requireAuth();
                 }
 
                 const livePrice = info.live_price || info.suggested_price;
-                const priceChanged = info.live_price && info.live_price !== info.suggested_price;
+                const priceChanged = info.live_price != null; // live_price != null 表示该场次改过价，标黄色
 
                 if (info.stock > 0 && priceChanged) {
                     row.style.background = 'linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(217, 119, 6, 0.08))';
@@ -1927,11 +1927,9 @@ requireAuth();
                     showToast(`✅ ${currentPriceChangeCondition} 改为 ¥${newPrice.toFixed(2)}`);
                     speak(`${currentPriceChangeCondition}价格改为${parseInt(newPrice)}元`);
                     const info = currentProduct.inventory[currentPriceChangeCondition];
-                    if (newPrice == info.suggested_price) {
-                        info.live_price = null;
-                    } else {
-                        info.live_price = newPrice;
-                    }
+                    // 直播改价已同步到所有批次的建议售价；live_price标记改过价（显示黄色）
+                    info.suggested_price = newPrice;
+                    info.live_price = newPrice;
                     displayProduct();
                     closePriceModal();
                 } else {
@@ -1960,11 +1958,9 @@ requireAuth();
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    if (newPrice == info.suggested_price) {
-                        info.live_price = null;
-                    } else {
-                        info.live_price = newPrice;
-                    }
+                    // 直播改价已同步到所有批次的建议售价；live_price标记改过价（显示黄色）
+                    info.suggested_price = newPrice;
+                    info.live_price = newPrice;
                     displayProduct();
                     showToast(`${condition} ¥${newPrice.toFixed(2)}`);
                 } else {
@@ -2441,7 +2437,7 @@ requireAuth();
                 var color = colors[c.key] || '#667eea';
                 var stock = parseInt(info.stock);
                 var price = parseFloat(info.live_price || info.suggested_price || 0);
-                var changed = info.live_price && info.live_price !== info.suggested_price;
+                var changed = info.live_price != null;
                 var pColor = changed ? '#fbbf24' : priceColor;
 
                 pricesHtml += '<div class="prod-price-row' + (stock <= 2 ? ' low-row' : '') + '">' +

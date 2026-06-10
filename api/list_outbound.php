@@ -28,6 +28,8 @@ try {
 
     $grouped = [];
     foreach ($allRecords as $record) {
+        // 确保 returned_qty 字段存在（兼容旧数据）
+        if (!isset($record['returned_qty'])) $record['returned_qty'] = 0;
         $batchNo = $record['outbound_batch_no'] ?: 'legacy_' . $record['id'];
         if (!isset($grouped[$batchNo])) {
             $grouped[$batchNo] = [
@@ -46,10 +48,14 @@ try {
                 'total_cost' => 0
             ];
         }
+        $record['_actual_qty'] = $record['qty'] - $record['returned_qty'];
         $grouped[$batchNo]['items'][] = $record;
-        $grouped[$batchNo]['total_qty'] += $record['qty'];
-        $grouped[$batchNo]['total_amount'] += $record['qty'] * $record['outbound_price'];
-        $grouped[$batchNo]['total_cost'] += $record['qty'] * $record['batch_purchase_price'];
+        $actualQty = $record['qty'] - $record['returned_qty'];
+        $grouped[$batchNo]['total_qty'] += $actualQty;
+        $grouped[$batchNo]['total_amount'] += $actualQty * $record['outbound_price'];
+        $grouped[$batchNo]['total_cost'] += $actualQty * $record['batch_purchase_price'];
+        // 退回数量单独标记（前端展示用：实际出库 = qty - returned_qty）
+        $grouped[$batchNo]['total_returned_qty'] = ($grouped[$batchNo]['total_returned_qty'] ?? 0) + $record['returned_qty'];
     }
 
     $outbound = array_values($grouped);

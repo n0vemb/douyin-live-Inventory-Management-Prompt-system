@@ -323,10 +323,18 @@ input:checked + .toggle-slider:before {
     <h3 class="card-title">财务设置</h3>
     <div class="form-row">
         <div class="form-group">
-            <label class="form-label">快递费 (元/单)</label>
+            <label class="form-label">快递费 (元/单，含在售价中)</label>
             <input type="number" id="shippingFee" class="form-input" step="0.01" min="0" placeholder="3.00"
                 onchange="tempSettings.shipping_fee = parseFloat(this.value) || 0; markChanged();">
         </div>
+        <div class="form-group">
+            <label class="form-label">实际快递成本 (元/单)</label>
+            <input type="number" id="actualShippingFee" class="form-input" step="0.01" min="0" placeholder="3.00"
+                onchange="tempSettings.actual_shipping_fee = parseFloat(this.value) || 0; markChanged();">
+            <span style="font-size:11px; color:var(--text-tertiary);">利润公式按此成本计算，与售价中含的快递费解耦</span>
+        </div>
+    </div>
+    <div class="form-row">
         <div class="form-group">
             <label class="form-label">平台抽成率</label>
             <input type="number" id="platformFeeRate" class="form-input" step="0.0001" min="0" max="1" placeholder="0.05"
@@ -492,6 +500,7 @@ const defaultSettings = {
         ]
     },
     shipping_fee: 3.00,
+    actual_shipping_fee: 3.00,
     platform_fee_rate: 0.05
 };
 
@@ -575,8 +584,10 @@ function applySettings() {
     }
     // 财务设置
     const sfEl = document.getElementById('shippingFee');
+    const asfEl = document.getElementById('actualShippingFee');
     const pfrEl = document.getElementById('platformFeeRate');
     if (sfEl) sfEl.value = parseFloat(tempSettings.shipping_fee ?? 3).toFixed(2);
+    if (asfEl) asfEl.value = parseFloat(tempSettings.actual_shipping_fee ?? 3).toFixed(2);
     if (pfrEl) pfrEl.value = parseFloat(tempSettings.platform_fee_rate ?? 0.05).toFixed(4);
     renderConditionTypes();
     renderElementList();

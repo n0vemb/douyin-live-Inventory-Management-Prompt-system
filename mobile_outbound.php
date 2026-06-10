@@ -308,6 +308,32 @@ requireAuth();
     let cart = [];
     let conditionTypeList = [];
 
+    // ---- 待出库持久化 (localStorage) ----
+    const PENDING_CART_KEY = 'ppmart_pending_cart_' + window.location.hostname;
+
+    function savePendingCart() {
+        try {
+            localStorage.setItem(PENDING_CART_KEY, JSON.stringify(cart));
+        } catch(e) {}
+    }
+
+    function loadPendingCart() {
+        try {
+            const raw = localStorage.getItem(PENDING_CART_KEY);
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            if (!Array.isArray(data) || data.length === 0) return;
+            cart = data;
+            renderCart();
+        } catch(e) {
+            localStorage.removeItem(PENDING_CART_KEY);
+        }
+    }
+
+    function clearPendingCart() {
+        localStorage.removeItem(PENDING_CART_KEY);
+    }
+
     // ---- Scanner ----
     let videoStream = null;
     let scanInterval = null;
@@ -608,6 +634,11 @@ requireAuth();
     document.getElementById('scanCondition').addEventListener('change', updateScanPrice);
 
     // ---- Add to cart ----
+    function saveAndRender() {
+        savePendingCart();
+        renderCart();
+    }
+
     function addScanToCart() {
         const key = document.getElementById('scanCondition').value;
         const batch = scanBatches.find(b => b.condition_type === key);
@@ -630,7 +661,7 @@ requireAuth();
         }
 
         upsertCartItem(batch, qty, price);
-        renderCart();
+        saveAndRender();
         showToast('✅ 已添加');
         document.getElementById('btnAddToCart').textContent = '✓';
         document.getElementById('btnAddToCart').className = 'btn-add added';
@@ -713,12 +744,13 @@ requireAuth();
         } else {
             cart[idx].qty = newQty;
             renderCart();
+            savePendingCart();
         }
     }
 
     function removeItem(idx) {
         cart.splice(idx, 1);
-        renderCart();
+        saveAndRender();
     }
 
     // ---- Confirm outbound ----
@@ -748,6 +780,7 @@ requireAuth();
             if (result.success) {
                 showToast('✅ 出库成功！共 ' + result.data.total_items + ' 件，合计 ¥' + result.data.total_amount.toFixed(2));
                 cart = [];
+                clearPendingCart();
                 renderCart();
             } else {
                 showToast('❌ ' + (result.error || '出库失败'));
@@ -776,6 +809,7 @@ requireAuth();
 
     // ---- Init ----
     // 尝试自动启动相机
+    loadPendingCart();
     startScanner();
     // iOS 可能需要用户手势才能启动相机，点击画面重试
     document.getElementById('camera-view').addEventListener('click', function() {

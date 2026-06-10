@@ -46,7 +46,7 @@ require_once __DIR__ . '/layout.php';
             </div>
             <div style="background:linear-gradient(135deg, #06b6d4, #0891b2); padding:18px; border-radius:12px; color:white; box-shadow:0 3px 10px rgba(6,182,212,0.2);">
                 <div style="font-size:28px; font-weight:bold;" id="sumShipping">-</div>
-                <div style="font-size:13px; opacity:0.85;">总快递费</div>
+                <div style="font-size:13px; opacity:0.85;">总快递成本</div>
             </div>
             <div style="background:linear-gradient(135deg, #8b5cf6, #7c3aed); padding:18px; border-radius:12px; color:white; box-shadow:0 3px 10px rgba(139,92,246,0.2);">
                 <div style="font-size:28px; font-weight:bold;" id="sumPlatform">-</div>
@@ -64,8 +64,13 @@ require_once __DIR__ . '/layout.php';
 
         <!-- 利润趋势 -->
         <div class="card" style="margin-bottom:20px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-                <div class="card-title" style="margin:0;">利润趋势</div>
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:6px; margin-bottom:16px;">
+                <div>
+                    <div class="card-title" style="margin:0;">利润趋势</div>
+                    <div style="font-size:11px; color:var(--text-tertiary); margin-top:2px; line-height:1.5;">
+                        利润 = GMV×(1-抽成) - 订单数×实际成本 - 货物成本 - 投流
+                    </div>
+                </div>
                 <div style="display:flex; gap:6px;">
                     <button class="btn btn-sm trend-btn active" data-period="day" onclick="switchTrend('day')">按日</button>
                     <button class="btn btn-sm trend-btn" data-period="week" onclick="switchTrend('week')">按周</button>
@@ -94,7 +99,7 @@ require_once __DIR__ . '/layout.php';
                             <th>货物成本</th>
                             <th>GMV</th>
                             <th>订单数</th>
-                            <th>快递费</th>
+                            <th>快递成本</th>
                             <th>平台抽成</th>
                             <th>投流费</th>
                             <th>利润</th>
