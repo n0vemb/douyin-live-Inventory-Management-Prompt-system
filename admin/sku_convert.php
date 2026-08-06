@@ -2,6 +2,7 @@
 $pageTitle = 'SKU转换';
 $currentPage = 'sku_convert';
 require_once __DIR__ . '/layout.php';
+$canSeeProfit = $currentUser['can_see_profit'] ?? true;
 ?>
         <div class="page-title">SKU转换</div>
 
@@ -186,6 +187,7 @@ require_once __DIR__ . '/layout.php';
         </style>
 
         <script>
+        const CAN_SEE_PROFIT = <?= $canSeeProfit ? 'true' : 'false' ?>;
         let currentProduct = null;
         let skuStocks = [];
         let sourceSKU = null;
@@ -364,7 +366,7 @@ require_once __DIR__ . '/layout.php';
                 <div class="stock-num" style="color:${stockColor}">${sku.total_stock}</div>
                 <div class="sku-name">${escHtml(sku.condition_name)}</div>
                 <div class="sku-prices">
-                    <span>进价 ¥${sku.purchase_price.toFixed(2)}</span>
+                    ${CAN_SEE_PROFIT ? `<span>进价 ¥${sku.purchase_price.toFixed(2)}</span>` : ''}
                     <span>售价 ¥${sku.suggested_price.toFixed(2)}</span>
                 </div>
             </div>`;

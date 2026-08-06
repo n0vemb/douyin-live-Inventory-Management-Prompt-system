@@ -4,7 +4,8 @@ require_once __DIR__ . '/../auth.php';
 
 try {
     $pdo = getDB();
-requireAuth(); $storeId = getStoreId();
+    requireAuth(); $storeId = getStoreId();
+    $canSeeProfit = !isOperator();
     
     $today = date('Y-m-d');
     $monthStart = date('Y-m-01 00:00:00');
@@ -42,9 +43,9 @@ requireAuth(); $storeId = getStoreId();
             'month_purchase_count' => intval($monthPurchase['count']),
             'month_purchase_qty' => intval($monthPurchase['total_qty']),
             'month_sales_amount' => floatval($monthSalesAmount),
-            'month_profit' => floatval($monthProfit),
+            'month_profit' => $canSeeProfit ? floatval($monthProfit) : 0,
             'today_sales_amount' => floatval($todaySalesAmount),
-            'today_profit' => floatval($todayProfit)
+            'today_profit' => $canSeeProfit ? floatval($todayProfit) : 0
         ]
     ]);
 } catch (PDOException $e) {

@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../config.php';
-requireAuth();
+requireNonOperator();
 $storeId = getStoreId();
 
 try {

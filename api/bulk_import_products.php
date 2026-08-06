@@ -385,9 +385,22 @@ function parseXlsxFile($fileName, $pdo) {
         $xml = simplexml_load_string($sharedStringsXml);
         if ($xml) {
             foreach ($xml->children() as $si) {
+                // 兼容富文本条目 <si><r><t>..</t></r>..</si>：
+                // 简单文本直接用 <si><t>..</t></si>；
+                // 富文本拼接所有 <r> 子元素下的 <t>（保持顺序，含空格 run）。
+                // 旧代码只认 isset($si->t)，遇到富文本条目整个跳过，
+                // 导致 sharedStrings 索引错位，后续商品名称全部串位。
+                $text = '';
                 if (isset($si->t)) {
-                    $sharedStrings[] = (string)$si->t;
+                    $text = (string)$si->t;
+                } else {
+                    foreach ($si->children() as $child) {
+                        if ($child->getName() === 'r' && isset($child->t)) {
+                            $text .= (string)$child->t;
+                        }
+                    }
                 }
+                $sharedStrings[] = $text;
             }
         }
     }
@@ -557,12 +570,12 @@ function parseExcelRow($header, $row, $rowIndex, $pdo) {
             $purchasePrice = floatval($data[$conditionKey . '_purchase_price']);
         }
         
-        // 安全地获取售价
+        // 安全地获取售价（自动向上取整: 35.01 -> 36, 99.9 -> 100）
         $suggestedPrice = 0;
         if (isset($data[$conditionName . '售价']) && !empty($data[$conditionName . '售价'])) {
-            $suggestedPrice = floatval($data[$conditionName . '售价']);
+            $suggestedPrice = ceil(floatval($data[$conditionName . '售价']));
         } elseif (isset($data[$conditionKey . '_suggested_price']) && !empty($data[$conditionKey . '_suggested_price'])) {
-            $suggestedPrice = floatval($data[$conditionKey . '_suggested_price']);
+            $suggestedPrice = ceil(floatval($data[$conditionKey . '_suggested_price']));
         }
         
         if ($quantity > 0) {

@@ -4,6 +4,7 @@ require_once __DIR__ . '/../auth.php';
 
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
+$canSeeProfit = !isOperator();
 
 $stmt = $pdo->prepare('
     SELECT
@@ -71,6 +72,11 @@ try {
 foreach ($stockList as &$stock) {
     $stock['condition_name'] = $conditionNames[$stock['condition_type']] ?? $stock['condition_type'];
     $stock['last_purchased'] = date('Y-m-d', strtotime($stock['purchased_at']));
+    // 运营不可见进价
+    if (!$canSeeProfit) {
+        $stock['purchase_price'] = null;
+        $stock['batch_cost'] = null;
+    }
 }
 
 $uniqueProducts = [];
@@ -80,7 +86,7 @@ foreach ($stockList as $s) {
 
 $types = count($uniqueProducts);
 $totalQty = array_sum(array_column($stockList, 'remaining_qty'));
-$totalCost = array_sum(array_column($stockList, 'batch_cost'));
+$totalCost = $canSeeProfit ? array_sum(array_column($stockList, 'batch_cost')) : 0;
 $totalValue = 0;
 foreach ($stockList as $s) {
     if ($s['suggested_price']) {

@@ -2,6 +2,11 @@
 /**
  * 认证中间件
  * 使用方式：所有受保护的页面/API 在顶部 require_once __DIR__ . '/auth.php';
+ *
+ * 角色体系（2026-08-06 扩展）：
+ *   super_admin  — 超级管理员（全平台，可看成本利润）
+ *   store_admin  — 店铺管理员（本店铺，可看成本利润）
+ *   operator     — 运营（本店铺，可看销售额，但成本/毛利/毛利率全隐藏）
  */
 
 /**
@@ -50,10 +55,39 @@ function isSuperAdmin(): bool {
 }
 
 /**
+ * 是否为运营角色
+ */
+function isOperator(): bool {
+    return ($_SESSION['role'] ?? '') === 'operator';
+}
+
+/**
+ * 当前用户能否查看成本/利润数据
+ * 运营（operator）不可看，其余角色可看
+ */
+function canSeeProfit(): bool {
+    return !isOperator();
+}
+
+/**
+ * 拒绝运营访问（用于财务、用户管理等页面/API）
+ * 运营访问 → 403
+ */
+function requireNonOperator(): void {
+    requireAuth();
+    if (isOperator()) {
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => '权限不足：运营账号无此权限']);
+        exit;
+    }
+}
+
+/**
  * 获取有效店铺ID（用于数据筛选）
  * 超管未选店铺 → null（看全平台）
  * 超管选了店铺 → 该店铺ID
- * 普通用户 → 自己的店铺ID
+ * 店铺管理员/运营 → 自己的店铺ID
  */
 function getStoreId(): ?int {
     $role = $_SESSION['role'] ?? '';
@@ -82,5 +116,6 @@ function getCurrentUser(): array {
         'store_name'   => $_SESSION['store_name'] ?? null,
         'view_store_id'   => $_SESSION['view_store_id'] ?? null,
         'view_store_name' => $viewStoreName,
+        'can_see_profit'  => canSeeProfit(),
     ];
 }

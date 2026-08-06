@@ -10,6 +10,7 @@ $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 100;
 
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
+$canSeeProfit = !isOperator();
 
 $sql = 'SELECT s.*,
             (s.qty - s.returned_qty) as qty,
@@ -87,5 +88,16 @@ if (!empty($endDate)) {
 $stmt = $pdo->prepare($summarySql);
 $stmt->execute($summaryParams);
 $summary = $stmt->fetch();
+
+// 运营不可见进价/盈利
+if (!$canSeeProfit) {
+    foreach ($sales as &$s) {
+        $s['batch_purchase_price'] = null;
+    }
+    unset($s);
+    if (isset($summary['total_profit'])) {
+        $summary['total_profit'] = null;
+    }
+}
 
 success(['data' => ['sales' => $sales, 'summary' => $summary]]);

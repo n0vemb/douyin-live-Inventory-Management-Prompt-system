@@ -7,6 +7,7 @@ $series = $_GET['series'] ?? '';
 
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
+$canSeeProfit = !isOperator();
 
 $conditionTypes = [
     'sealed' => '原盒未拆',
@@ -98,16 +99,25 @@ foreach ($products as &$p) {
         $key = $p['id'] . '_' . $ct;
         if (isset($inventoryData[$key])) {
             $p['inventory_summary'][$ct] = $inventoryData[$key];
+            // 运营不可见进价
+            if (!$canSeeProfit) {
+                $p['inventory_summary'][$ct]['purchase_price'] = null;
+            }
         }
     }
     $p['batches'] = $batchesData[$p['id']] ?? [];
+    // 运营不可见批次进价
+    if (!$canSeeProfit) {
+        foreach ($p['batches'] as &$b) { $b['purchase_price'] = null; }
+        unset($b);
+    }
 
     // 从有库存的状态中聚合进价和售价（取最小价）
     $purchasePrices = [];
     $suggestedPrices = [];
     foreach ($p['inventory_summary'] as $ct => $data) {
         if ($data['total_stock'] > 0) {
-            if (!empty($data['purchase_price'])) $purchasePrices[] = $data['purchase_price'];
+            if ($canSeeProfit && !empty($data['purchase_price'])) $purchasePrices[] = $data['purchase_price'];
             if (!empty($data['suggested_price'])) $suggestedPrices[] = $data['suggested_price'];
         }
     }

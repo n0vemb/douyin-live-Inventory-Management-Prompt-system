@@ -8,7 +8,7 @@ $platformFilter = $_GET['platform'] ?? null;
 $accountFilter  = $_GET['account'] ?? null;
 
 $pdo = getDB();
-requireAuth(); $storeId = getStoreId();
+requireNonOperator(); $storeId = getStoreId();
 
 try {
     // 加载店铺财务设置

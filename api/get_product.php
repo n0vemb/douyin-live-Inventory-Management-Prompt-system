@@ -64,7 +64,7 @@ try {
 
 $stmt = $pdo->prepare('
     SELECT * FROM inventory_batches
-    WHERE product_id = ? AND remaining_qty > 0 AND store_id = ?
+    WHERE product_id = ? AND store_id = ?
     ORDER BY condition_type, purchased_at ASC
 ');
 $stmt->execute([$productId, $storeId]);
@@ -80,8 +80,10 @@ foreach ($conditionNames as $key => $name) {
     $batchList = [];
 
     foreach ($conditionBatches as $batch) {
-        $totalStock += $batch['remaining_qty'];
-        $totalCost += $batch['purchase_price'] * $batch['remaining_qty'];
+        if ($batch['remaining_qty'] > 0) {
+            $totalStock += $batch['remaining_qty'];
+            $totalCost += $batch['purchase_price'] * $batch['remaining_qty'];
+        }
         $latestSuggestedPrice = $batch['suggested_price'];
         $batchList[] = [
             'batch_id' => $batch['id'],
@@ -89,7 +91,8 @@ foreach ($conditionNames as $key => $name) {
             'purchase_price' => $batch['purchase_price'],
             'suggested_price' => $batch['suggested_price'],
             'remaining_qty' => $batch['remaining_qty'],
-            'purchased_at' => $batch['purchased_at']
+            'purchased_at' => $batch['purchased_at'],
+            'is_history' => $batch['remaining_qty'] <= 0
         ];
     }
 

@@ -1,4 +1,5 @@
 <?php $pageTitle = '系统配置'; $currentPage = 'settings'; ?>
+<?php require_once __DIR__ . '/../auth.php'; requireNonOperator(); ?>
 <?php require_once __DIR__ . '/layout.php'; ?>
 <?php $isSuperAdmin = ($currentUser['role'] ?? '') === 'super_admin'; ?>
 

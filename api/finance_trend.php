@@ -7,7 +7,7 @@ $dateFrom = $_GET['date_from'] ?? date('Y-m-d', strtotime('-30 days'));
 $dateTo   = $_GET['date_to'] ?? date('Y-m-d');
 
 $pdo = getDB();
-requireAuth(); $storeId = getStoreId();
+requireNonOperator(); $storeId = getStoreId();
 
 try {
     // 加载店铺设置

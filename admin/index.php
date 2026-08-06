@@ -4,6 +4,7 @@ header('Pragma: no-cache');
 $pageTitle = '数据概览';
 $currentPage = 'index';
 require_once __DIR__ . '/layout.php';
+$canSeeProfit = $currentUser['can_see_profit'] ?? true;
 ?>
         <div class="page-title">📊 数据概览</div>
 
@@ -26,18 +27,21 @@ require_once __DIR__ . '/layout.php';
                     <span>💰</span> 库存售价总值
                 </div>
             </div>
+            <?php if ($canSeeProfit): ?>
             <div style="background:linear-gradient(135deg, #ec4899 0%, #be185d 100%); padding:24px; border-radius:16px; color:white; box-shadow:0 4px 15px rgba(236,72,153,0.25);">
                 <div style="font-size:42px; font-weight:bold; margin-bottom:6px;" id="stockCost">-</div>
                 <div style="font-size:16px; opacity:0.9; display:flex; align-items:center; gap:6px;">
                     <span>🏷️</span> 库存实际成本
                 </div>
             </div>
+            <?php endif; ?>
             <div style="background:linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding:24px; border-radius:16px; color:white; box-shadow:0 4px 15px rgba(239,68,68,0.25);">
                 <div style="font-size:42px; font-weight:bold; margin-bottom:6px;" id="todaySales">-</div>
                 <div style="font-size:16px; opacity:0.9; display:flex; align-items:center; gap:6px;">
                     <span>📈</span> 今日销售额
                 </div>
             </div>
+            <?php if ($canSeeProfit): ?>
             <div style="background:linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); padding:24px; border-radius:16px; color:white; box-shadow:0 4px 15px rgba(6,182,212,0.25);">
                 <div style="font-size:42px; font-weight:bold; margin-bottom:6px;" id="todayProfit">-</div>
                 <div style="font-size:16px; opacity:0.9; display:flex; align-items:center; gap:6px;">
@@ -50,6 +54,7 @@ require_once __DIR__ . '/layout.php';
                     <span>📊</span> 本月盈利
                 </div>
             </div>
+            <?php endif; ?>
         </div>
 
         <div style="display:flex; gap:20px; margin-bottom:25px; flex-wrap:wrap;">
@@ -197,6 +202,7 @@ require_once __DIR__ . '/layout.php';
         }
     }
 
+    const CAN_SEE_PROFIT = <?= $canSeeProfit ? 'true' : 'false' ?>;
     async function loadStats() {
         try {
             const [productsRes, stockRes, salesRes] = await Promise.all([
@@ -215,10 +221,12 @@ require_once __DIR__ . '/layout.php';
             document.getElementById('totalProducts').textContent = products.length;
             document.getElementById('totalStock').textContent = stockData.data.total_qty || 0;
             document.getElementById('stockValue').textContent = '¥' + parseFloat(stockData.data.total_value || 0).toLocaleString();
-            document.getElementById('stockCost').textContent = '¥' + parseFloat(stockData.data.total_cost || 0).toLocaleString();
             document.getElementById('todaySales').textContent = '¥' + (salesData.data.today_sales_amount || 0).toLocaleString();
-            document.getElementById('todayProfit').textContent = '¥' + (salesData.data.today_profit || 0).toLocaleString();
-            document.getElementById('monthProfit').textContent = '¥' + (salesData.data.month_profit || 0).toLocaleString();
+            if (CAN_SEE_PROFIT) {
+                document.getElementById('stockCost').textContent = '¥' + parseFloat(stockData.data.total_cost || 0).toLocaleString();
+                document.getElementById('todayProfit').textContent = '¥' + (salesData.data.today_profit || 0).toLocaleString();
+                document.getElementById('monthProfit').textContent = '¥' + (salesData.data.month_profit || 0).toLocaleString();
+            }
         } catch (err) {
             console.error(err);
         }

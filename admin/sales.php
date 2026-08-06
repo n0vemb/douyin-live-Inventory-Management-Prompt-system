@@ -2,6 +2,7 @@
 $pageTitle = '直播销售记录';
 $currentPage = 'sales';
 require_once __DIR__ . '/layout.php';
+$canSeeProfit = $currentUser['can_see_profit'] ?? true;
 ?>
         <div class="page-title">💰 销售记录</div>
 
@@ -25,10 +26,12 @@ require_once __DIR__ . '/layout.php';
                     <div style="font-size:14px; color:var(--text-secondary);">总销售数量</div>
                     <div style="font-size:28px; font-weight:bold; color:var(--primary);" id="totalQty">0</div>
                 </div>
+                <?php if ($canSeeProfit): ?>
                 <div>
                     <div style="font-size:14px; color:var(--text-secondary);">总盈利</div>
                     <div style="font-size:28px; font-weight:bold; color:var(--warning);" id="totalProfit">¥0.00</div>
                 </div>
+                <?php endif; ?>
             </div>
 
             <table>
@@ -38,10 +41,10 @@ require_once __DIR__ . '/layout.php';
                         <th>商品</th>
                         <th>条码</th>
                         <th>SKU</th>
-                        <th>进价</th>
+                        <?php if ($canSeeProfit): ?><th>进价</th><?php endif; ?>
                         <th>售价</th>
                         <th>数量</th>
-                        <th>盈利</th>
+                        <?php if ($canSeeProfit): ?><th>盈利</th><?php endif; ?>
                         <th>直播场次</th>
                     </tr>
                 </thead>
@@ -51,6 +54,7 @@ require_once __DIR__ . '/layout.php';
     </div>
 
     <script>
+    const CAN_SEE_PROFIT = <?= $canSeeProfit ? 'true' : 'false' ?>;
     async function loadSessions() {
         try {
             const res = await fetch('../api/list_sessions.php');
@@ -100,17 +104,21 @@ require_once __DIR__ . '/layout.php';
             if (data.data.summary) {
                 document.getElementById('totalAmount').textContent = '¥' + (parseFloat(data.data.summary.total_amount) || 0).toFixed(2);
                 document.getElementById('totalQty').textContent = data.data.summary.total_qty || 0;
-                const profit = parseFloat(data.data.summary.total_profit) || 0;
-                document.getElementById('totalProfit').textContent = (profit >= 0 ? '+' : '') + '¥' + profit.toFixed(2);
-                document.getElementById('totalProfit').style.color = profit >= 0 ? 'var(--success)' : 'var(--danger)';
+                if (CAN_SEE_PROFIT) {
+                    const profit = parseFloat(data.data.summary.total_profit) || 0;
+                    document.getElementById('totalProfit').textContent = (profit >= 0 ? '+' : '') + '¥' + profit.toFixed(2);
+                    document.getElementById('totalProfit').style.color = profit >= 0 ? 'var(--success)' : 'var(--danger)';
+                }
             } else {
                 const totalAmount = sales.reduce((sum, s) => sum + (parseFloat(s.sale_price) * s.qty), 0);
                 const totalQty = sales.reduce((sum, s) => sum + s.qty, 0);
-                const totalProfit = sales.reduce((sum, s) => sum + (parseFloat(s.sale_price) - (parseFloat(s.batch_purchase_price) || 0)) * s.qty, 0);
                 document.getElementById('totalAmount').textContent = '¥' + totalAmount.toFixed(2);
                 document.getElementById('totalQty').textContent = totalQty;
-                document.getElementById('totalProfit').textContent = (totalProfit >= 0 ? '+' : '') + '¥' + totalProfit.toFixed(2);
-                document.getElementById('totalProfit').style.color = totalProfit >= 0 ? 'var(--success)' : 'var(--danger)';
+                if (CAN_SEE_PROFIT) {
+                    const totalProfit = sales.reduce((sum, s) => sum + (parseFloat(s.sale_price) - (parseFloat(s.batch_purchase_price) || 0)) * s.qty, 0);
+                    document.getElementById('totalProfit').textContent = (totalProfit >= 0 ? '+' : '') + '¥' + totalProfit.toFixed(2);
+                    document.getElementById('totalProfit').style.color = totalProfit >= 0 ? 'var(--success)' : 'var(--danger)';
+                }
             }
 
         } catch (err) {
@@ -136,7 +144,7 @@ require_once __DIR__ . '/layout.php';
         const tbody = document.getElementById('salesList');
 
         if (!sales.length) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无销售记录</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="' + (CAN_SEE_PROFIT ? 9 : 7) + '" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无销售记录</td></tr>';
             return;
         }
 
@@ -150,10 +158,10 @@ require_once __DIR__ . '/layout.php';
                 <td><strong>${s.product_name || '未知'}</strong></td>
                 <td><code style="background:var(--bg-hover);padding:4px 8px;border-radius:4px;">${s.barcode || '-'}</code></td>
                 <td><span class="condition-badge condition-${s.condition_type}">${typeNames[s.condition_type] || s.condition_type}</span></td>
-                <td>¥${purchasePrice.toFixed(2)}</td>
+                ${CAN_SEE_PROFIT ? `<td>¥${purchasePrice.toFixed(2)}</td>` : ''}
                 <td class="text-success">¥${parseFloat(s.sale_price).toFixed(2)}</td>
                 <td>${s.qty}</td>
-                <td style="color:${profitColor};font-weight:bold;">${profit >= 0 ? '+' : ''}¥${profit.toFixed(2)}</td>
+                ${CAN_SEE_PROFIT ? `<td style="color:${profitColor};font-weight:bold;">${profit >= 0 ? '+' : ''}¥${profit.toFixed(2)}</td>` : ''}
                 <td>${s.live_session_id || '-'}</td>
             </tr>
         `}).join('');

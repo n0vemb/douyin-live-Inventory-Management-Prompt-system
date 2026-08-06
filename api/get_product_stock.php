@@ -10,6 +10,7 @@ if ($productId <= 0) {
 
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
+$canSeeProfit = !isOperator();
 
 $stmt = $pdo->prepare('
     SELECT
@@ -72,6 +73,10 @@ try {
 
 foreach ($batches as &$b) {
     $b['condition_name'] = $conditionNames[$b['condition_type']] ?? $b['condition_type'];
+    // 运营不可见进价
+    if (!$canSeeProfit) {
+        $b['purchase_price'] = null;
+    }
 }
 
 success(['data' => ['batches' => $batches]]);

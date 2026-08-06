@@ -332,7 +332,37 @@ require_once __DIR__ . '/layout.php';
                     <h3 class="modal-title">出库历史</h3>
                     <button class="modal-close" onclick="closeHistoryModal()">&times;</button>
                 </div>
+                <!-- 合并工具栏 -->
+                <div id="mergeToolbar" style="display:none; padding:10px 0; border-bottom:1px solid var(--border); margin-bottom:12px;">
+                    <span id="mergeSelectedCount" style="font-size:14px; color:var(--text-secondary); margin-right:12px;">已选 0 个批次</span>
+                    <button class="btn btn-warning" onclick="showMergeDialog()" id="mergeBtn" disabled style="opacity:0.5;">🔗 合并选中批次</button>
+                    <button class="btn btn-sm" onclick="clearMergeSelection()" style="margin-left:8px;">取消选择</button>
+                </div>
                 <div id="historyList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 合并确认弹窗 -->
+    <div class="modal" id="mergeModal">
+        <div class="modal-content" style="max-width:480px;">
+            <div class="modal-header">
+                <h3 class="modal-title">🔗 确认合并批次</h3>
+                <button class="modal-close" onclick="closeMergeModal()">&times;</button>
+            </div>
+            <div style="padding:16px 0;">
+                <p style="color:var(--text-secondary); margin-bottom:12px; font-size:14px;">选择一个批次作为合并后的<b>主批次</b>（保留其时间，其余批次的记录将移入主批次）：</p>
+                <div id="mergeBatchList" style="max-height:250px; overflow-y:auto;"></div>
+                <div style="margin-top:16px; padding:12px; background:var(--bg-hover); border-radius:8px; font-size:13px; color:var(--text-secondary);">
+                    <p>✅ 同商品+同SKU+同价格 → 合并数量</p>
+                    <p>✅ 不同价格 → 各自保留</p>
+                    <p>✅ 财务数据（GMV/订单数/投流）汇总到主批次</p>
+                    <p>📌 此操作<b>不可撤销</b>，请确认无误</p>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-warning" onclick="doMerge()" id="mergeConfirmBtn" style="flex:1;">确认合并</button>
+                <button class="btn btn-secondary" onclick="closeMergeModal()" style="flex:1;">取消</button>
             </div>
         </div>
     </div>
@@ -1248,11 +1278,151 @@ require_once __DIR__ . '/layout.php';
             refreshSearchDropdown();
     }
 
+    // ---- 批次合并功能 ----
+    let mergeSelected = {};
+    let mergeBatchMap = {};
+
+    function toggleMergeSelect(batchNo) {
+        mergeSelected[batchNo] = !mergeSelected[batchNo];
+        updateMergeUI();
+    }
+
+    function updateMergeUI() {
+        const toolbar = document.getElementById('mergeToolbar');
+        const mergeBtn = document.getElementById('mergeBtn');
+        const countEl = document.getElementById('mergeSelectedCount');
+        const selected = Object.keys(mergeSelected).filter(k => mergeSelected[k]);
+        const count = selected.length;
+
+        toolbar.style.display = 'block';
+        countEl.textContent = '已选 ' + count + ' 个批次';
+
+        if (count >= 2) {
+            mergeBtn.disabled = false;
+            mergeBtn.style.opacity = '1';
+        } else {
+            mergeBtn.disabled = true;
+            mergeBtn.style.opacity = '0.5';
+        }
+
+        document.querySelectorAll('.batch-checkbox').forEach(cb => {
+            const no = cb.dataset.batchno;
+            cb.checked = !!mergeSelected[no];
+        });
+        document.querySelectorAll('.batch-card').forEach(card => {
+            const no = card.dataset.batchno;
+            card.style.outline = mergeSelected[no] ? '2px solid var(--warning)' : '';
+        });
+    }
+
+    function clearMergeSelection() {
+        mergeSelected = {};
+        updateMergeUI();
+    }
+
+    function showMergeDialog() {
+        const selected = Object.keys(mergeSelected).filter(k => mergeSelected[k]);
+        if (selected.length < 2) return;
+
+        const listEl = document.getElementById('mergeBatchList');
+        listEl.innerHTML = selected.map((no, idx) => {
+            const batch = mergeBatchMap[no];
+            if (!batch) return '';
+            return `
+                <label style="display:flex; align-items:center; gap:10px; padding:10px 14px; border:2px solid ${idx === 0 ? 'var(--warning)' : 'var(--border)'}; border-radius:8px; margin-bottom:8px; cursor:pointer; ${idx === 0 ? 'background:rgba(245,158,11,0.08);' : ''}" onclick="selectMainBatch('${no}')">
+                    <input type="radio" name="mainBatch" value="${no}" ${idx === 0 ? 'checked' : ''} style="width:18px;height:18px;accent-color:var(--warning);">
+                    <div style="flex:1;">
+                        <div style="font-weight:${idx === 0 ? 'bold' : 'normal'}; font-size:14px;">${batch.outbound_at}</div>
+                        <div style="font-size:12px; color:var(--text-secondary);">
+                            ${batch.total_qty} 件 · 金额 ¥${batch.total_amount.toFixed(2)}${batch.order_no ? ' · 订单: ' + escHtml(batch.order_no) : ''}
+                        </div>
+                    </div>
+                    ${idx === 0 ? '<span style="font-size:11px; background:var(--warning); color:#000; padding:2px 8px; border-radius:4px; font-weight:bold;">主批次</span>' : ''}
+                </label>
+            `;
+        }).join('');
+
+        document.getElementById('mergeModal').classList.add('show');
+    }
+
+    function selectMainBatch(no) {
+        document.querySelectorAll('#mergeBatchList label').forEach(el => {
+            const radio = el.querySelector('input[type=radio]');
+            if (radio.value === no) {
+                radio.checked = true;
+                el.style.borderColor = 'var(--warning)';
+                el.style.background = 'rgba(245,158,11,0.08)';
+                el.querySelector('div:first-child > div:first-child').style.fontWeight = 'bold';
+                if (!el.querySelector('span:last-child') || !el.querySelector('span:last-child').textContent.includes('主批次')) {
+                    const badge = document.createElement('span');
+                    badge.style.cssText = 'font-size:11px; background:var(--warning); color:#000; padding:2px 8px; border-radius:4px; font-weight:bold;';
+                    badge.textContent = '主批次';
+                    el.querySelector('div:last-child').appendChild(badge);
+                }
+            } else {
+                el.style.borderColor = 'var(--border)';
+                el.style.background = '';
+                el.querySelector('div:first-child > div:first-child').style.fontWeight = 'normal';
+                const badge = el.querySelector('span:last-child');
+                if (badge && badge.textContent.includes('主批次')) badge.remove();
+            }
+        });
+    }
+
+    function closeMergeModal() {
+        document.getElementById('mergeModal').classList.remove('show');
+    }
+
+    async function doMerge() {
+        const selectedRadio = document.querySelector('input[name="mainBatch"]:checked');
+        if (!selectedRadio) { alert('请选择主批次'); return; }
+        const mainBatchNo = selectedRadio.value;
+        const mergedBatchNos = Object.keys(mergeSelected).filter(k => mergeSelected[k] && k !== mainBatchNo);
+
+        if (mergedBatchNos.length === 0) { alert('没有需要合并的批次'); return; }
+
+        if (!confirm(`确定将 ${mergedBatchNos.length} 个批次合并到 [${mainBatchNo}] ？\n\n此操作不可撤销！`)) return;
+
+        const confirmBtn = document.getElementById('mergeConfirmBtn');
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = '⏳ 合并中...';
+
+        try {
+            const res = await fetch('../api/merge_outbound_batch.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ main_batch_no: mainBatchNo, merged_batch_nos: mergedBatchNos })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('✅ ' + data.data.message);
+                closeMergeModal();
+                clearMergeSelection();
+                mergeSelected = {};
+                document.getElementById('mergeToolbar').style.display = 'none';
+                showOutboundList();
+                loadStockOverview();
+            } else {
+                alert('❌ 合并失败: ' + (data.error || '未知错误'));
+            }
+        } catch (err) {
+            alert('❌ 请求失败: ' + err.message);
+        } finally {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = '确认合并';
+        }
+    }
+
     async function showOutboundList() {
         const modal = document.getElementById('historyModal');
         const container = document.getElementById('historyList');
         modal.classList.add('show');
         container.innerHTML = '<div style="text-align:center;color:var(--text-tertiary);padding:60px;font-size:16px;">加载中...</div>';
+
+        // 重置合并状态
+        mergeSelected = {};
+        mergeBatchMap = {};
+        document.getElementById('mergeToolbar').style.display = 'none';
 
         try {
             const res = await fetch('../api/list_outbound.php');
@@ -1264,15 +1434,20 @@ require_once __DIR__ . '/layout.php';
                 if (!outboundList.length) {
                     container.innerHTML = '<div style="text-align:center;color:var(--text-tertiary);padding:60px;font-size:18px;">暂无出库记录</div>';
                 } else {
+                    outboundList.forEach(b => { if (b.batch_no) mergeBatchMap[b.batch_no] = b; });
+
                     container.innerHTML = outboundList.map(batch => {
                         const profit = batch.total_amount - batch.total_cost;
                         const hasFinance = batch.gmv !== null && batch.gmv !== undefined;
                         return `
-                        <div style="margin-bottom:25px; border:1px solid var(--border); border-radius:12px; overflow:hidden;">
+                        <div class="batch-card" data-batchno="${batch.batch_no}" style="margin-bottom:25px; border:1px solid var(--border); border-radius:12px; overflow:hidden; transition:outline 0.15s;">
                             <div style="background:linear-gradient(135deg, #667eea, #764ba2); color:white; padding:15px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                                <div>
-                                    <span style="font-size:18px; font-weight:bold;">${batch.outbound_at}</span>
-                                    ${batch.order_no ? `<span style="margin-left:12px; font-size:13px; opacity:0.8;">订单: ${escHtml(batch.order_no)}</span>` : ''}
+                                <div style="display:flex; align-items:center; gap:12px;">
+                                    ${batch.batch_no ? `<input type="checkbox" class="batch-checkbox" data-batchno="${batch.batch_no}" onclick="toggleMergeSelect('${batch.batch_no}'); event.stopPropagation();" style="width:18px;height:18px;accent-color:#fbbf24;cursor:pointer;flex-shrink:0;">` : ''}
+                                    <div>
+                                        <span style="font-size:18px; font-weight:bold;">${batch.outbound_at}</span>
+                                        ${batch.order_no ? `<span style="margin-left:12px; font-size:13px; opacity:0.8;">订单: ${escHtml(batch.order_no)}</span>` : ''}
+                                    </div>
                                 </div>
                                 <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                                     <div style="text-align:right; font-size:13px;">

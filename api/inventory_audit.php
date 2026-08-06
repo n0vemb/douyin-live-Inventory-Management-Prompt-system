@@ -1,4 +1,5 @@
 <?php
+// 修复 inventory_audit.php：价格从 MIN(最低价) 改为取最新批次的价格
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../auth.php';
 
@@ -55,20 +56,22 @@ if (empty($products)) {
 }
 
 // 查各商品各状态的库存汇总
+// 修复：价格不再用 MIN()（会取到历史最低价），而是关联每个商品-状态的最新批次取价格，
+// 与 export_inventory.php 的展示保持一致（export 用 MAX，实际最新批次价格在 MAX 与 MIN 之间，
+// 最准确的做法是直接取最新批次。这里用 LEFT JOIN 取最新批次的价格）。
 $productIds = array_column($products, 'id');
 $placeholders = implode(',', array_fill(0, count($productIds), '?'));
 
-$stmt = $pdo->prepare("
-    SELECT product_id, condition_type,
-           SUM(remaining_qty) as total_qty,
-           MIN(purchase_price) as purchase_price,
-           MIN(suggested_price) as suggested_price
-    FROM inventory_batches
-    WHERE product_id IN ({$placeholders}) AND remaining_qty > 0" . ($storeId ? " AND store_id = ?" : "") . "
-    GROUP BY product_id, condition_type
-");
 $params = $productIds;
 if ($storeId) $params[] = $storeId;
+
+$stmt = $pdo->prepare("
+    SELECT ib.product_id, ib.condition_type,
+           SUM(ib.remaining_qty) as total_qty
+    FROM inventory_batches ib
+    WHERE ib.product_id IN ({$placeholders}) AND ib.remaining_qty > 0" . ($storeId ? " AND ib.store_id = ?" : "") . "
+    GROUP BY ib.product_id, ib.condition_type
+");
 $stmt->execute($params);
 $batchData = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -77,16 +80,34 @@ foreach ($batchData as $row) {
     $invMap[$row['product_id'] . '_' . $row['condition_type']] = $row;
 }
 
+// 查每个 商品-状态 的最新批次（用于取价格，与盘点保存逻辑 ORDER BY purchased_at DESC LIMIT 1 一致）
+$latestBatchMap = [];
+$stmt = $pdo->prepare("
+    SELECT ib.product_id, ib.condition_type, ib.purchase_price, ib.suggested_price
+    FROM inventory_batches ib
+    WHERE ib.product_id IN ({$placeholders}) AND ib.remaining_qty > 0" . ($storeId ? " AND ib.store_id = ?" : "") . "
+    ORDER BY ib.purchased_at DESC, ib.id DESC
+");
+$stmt->execute($params);
+$allBatches = $stmt->fetchAll(PDO::FETCH_ASSOC);
+foreach ($allBatches as $b) {
+    $key = $b['product_id'] . '_' . $b['condition_type'];
+    if (!isset($latestBatchMap[$key])) {
+        $latestBatchMap[$key] = $b;
+    }
+}
+
 $result = [];
 foreach ($products as $p) {
     $conditions = [];
     foreach ($conditionTypes as $ct) {
         $key = $p['id'] . '_' . $ct['key'];
         if (isset($invMap[$key])) {
+            $latest = $latestBatchMap[$key] ?? null;
             $conditions[$ct['key']] = [
                 'qty' => (int)$invMap[$key]['total_qty'],
-                'purchase_price' => $invMap[$key]['purchase_price'] ? floatval($invMap[$key]['purchase_price']) : null,
-                'suggested_price' => $invMap[$key]['suggested_price'] ? floatval($invMap[$key]['suggested_price']) : null,
+                'purchase_price' => $latest ? floatval($latest['purchase_price']) : null,
+                'suggested_price' => $latest ? floatval($latest['suggested_price']) : null,
             ];
         } else {
             $conditions[$ct['key']] = [

@@ -2,10 +2,15 @@
 $pageTitle = '商品管理';
 $currentPage = 'products';
 require_once __DIR__ . '/layout.php';
+$canSeeProfit = $currentUser['can_see_profit'] ?? true;
 ?>
         <div class="page-title">🏷️ 商品管理</div>
 
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:20px;">
+            <div style="background:linear-gradient(135deg, #8b5cf6, #7c3aed); color:white; padding:20px; border-radius:12px;">
+                <div style="font-size:14px; opacity:0.9;">本月入库</div>
+                <div id="statMonthPurchase" style="font-size:36px; font-weight:bold;">-</div>
+            </div>
             <div style="background:linear-gradient(135deg, #667eea, #764ba2); color:white; padding:20px; border-radius:12px;">
                 <div style="font-size:14px; opacity:0.9;">商品总数</div>
                 <div id="statTotalProducts" style="font-size:36px; font-weight:bold;">-</div>
@@ -18,17 +23,15 @@ require_once __DIR__ . '/layout.php';
                 <div style="font-size:14px; opacity:0.9;">库存总量</div>
                 <div id="statTotalStock" style="font-size:36px; font-weight:bold;">-</div>
             </div>
+            <?php if ($canSeeProfit): ?>
+            <div style="background:linear-gradient(135deg, #06b6d4, #0891b2); color:white; padding:20px; border-radius:12px;">
+                <div style="font-size:14px; opacity:0.9;">库存成本总价</div>
+                <div id="statInventoryCost" style="font-size:36px; font-weight:bold;">¥-</div>
+            </div>
+            <?php endif; ?>
             <div style="background:linear-gradient(135deg, #ef4444, #dc2626); color:white; padding:20px; border-radius:12px;">
                 <div style="font-size:14px; opacity:0.9;">库存总价值</div>
                 <div id="statTotalValue" style="font-size:36px; font-weight:bold;">¥-</div>
-            </div>
-            <div style="background:linear-gradient(135deg, #8b5cf6, #7c3aed); color:white; padding:20px; border-radius:12px;">
-                <div style="font-size:14px; opacity:0.9;">本月入库</div>
-                <div id="statMonthPurchase" style="font-size:36px; font-weight:bold;">-</div>
-            </div>
-            <div style="background:linear-gradient(135deg, #06b6d4, #0891b2); color:white; padding:20px; border-radius:12px;">
-                <div style="font-size:14px; opacity:0.9;">本月销售</div>
-                <div id="statMonthSales" style="font-size:36px; font-weight:bold;">¥-</div>
             </div>
         </div>
 
@@ -74,7 +77,7 @@ require_once __DIR__ . '/layout.php';
                         <th onclick="sortProductsBy('description')" class="sortable">简介 <span class="sort-indicator" id="sortDescription"></span></th>
                         <th onclick="sortProductsBy('sku')" class="sortable">SKU <span class="sort-indicator" id="sortSku"></span></th>
                         <th onclick="sortProductsBy('stock')" class="sortable">库存总量 <span class="sort-indicator" id="sortStock"></span></th>
-                        <th onclick="sortProductsBy('purchase_price')" class="sortable">进价 <span class="sort-indicator" id="sortPurchasePrice"></span></th>
+                        <?php if ($canSeeProfit): ?><th onclick="sortProductsBy('purchase_price')" class="sortable">进价 <span class="sort-indicator" id="sortPurchasePrice"></span></th><?php endif; ?>
                         <th onclick="sortProductsBy('suggested_price')" class="sortable">售价 <span class="sort-indicator" id="sortSuggestedPrice"></span></th>
                         <th>操作</th>
                     </tr>
@@ -237,6 +240,7 @@ require_once __DIR__ . '/layout.php';
                             <div id="stockDetailDistribution"></div>
                         </div>
                     </div>
+                    <?php if ($canSeeProfit): ?>
                     <div id="priceTrendSection" style="display:none; flex:1; min-width:350px; max-width:100%;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                             <h4 style="margin:0; font-size:14px;">📈 进价趋势</h4>
@@ -254,6 +258,7 @@ require_once __DIR__ . '/layout.php';
                             </div>
                         </div>
                     </div>
+                    <?php endif; ?>
                 </div>
 
                 <div>
@@ -263,7 +268,7 @@ require_once __DIR__ . '/layout.php';
                             <tr>
                                 <th>批次号</th>
                                 <th>SKU</th>
-                                <th>进价</th>
+                                <?php if ($canSeeProfit): ?><th>进价</th><?php endif; ?>
                                 <th>售价</th>
                                 <th>库存</th>
                                 <th>入库时间</th>
@@ -458,6 +463,7 @@ require_once __DIR__ . '/layout.php';
     </div>
 
     <script>
+    const CAN_SEE_PROFIT = <?= $canSeeProfit ? 'true' : 'false' ?>;
     let allProducts = [];
     let productSort = { field: null, dir: 'asc' };
     let productDetails = {};
@@ -556,13 +562,16 @@ require_once __DIR__ . '/layout.php';
                 document.getElementById('statActiveProducts').textContent = data.data.types;
                 document.getElementById('statTotalStock').textContent = data.data.total_qty;
                 document.getElementById('statTotalValue').textContent = '¥' + parseFloat(data.data.total_value || 0).toLocaleString();
+                if (CAN_SEE_PROFIT) {
+                    document.getElementById('statInventoryCost').textContent = '¥' + parseFloat(data.data.total_cost || 0).toLocaleString();
+                }
             }
 
             const salesRes = await fetch('../api/sales_summary.php');
             const salesData = await salesRes.json();
             if (salesData.success) {
                 document.getElementById('statMonthPurchase').textContent = (salesData.data.month_purchase_qty || 0) + ' 件';
-                document.getElementById('statMonthSales').textContent = '¥' + (salesData.data.month_sales_amount || 0).toLocaleString();
+
             }
         } catch (err) {
             console.error(err);
@@ -599,7 +608,7 @@ require_once __DIR__ . '/layout.php';
     function renderProducts(products) {
         const tbody = document.getElementById('productList');
         if (!products.length) {
-            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无商品，点击上方"添加商品"创建</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="' + (CAN_SEE_PROFIT ? 11 : 10) + '" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无商品，点击上方"添加商品"创建</td></tr>';
             return;
         }
 
@@ -632,7 +641,7 @@ require_once __DIR__ . '/layout.php';
                         <div style="font-size:12px;color:var(--text-secondary);margin-top:5px;">点击查看详情 ▼</div>
                     </td>
                     <td style="font-weight:bold; ${stockClass}; font-size:18px;">${totalStock}</td>
-                    <td style="color:var(--text-secondary);">${purchasePrice}</td>
+                    ${CAN_SEE_PROFIT ? `<td style="color:var(--text-secondary);">${purchasePrice}</td>` : ''}
                     <td style="font-weight:bold; color:var(--success);">${suggestedPrice}</td>
                     <td>
                         <div style="display:flex; gap:4px; flex-wrap:wrap;">
@@ -903,7 +912,7 @@ require_once __DIR__ . '/layout.php';
                                 <tr>
                                     <td><code>${batch.batch_no}</code></td>
                                     <td>${name}</td>
-                                    <td>¥${parseFloat(batch.purchase_price).toFixed(2)}</td>
+                                    ${CAN_SEE_PROFIT ? `<td>¥${parseFloat(batch.purchase_price).toFixed(2)}</td>` : ''}
                                     <td>¥${parseFloat(batch.suggested_price).toFixed(2)}</td>
                                     <td>${batch.remaining_qty}</td>
                                     <td>${batch.purchased_at}</td>
@@ -927,11 +936,13 @@ require_once __DIR__ . '/layout.php';
             console.error(err);
         }
 
-        // 重置进货价趋势筛选器并加载
-        document.getElementById('trendStartDate').value = '';
-        document.getElementById('trendEndDate').value = '';
-        document.getElementById('priceTrendSection').style.display = 'none';
-        loadPriceTrend(productId, '', '');
+        // 重置进货价趋势筛选器并加载（运营不可见进价，跳过）
+        if (CAN_SEE_PROFIT) {
+            document.getElementById('trendStartDate').value = '';
+            document.getElementById('trendEndDate').value = '';
+            document.getElementById('priceTrendSection').style.display = 'none';
+            loadPriceTrend(productId, '', '');
+        }
 
         showModal('stockDetailModal');
     }

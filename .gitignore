@@ -1,27 +1,18 @@
 # 备份文件
-备份未加配置页.zip
+*.bak*
+*.bak_*
+*.bak2_*
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
+# macOS
 .DS_Store
-Thumbs.db
 
-# Log files
-*.log
-
-# Uploads (if any)
-uploads/
-*.bak
-*.bak.*
-*.tmp
-*.tar.gz
-ppmart.sql
+# 服务器配置
 .user.ini
 .well-known/
-config.local.php
-*.local.php
+
+# 压缩包
+*.tar.gz
+*.zip
+
+# 运行时上传数据
+uploads/

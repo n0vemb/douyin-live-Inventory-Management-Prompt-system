@@ -1,6 +1,8 @@
 <?php
 $pageTitle = '财务管理';
 $currentPage = 'finance';
+require_once __DIR__ . '/../auth.php';
+requireNonOperator();
 require_once __DIR__ . '/layout.php';
 ?>
         <div class="page-title">财务管理</div>
