@@ -28,6 +28,9 @@ $isOperator = $user['role'] === 'operator';
     <thead>
       <tr>
         <th>场次名称</th>
+        <th>主播</th>
+        <th>运营</th>
+        <th>账号</th>
         <th>状态</th>
         <th>创建时间</th>
         <th>操作</th>
@@ -39,18 +42,23 @@ $isOperator = $user['role'] === 'operator';
 
 <!-- 当前场次信息（进入后显示） -->
 <div class="card" id="sessionInfoCard" style="display:none;">
-  <div style="display:flex; justify-content:space-between; align-items:center;">
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:15px;">
     <h3 style="font-size:16px; font-weight:600; margin:0;">当前场次：<span id="sessionInfoName">-</span></h3>
-    <button class="btn btn-outline" onclick="exitSession()">返回场次列表</button>
+    <div style="display:flex; gap:15px;">
+      <button class="btn btn-outline" onclick="openSettingsModal()">场次设置</button>
+      <button class="btn btn-outline" onclick="exitSession()">返回场次列表</button>
+    </div>
   </div>
 </div>
 
-<!-- 场次设置（选中后显示） -->
-<div class="card" id="settingsCard" style="display:none;">
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-    <div style="font-size:16px; font-weight:600;">场次设置</div>
-    <button class="btn btn-primary btn-sm" onclick="saveSettings()">保存设置</button>
-  </div>
+<!-- 场次设置弹窗 -->
+<div class="modal" id="settingsCard">
+  <div class="modal-content" style="width:1100px; max-width:96vw; max-height:90vh; overflow-y:auto;">
+    <div class="modal-header">
+      <h3 class="modal-title">场次设置</h3>
+      <button class="modal-close" onclick="closeSettingsModal()">&times;</button>
+    </div>
+    <div style="padding-top:14px;">
   <div style="display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:nowrap; gap:16px;">
     <div style="flex-shrink:0; width:220px;">
       <label style="display:block; font-size:13px; color:var(--text-secondary); margin-bottom:4px;">场次名称</label>
@@ -101,6 +109,12 @@ $isOperator = $user['role'] === 'operator';
       </div>
     </div>
   </div>
+    <div style="display:flex; justify-content:flex-end; gap:15px; margin-top:20px;">
+      <button class="btn btn-outline" onclick="closeSettingsModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+    </div>
+    </div>
+  </div>
 </div>
 
 <!-- 操作按钮 -->
@@ -126,8 +140,20 @@ $isOperator = $user['role'] === 'operator';
       <button class="modal-close" onclick="closeNewSessionModal()">&times;</button>
     </div>
     <div style="margin-bottom:14px;">
-      <label>场次名称</label>
-      <input type="text" id="newSessionName" class="form-input" placeholder="如：8月6日晚场" style="margin-top:6px;">
+      <label>场次名称（已按当前时间自动生成，可修改）</label>
+      <input type="text" id="newSessionName" class="form-input" style="margin-top:6px;">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label>主播 <span style="color:var(--danger);">*</span></label>
+      <input type="text" id="newSessionAnchor" class="form-input" placeholder="如：张三" style="margin-top:6px;">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label>运营 <span style="color:var(--danger);">*</span></label>
+      <input type="text" id="newSessionOperator" class="form-input" placeholder="如：李四" style="margin-top:6px;">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label>直播平台账号</label>
+      <input type="text" id="newSessionAccount" class="form-input" placeholder="如：@xxx 或 抖音号" style="margin-top:6px;">
     </div>
     <div class="flex" style="justify-content:flex-end; gap:15px;">
       <button class="btn btn-outline" onclick="closeNewSessionModal()">取消</button>
@@ -228,9 +254,31 @@ $isOperator = $user['role'] === 'operator';
 .customer-header .toggle-arrow { transition: transform .2s; margin-right: 8px; font-size: 12px; color: var(--text-tertiary, #9ca3af); }
 .customer.collapsed .toggle-arrow { transform: rotate(-90deg); }
 .customer-header .nickname { font-weight: 600; font-size: 15px; }
-.customer-header .badge { background: var(--primary, #6366f1); color: #fff; border-radius: 20px; padding: 2px 10px; font-size: 12px; margin-left: 8px; }
+.customer-header .badge { background: var(--primary, #6366f1); color: #fff; border-radius: 20px; padding: 2px 10px; font-size: 12px; margin-right: 15px; }
 .customer-header .summary { margin-left: 16px; font-size: 13px; color: var(--text-secondary, #6b7280); display: flex; gap: 16px; }
 .customer-header .actions { margin-left: auto; display: flex; gap: 15px; }
+/* 满赠待提醒：暗红色提示（满足赠品条件但未添加赠品） */
+.customer.needs-gift { background: rgba(190, 18, 60, 0.08); border-left: 3px solid var(--danger, #dc2626); }
+.customer.needs-gift .customer-header { background: rgba(190, 18, 60, 0.06); }
+.customer.needs-gift .customer-header:hover { background: rgba(190, 18, 60, 0.1); }
+.gift-remind { margin-left: 10px; font-size: 12px; font-weight: 600; color: var(--danger, #dc2626); }
+/* 售价/数量步进器：左右按钮 + 中间输入框，高度一致 */
+.stepper { display: inline-flex; align-items: stretch; height: 30px; }
+.stepper .stepper-btn {
+    width: 26px; border: 1px solid var(--border, #d1d5db); background: #f9fafb;
+    color: var(--text-secondary, #374151); font-size: 14px; line-height: 1;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    padding: 0; user-select: none;
+}
+.stepper .stepper-btn:hover { background: #eef2ff; color: var(--primary, #6366f1); }
+.stepper .stepper-btn:active { background: #e0e7ff; }
+.stepper .stepper-btn:first-child { border-radius: 6px 0 0 6px; }
+.stepper .stepper-btn:last-child { border-radius: 0 6px 6px 0; }
+.stepper .stepper-input {
+    height: 30px; box-sizing: border-box; border-radius: 0; text-align: center;
+    border-left: none; border-right: none; padding: 4px 2px;
+    -moz-appearance: textfield; appearance: textfield;
+}
 .customer-body { padding: 16px; display: none; }
 .customer:not(.collapsed) .customer-body { display: block; }
 .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-top: 14px; }
@@ -276,6 +324,24 @@ tr.tr-active td:first-child { border-left: 3px solid var(--primary, #6366f1); }
 <script>
 let currentSessionId = null;
 let sessionData = null;
+let isReadOnly = false;   // 已结束场次：只读，隐藏全部编辑操作
+let vipSpentMap = {};   // vip_no => 累计消费（用于VIP分档配色）
+// VIP消费分档：0-300蓝 #3B82F6 / 301-1000紫 #8B5CF6 / 1001-3000玫红 #F43F5E / 3000+橙金 #F59E0B
+function vipTierStyle(vipNo) {
+    const t = Number(vipSpentMap[vipNo] || 0);
+    if (t > 3000) return 'background:rgba(245,158,11,0.2); color:#F59E0B; border:1px solid rgba(245,158,11,0.55);';
+    if (t > 1000) return 'background:rgba(244,63,94,0.18); color:#F43F5E; border:1px solid rgba(244,63,94,0.5);';
+    if (t > 300) return 'background:rgba(139,92,246,0.18); color:#8B5CF6; border:1px solid rgba(139,92,246,0.5);';
+    return 'background:rgba(59,130,246,0.16); color:#3B82F6; border:1px solid rgba(59,130,246,0.45);';
+}
+// 加载全部VIP累计消费映射（出库记账页分档配色）
+async function loadVipSpentMap() {
+    try {
+        const res = await fetch('../api/get_vip_spent.php');
+        const data = await res.json();
+        if (data.success && data.data.spent_map) vipSpentMap = data.data.spent_map;
+    } catch (e) { /* 静默失败，保持默认灰色 */ }
+}
 let nextLocalId = -1;
 let editingCustomerId = null;
 let giftingCustomerId = null;
@@ -293,7 +359,7 @@ async function loadSessions() {
         const tbody = document.getElementById('sessionList');
         const sessions = data.data.sessions || [];
         if (!sessions.length) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无场次，点击「新建场次」开始</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无场次，点击「新建场次」开始</td></tr>';
             return;
         }
         const statusNames = { active: '进行中', ended: '已结束' };
@@ -301,6 +367,9 @@ async function loadSessions() {
         tbody.innerHTML = sessions.map(s => `
             <tr class="${s.status === 'active' ? 'tr-active' : ''}">
                 <td><strong>${esc(s.session_name)}</strong></td>
+                <td>${esc(s.anchor || '-')}</td>
+                <td>${esc(s.operator || '-')}</td>
+                <td>${esc(s.account || '-')}</td>
                 <td><span class="badge ${statusClasses[s.status] || 'badge-info'}">${statusNames[s.status] || s.status}</span></td>
                 <td class="muted">${esc(s.created_at || '-')}</td>
                 <td style="display:flex; gap:10px;">
@@ -316,19 +385,31 @@ function enterSession(id) {
 }
 
 function openNewSessionModal() {
-    document.getElementById('newSessionName').value = '';
+    // 自动生成：年月日时分秒（如 20260807 14:30:25）
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const name = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    document.getElementById('newSessionName').value = name;
+    document.getElementById('newSessionAnchor').value = '';
+    document.getElementById('newSessionOperator').value = '';
+    document.getElementById('newSessionAccount').value = '';
     document.getElementById('newSessionModal').classList.add('show');
-    setTimeout(() => document.getElementById('newSessionName').focus(), 100);
+    setTimeout(() => document.getElementById('newSessionAnchor').focus(), 100);
 }
 function closeNewSessionModal() { document.getElementById('newSessionModal').classList.remove('show'); }
 
 async function createSession() {
     const name = document.getElementById('newSessionName').value.trim();
+    const anchor = document.getElementById('newSessionAnchor').value.trim();
+    const operator = document.getElementById('newSessionOperator').value.trim();
+    const account = document.getElementById('newSessionAccount').value.trim();
     if (!name) { toast('请输入场次名称'); return; }
+    if (!anchor) { toast('请输入主播'); return; }
+    if (!operator) { toast('请输入运营'); return; }
     try {
         const res = await fetch('../api/live_ledger_save_session.php', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ session_name: name, activity_type: 'both' })
+            body: JSON.stringify({ session_name: name, anchor: anchor, operator: operator, account: account, activity_type: 'both' })
         });
         const data = await res.json();
         if (data.success) {
@@ -389,13 +470,17 @@ async function switchToSession(id) {
         const data = await res.json();
         if (!data.success) { toast(data.error || '加载失败'); return; }
         sessionData = data.data;
+        isReadOnly = (sessionData.settings && sessionData.settings.status === 'ended');
+        // 进入场次：所有客户默认收起
+        (sessionData.customers || []).forEach(c => { c._collapsed = true; });
         fillSettings();
         // 进入场次：隐藏列表，显示信息+设置+操作+客户列表
         document.getElementById('sessionListCard').style.display = 'none';
         document.getElementById('sessionInfoCard').style.display = 'block';
-        document.getElementById('sessionInfoName').textContent = sessionData.settings.session_name + ' · 创建于 ' + sessionData.settings.created_at;
-        document.getElementById('settingsCard').style.display = 'block';
-        document.getElementById('actionBar').style.display = 'flex';
+        document.getElementById('sessionInfoName').textContent = sessionData.settings.session_name + ' · 主播' + (sessionData.settings.anchor || '-') + '，运营' + (sessionData.settings.operator || '-') + (sessionData.settings.account ? '，账号' + sessionData.settings.account : '');
+        document.getElementById('settingsCard').classList.remove('show');
+        // 已结束场次：隐藏 新增客户/保存/结束直播 操作栏
+        document.getElementById('actionBar').style.display = isReadOnly ? 'none' : 'flex';
         document.getElementById('statsBar').style.display = 'grid';
         document.getElementById('customerListCard').style.display = 'block';
         render();
@@ -422,7 +507,13 @@ function activityChange() {
     document.getElementById('reduceField').style.display = (v === 'full_reduce' || v === 'both') ? 'block' : 'none';
 }
 
+function openSettingsModal() {
+    document.getElementById('settingsCard').classList.add('show');
+}
+function closeSettingsModal() { document.getElementById('settingsCard').classList.remove('show'); }
+
 async function saveSettings() {
+    if (isReadOnly) { toast('已结束场次，不可修改设置'); closeSettingsModal(); return; }
     try {
         const res = await fetch('../api/live_ledger_save_session.php', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -440,7 +531,11 @@ async function saveSettings() {
             })
         });
         const data = await res.json();
-        if (data.success) { toast('设置已保存'); await switchToSession(currentSessionId); }
+        if (data.success) {
+            closeSettingsModal();
+            toast('设置已保存');
+            await switchToSession(currentSessionId);
+        }
         else toast(data.error || '保存失败');
     } catch (e) { toast('保存失败: ' + e.message); }
 }
@@ -491,7 +586,16 @@ function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;',
 // ===== 渲染 =====
 function render() {
     if (!sessionData) return;
-    const customers = sessionData.customers || [];
+    let customers = sessionData.customers || [];
+    // 按VIP编号自动排序：有编号的按数值升序（33 < 100），无编号的排最后（保持添加顺序）
+    customers = [...customers].sort((a, b) => {
+        const av = a.vip_no === undefined || a.vip_no === null || a.vip_no === '' ? Infinity : parseFloat(a.vip_no);
+        const bv = b.vip_no === undefined || b.vip_no === null || b.vip_no === '' ? Infinity : parseFloat(b.vip_no);
+        if (av === Infinity && bv === Infinity) return 0;
+        if (av === Infinity) return 1;
+        if (bv === Infinity) return -1;
+        return av - bv;
+    });
     const settings = getSettings();
     const act = settings.activity_type;
     const showGift = act === 'full_gift' || act === 'both';
@@ -505,11 +609,21 @@ function render() {
 
         let itemsHtml = (c.items || []).map(item => {
             const isGift = item.is_gift;
+            if (isReadOnly) {
+                return `<tr class="${isGift ? 'gift-row' : ''}">
+                <td>${esc(item.product_name)}${isGift ? '<span class="gift-badge">赠品</span>' : ''}</td>
+                ${CAN_SEE_PROFIT ? `<td>${fmt(item.purchase_cost)}</td>` : ''}
+                <td>${fmt(item.sell_price)}</td>
+                <td>${item.qty}</td>
+                <td>${fmt(item.sell_price * item.qty)}</td>
+                ${isGift ? '' : `<td><button class="btn btn-sm btn-outline" style="padding:2px 10px; font-size:12px;" onclick="returnItem(${c.id}, ${item.id})">退货</button></td>`}
+            </tr>`;
+            }
             return `<tr class="${isGift ? 'gift-row' : ''}">
                 <td>${esc(item.product_name)}${isGift ? '<span class="gift-badge">赠品</span>' : ''}</td>
                 ${CAN_SEE_PROFIT ? `<td>${fmt(item.purchase_cost)}</td>` : ''}
-                <td><input type="number" step="0.01" value="${item.sell_price}" class="form-input" style="width:70px; padding:4px 8px;" onchange="updateItemPrice(${c.id}, ${item.id}, this.value)"></td>
-                <td><input type="number" min="1" value="${item.qty}" class="form-input" style="width:60px; padding:4px 8px;" onchange="updateItemQty(${c.id}, ${item.id}, this.value)"></td>
+                <td><span class="stepper"><button type="button" class="stepper-btn" onclick="stepPrice(${c.id}, ${item.id}, -1)">−</button><input type="text" inputmode="decimal" value="${item.sell_price}" class="form-input stepper-input" style="width:56px;" onchange="updateItemPrice(${c.id}, ${item.id}, this.value)"><button type="button" class="stepper-btn" onclick="stepPrice(${c.id}, ${item.id}, 1)">+</button></span></td>
+                <td><span class="stepper"><button type="button" class="stepper-btn" onclick="stepQty(${c.id}, ${item.id}, -1)">−</button><input type="text" inputmode="numeric" value="${item.qty}" class="form-input stepper-input" style="width:44px;" onchange="updateItemQty(${c.id}, ${item.id}, this.value)"><button type="button" class="stepper-btn" onclick="stepQty(${c.id}, ${item.id}, 1)">+</button></span></td>
                 <td>${fmt(item.sell_price * item.qty)}</td>
                 <td><button class="del-btn" onclick="deleteItem(${c.id}, ${item.id})">✕</button></td>
             </tr>`;
@@ -520,7 +634,7 @@ function render() {
                 <td>赠品${g.description ? ' - ' + esc(g.description) : ''}</td>
                 ${CAN_SEE_PROFIT ? `<td>${fmt(g.cost)}</td>` : ''}
                 <td colspan="${CAN_SEE_PROFIT ? 3 : 2}" style="color:var(--text-tertiary);">不入库，仅计成本</td>
-                <td><button class="del-btn" onclick="deleteGift(${c.id}, ${gi})">✕</button></td>
+                ${isReadOnly ? '' : `<td><button class="del-btn" onclick="deleteGift(${c.id}, ${gi})">✕</button></td>`}
             </tr>`).join('');
 
         let metrics = `
@@ -540,30 +654,39 @@ function render() {
                 ${(showGift && showReduce) ? `<div class="metric"><div class="label">③毛利(满赠+满减)</div><div class="value ${m.profitBoth >= 0 ? 'green' : 'red'}">¥${fmt(m.profitBoth)}</div><div class="sub">毛利率 ${fmtPct(m.profitBothRate)}</div></div>` : ''}` : ''}
             </div>`;
 
+        const giftEveryN = parseInt(settings.gift_every_n) || 3;
+        // 满赠提示：满赠活动开启 且 购买数量达到赠品门槛 且 尚未添加赠品
+        const needsGift = showGift && m.totalQty >= giftEveryN && !(c.gifts || []).length;
+
         list.innerHTML += `
-            <div class="customer ${collapsed ? 'collapsed' : 'active'}" id="cust_${c.id}">
+            <div class="customer ${collapsed ? 'collapsed' : 'active'} ${needsGift ? 'needs-gift' : ''}" id="cust_${c.id}">
                 <div class="customer-header" onclick="toggleCustomer(${c.id})">
                     <span class="toggle-arrow">▼</span>
+                    ${c.vip_no ? `<span class="badge" style="${vipTierStyle(c.vip_no)}">${esc(c.vip_no)}</span>` : ''}
                     <span class="nickname">${esc(c.nickname) || '(未命名)'}</span>
-                    ${c.vip_no ? `<span class="badge">${esc(c.vip_no)}</span>` : ''}
+                    ${needsGift ? `<span class="gift-remind">🎁 待赠</span>` : ''}
                     <span class="summary"><span>${m.totalQty}件</span><span>¥${fmt(m.gmv)}</span></span>
                     <span class="actions" onclick="event.stopPropagation()">
-                        <button class="btn btn-sm btn-outline" onclick="addGift(${c.id})">赠品</button>
-                        <button class="btn btn-sm btn-danger" onclick="confirmDeleteCustomer(${c.id})">删除</button>
+                        ${isReadOnly
+                            ? `<button class="btn btn-sm btn-danger" style="padding:2px 10px; font-size:12px;" onclick="cancelOrder(${c.id}, '${esc(c.nickname) || '未命名'}')">撤单</button>`
+                            : `<button class="btn btn-sm btn-outline" onclick="addGift(${c.id})">赠品</button>
+                        <button class="btn btn-sm btn-danger" onclick="confirmDeleteCustomer(${c.id})">删除</button>`}
                     </span>
                 </div>
                 <div class="customer-body">
                     <div class="search-bar mb-10">
-                        <label>昵称</label><input type="text" value="${esc(c.nickname)}" class="form-input" style="width:140px;" onchange="updateNickname(${c.id}, this.value)">
-                        <label>VIP编号</label><input type="text" value="${esc(c.vip_no)}" class="form-input" style="width:120px;" placeholder="选填" onchange="updateVip(${c.id}, this.value)">
+                        ${isReadOnly
+                            ? `<label>昵称</label><span style="display:inline-block; min-width:140px;">${esc(c.nickname) || '(未命名)'}</span><label>VIP编号</label><span style="display:inline-block; min-width:120px;">${esc(c.vip_no) || '-'}</span>`
+                            : `<label>昵称</label><input type="text" value="${esc(c.nickname)}" class="form-input" style="width:140px;" onchange="updateNickname(${c.id}, this.value)">
+                        <label>VIP编号</label><input type="text" value="${esc(c.vip_no)}" class="form-input" style="width:120px;" placeholder="选填" onchange="updateVip(${c.id}, this.value)">`}
                     </div>
                     <table>
                         <thead><tr><th>商品</th>${CAN_SEE_PROFIT ? '<th>进价</th>' : ''}<th>售价</th><th>数量</th><th>小计</th><th></th></tr></thead>
                         <tbody>${itemsHtml}${giftHtml}</tbody>
                     </table>
-                    <div style="margin-top:10px;">
+                    ${isReadOnly ? '' : `<div style="margin-top:10px;">
                         <button class="btn btn-sm btn-primary" onclick="openProductModal(${c.id})">添加商品</button>
-                    </div>
+                    </div>`}
                     ${metrics}
                 </div>
             </div>`;
@@ -579,6 +702,58 @@ function render() {
 }
 
 // ===== 客户操作 =====
+
+// 撤单：整单取消（已结束场次）→ 商品回库存 + 费用重算
+function cancelOrder(cid, nickname) {
+    showConfirm(`确定撤单「${nickname}」的全部订单吗？\n商品将退回库存，运费/平台扣点/包装成本将重新计算。`, async () => {
+        try {
+            const res = await fetch('../api/live_ledger_cancel.php', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ session_id: currentSessionId, customer_id: cid })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast('✅ 撤单成功');
+                await loadSessionData();
+            } else toast(data.error || '撤单失败');
+        } catch (e) { toast('撤单失败: ' + e.message); }
+    });
+}
+
+// 退货：单个商品取消（已结束场次）→ 该商品回库存 + 费用重算
+function returnItem(cid, iid) {
+    showConfirm('确定退货该商品吗？\n商品将退回库存，运费/平台扣点/包装成本将重新计算。', async () => {
+        try {
+            const res = await fetch('../api/live_ledger_cancel.php', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ session_id: currentSessionId, customer_id: cid, item_id: iid })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast('✅ 退货成功');
+                await loadSessionData();
+            } else toast(data.error || '退货失败');
+        } catch (e) { toast('退货失败: ' + e.message); }
+    });
+}
+
+// 重新加载当前场次数据并渲染（撤单/退货后刷新）
+async function loadSessionData() {
+    if (!currentSessionId) return;
+    try {
+        const res = await fetch('../api/live_ledger_get_session.php?session_id=' + currentSessionId);
+        const data = await res.json();
+        if (!data.success) { toast(data.error || '加载失败'); return; }
+        sessionData = data.data;
+        (sessionData.customers || []).forEach(c => { c._collapsed = true; });
+        render();
+        // 顶部汇总也刷新（场次列表数据来自快照，需重新拉取）
+        await loadSessions();
+        // VIP 消费映射刷新（撤单/退货影响累计消费，VIP 分档配色需同步）
+        await loadVipSpentMap();
+    } catch (e) { toast('加载失败: ' + e.message); }
+}
+
 function toggleCustomer(id) {
     const c = (sessionData.customers || []).find(x => x.id === id);
     if (c) { c._collapsed = !c._collapsed; render(); }
@@ -611,35 +786,73 @@ function confirmAddCustomer() {
     const nick = document.getElementById('newCustomerNickname').value.trim();
     if (!vip) { toast('请输入VIP编号'); return; }
     if (!nick) { toast('未匹配到昵称，请手动输入'); return; }
-    sessionData.customers.push({ id: nextLocalId--, nickname: nick, vip_no: vip, items: [], gifts: [], _collapsed: false });
+    const newId = nextLocalId--;
+    sessionData.customers.push({ id: newId, nickname: nick, vip_no: vip, items: [], gifts: [], _collapsed: false });
     closeAddCustomerModal();
     render();
+    scrollToCustomer(newId);
     toast(`客户「${nick}」已添加（记得保存）`);
+    scheduleAutoSave();
 }
 
-function updateNickname(id, v) { const c = (sessionData.customers || []).find(x => x.id === id); if (c) c.nickname = v; }
-function updateVip(id, v) { const c = (sessionData.customers || []).find(x => x.id === id); if (c) c.vip_no = v; }
+// 新增客户后定位滚动到该客户卡片（按VIP排序后仍能定位）
+function scrollToCustomer(cid) {
+    setTimeout(() => {
+        const el = document.getElementById('cust_' + cid);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // 短暂高亮提示位置
+            el.style.transition = 'box-shadow 0.8s';
+            el.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.6)';
+            setTimeout(() => { el.style.boxShadow = ''; }, 1500);
+        }
+    }, 50);
+}
+
+function updateNickname(id, v) { const c = (sessionData.customers || []).find(x => x.id === id); if (c) { c.nickname = v; scheduleAutoSave(); } }
+function updateVip(id, v) { const c = (sessionData.customers || []).find(x => x.id === id); if (c) { c.vip_no = v; scheduleAutoSave(); } }
 
 function updateItemPrice(cid, iid, v) {
     const c = (sessionData.customers || []).find(x => x.id === cid);
     const item = (c.items || []).find(i => i.id === iid);
-    if (item) { item.sell_price = parseFloat(v) || 0; render(); }
+    if (item) { item.sell_price = parseFloat(v) || 0; render(); scheduleAutoSave(); }
 }
 function updateItemQty(cid, iid, v) {
     const c = (sessionData.customers || []).find(x => x.id === cid);
     const item = (c.items || []).find(i => i.id === iid);
-    if (item) { item.qty = parseInt(v) || 1; render(); }
+    if (item) { item.qty = parseInt(v) || 1; render(); scheduleAutoSave(); }
+}
+
+// 售价步进（±按钮）
+function stepPrice(cid, iid, delta) {
+    const c = (sessionData.customers || []).find(x => x.id === cid);
+    const item = (c.items || []).find(i => i.id === iid);
+    if (!item) return;
+    const v = (parseFloat(item.sell_price) || 0) + delta;
+    item.sell_price = Math.max(0, Math.round(v * 100) / 100);
+    render(); scheduleAutoSave();
+}
+// 数量步进（±按钮）
+function stepQty(cid, iid, delta) {
+    const c = (sessionData.customers || []).find(x => x.id === cid);
+    const item = (c.items || []).find(i => i.id === iid);
+    if (!item) return;
+    const v = (parseInt(item.qty) || 1) + delta;
+    item.qty = Math.max(1, v);
+    render(); scheduleAutoSave();
 }
 
 function deleteItem(cid, iid) {
     const c = (sessionData.customers || []).find(x => x.id === cid);
     c.items = (c.items || []).filter(i => i.id !== iid);
     render();
+    scheduleAutoSave();
 }
 function deleteGift(cid, gi) {
     const c = (sessionData.customers || []).find(x => x.id === cid);
     c.gifts.splice(gi, 1);
     render();
+    scheduleAutoSave();
 }
 
 function confirmDeleteCustomer(id) {
@@ -648,6 +861,7 @@ function confirmDeleteCustomer(id) {
         render();
         await saveAll();
         toast('客户已删除');
+        scheduleAutoSave();
     });
 }
 
@@ -808,12 +1022,13 @@ function pickSku(sku) {
         product_name: sku.product_name,
         qty: 1,
         sell_price: parseFloat(sku.suggested_price || 0),
-        purchase_cost: CAN_SEE_PROFIT ? parseFloat(sku.purchase_price || 0) : 0,
+        purchase_cost: parseFloat(sku.purchase_price || 0),
         is_gift: 0
     });
     closeProductModal();
     render();
     toast(`已添加 ${sku.product_name}（${sku.condition_name}）`);
+    scheduleAutoSave();
 }
 
 // ===== 赠品 =====
@@ -833,12 +1048,12 @@ function confirmGift() {
     closeGiftModal();
     render();
     toast('赠品已添加（记得保存）');
+    scheduleAutoSave();
 }
 
 // ===== 保存 =====
-async function saveAll() {
-    if (!currentSessionId) { toast('请先选择场次'); return; }
-    const payload = {
+function buildPayload() {
+    return {
         session_id: currentSessionId,
         customers: (sessionData.customers || []).map(c => ({
             id: c.id > 0 ? c.id : 0,
@@ -861,21 +1076,60 @@ async function saveAll() {
             })),
         })),
     };
+}
+
+// 发送保存请求（不重载），返回是否成功
+async function doSave() {
+    if (!currentSessionId) return false;
     try {
         const res = await fetch('../api/live_ledger_save.php', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
+            body: JSON.stringify(buildPayload())
         });
         const data = await res.json();
-        if (data.success) {
+        if (!data.success) { console.error('保存失败:', data.error); return false; }
+        return true;
+    } catch (e) { console.error('保存异常:', e.message); return false; }
+}
+
+// 自动保存（防抖1.5s）：每步操作后静默保存，失败才提示
+let autoSaveTimer = null;
+let autoSaving = false;
+function scheduleAutoSave() {
+    if (isReadOnly) return; // 已结束场次不自动保存
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(async () => {
+        if (autoSaving) { scheduleAutoSave(); return; } // 上轮未完成则顺延
+        autoSaving = true;
+        const ok = await doSave();
+        autoSaving = false;
+        if (!ok) toast('⚠️ 自动保存失败，请手动保存');
+    }, 1500);
+}
+
+async function saveAll() {
+    if (!currentSessionId) { toast('请先选择场次'); return; }
+    if (isReadOnly) { toast('已结束场次，不可修改'); return; }
+    // 记录当前折叠状态（保存后重载会丢失，需恢复）
+    const collapsedMap = {};
+    (sessionData.customers || []).forEach(c => { collapsedMap[c.id] = !!c._collapsed; });
+    try {
+        const ok = await doSave();
+        if (ok) {
             await switchToSession(currentSessionId);
-            toast('已保存');
-        } else toast(data.error || '保存失败');
+            // 恢复折叠状态
+            (sessionData.customers || []).forEach(c => {
+                if (collapsedMap[c.id] !== undefined) c._collapsed = collapsedMap[c.id];
+            });
+            render();
+            toast('✅ 保存成功');
+        } else toast('保存失败');
     } catch (e) { toast('保存失败: ' + e.message); }
 }
 
 // ===== 结束直播 =====
 function endLive() {
+    if (isReadOnly) { toast('该场次已结束'); return; }
     showConfirm('结束直播将执行出库（扣减库存）并保留历史记录，确定？', async () => {
         try {
             const res = await fetch('../api/live_ledger_end.php', {
@@ -913,5 +1167,6 @@ document.getElementById('productSearchInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') { const first = document.querySelector('#obSearchDropdown .sdi-add-btn'); if (first) first.click(); }
 });
 
+loadVipSpentMap();
 loadSessions();
 </script>

@@ -110,6 +110,7 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
         <nav class="sidebar-nav">
+            <?php if (!$isOperator): ?>
             <div class="nav-section">
                 <div class="nav-section-title">概览</div>
                 <a href="index.php" class="nav-item <?= ($currentPage ?? '') === 'index' ? 'active' : '' ?>">
@@ -117,6 +118,8 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
                     <span class="nav-label">首页</span>
                 </a>
             </div>
+            <?php endif; ?>
+            <?php if (!$isOperator): ?>
             <div class="nav-section">
                 <div class="nav-section-title">财务管理</div>
                 <a href="finance.php" class="nav-item <?= ($currentPage ?? '') === 'finance' ? 'active' : '' ?>">
@@ -124,6 +127,7 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
                     <span class="nav-label">财务管理</span>
                 </a>
             </div>
+            <?php endif; ?>
             <div class="nav-section">
                 <div class="nav-section-title">库存管理</div>
                 <a href="products.php" class="nav-item <?= ($currentPage ?? '') === 'products' ? 'active' : '' ?>">
@@ -134,10 +138,12 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span>
                     <span class="nav-label">标签打印</span>
                 </a>
+                <?php if (!$isOperator): ?>
                 <a href="outbound.php" class="nav-item <?= ($currentPage ?? '') === 'outbound' ? 'active' : '' ?>">
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
                     <span class="nav-label">商品出库</span>
                 </a>
+                <?php endif; ?>
                 <a href="sku_convert.php" class="nav-item <?= ($currentPage ?? '') === 'sku_convert' ? 'active' : '' ?>">
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></span>
                     <span class="nav-label">SKU转换</span>
@@ -145,10 +151,12 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
             </div>
             <div class="nav-section">
                 <div class="nav-section-title">直播</div>
+                <?php if (!$isOperator): ?>
                 <a href="sales.php" class="nav-item <?= ($currentPage ?? '') === 'sales' ? 'active' : '' ?>">
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
                     <span class="nav-label">销售记录</span>
                 </a>
+                <?php endif; ?>
                 <a href="sessions.php" class="nav-item <?= ($currentPage ?? '') === 'sessions' ? 'active' : '' ?>">
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
                     <span class="nav-label">直播场次</span>
@@ -157,10 +165,12 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span>
                     <span class="nav-label">直播出库记账</span>
                 </a>
+                <?php if (!$isOperator): ?>
                 <a href="live_ledger_history.php" class="nav-item <?= ($currentPage ?? '') === 'live_ledger_history' ? 'active' : '' ?>">
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg></span>
                     <span class="nav-label">直播账本历史</span>
                 </a>
+                <?php endif; ?>
                 <a href="vip_customers.php" class="nav-item <?= ($currentPage ?? '') === 'vip_customers' ? 'active' : '' ?>">
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
                     <span class="nav-label">客户管理</span>

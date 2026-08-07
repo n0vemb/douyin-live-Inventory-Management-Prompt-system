@@ -1,4 +1,10 @@
 <?php
+// 确保会话已启动（部分页面先 require auth.php 再 require config.php，
+// 未启动会话时 $_SESSION 为空导致 requireAuth 误判未登录而 302）
+if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params(['path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+    session_start();
+}
 /**
  * 认证中间件
  * 使用方式：所有受保护的页面/API 在顶部 require_once __DIR__ . '/auth.php';

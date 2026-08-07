@@ -10,7 +10,7 @@ $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
 
 $status = $_GET['status'] ?? 'all';
-$sql = "SELECT id, session_name, status, created_at, ended_at, total_qty, total_gmv FROM live_ledger_session WHERE 1=1";
+$sql = "SELECT id, session_name, anchor, operator, account, status, created_at, ended_at, total_qty, total_gmv FROM live_ledger_session WHERE 1=1";
 $params = [];
 if ($storeId) { $sql .= " AND store_id = ?"; $params[] = $storeId; }
 if ($status !== 'all') { $sql .= " AND status = ?"; $params[] = $status; }

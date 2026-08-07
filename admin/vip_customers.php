@@ -25,11 +25,11 @@
         <thead>
             <tr>
                 <th>客户</th>
-                <th>VIP编号</th>
-                <th>累计消费</th>
-                <th>出现场次</th>
+                <th class="sortable" data-sort="vip_no" onclick="setSort('vip_no')" style="cursor:pointer; user-select:none;">VIP编号<span class="sort-arrow"> ▲</span></th>
+                <th class="sortable" data-sort="total_spent" onclick="setSort('total_spent')" style="cursor:pointer; user-select:none;">累计消费<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort="session_count" onclick="setSort('session_count')" style="cursor:pointer; user-select:none;">出现场次<span class="sort-arrow"></span></th>
                 <th>最近场次</th>
-                <th>最近使用</th>
+                <th class="sortable" data-sort="last_used_at" onclick="setSort('last_used_at')" style="cursor:pointer; user-select:none;">最近使用<span class="sort-arrow"></span></th>
                 <th>操作</th>
             </tr>
         </thead>
@@ -108,18 +108,73 @@ async function loadCustomers() {
     }
 }
 
+let sortField = 'vip_no';    // 当前排序字段
+let sortDir = 1;             // 1升序 -1降序
+
+function sortCustomers() {
+    const list = [...allCustomers];
+    list.sort((a, b) => {
+        let va, vb;
+        if (sortField === 'vip_no') {
+            va = parseInt(a.vip_no) || 0; vb = parseInt(b.vip_no) || 0;
+        } else if (sortField === 'total_spent') {
+            va = Number(a.total_spent || 0); vb = Number(b.total_spent || 0);
+        } else if (sortField === 'session_count') {
+            va = Number(a.session_count || 0); vb = Number(b.session_count || 0);
+        } else if (sortField === 'last_used_at') {
+            va = a.last_used_at || ''; vb = b.last_used_at || '';
+            return sortDir * String(va).localeCompare(String(vb));
+        } else {
+            va = a[sortField] || ''; vb = b[sortField] || '';
+            return sortDir * String(va).localeCompare(String(vb));
+        }
+        return sortDir * (va - vb);
+    });
+    return list;
+}
+
+function setSort(field) {
+    if (sortField === field) { sortDir = -sortDir; }
+    else { sortField = field; sortDir = 1; }
+    // 更新表头箭头指示
+    document.querySelectorAll('th.sortable').forEach(th => {
+        const arrow = th.querySelector('.sort-arrow');
+        if (arrow) arrow.textContent = '';
+    });
+    const th = document.querySelector(`th[data-sort="${field}"]`);
+    if (th) {
+        let arrow = th.querySelector('.sort-arrow');
+        if (!arrow) { arrow = document.createElement('span'); arrow.className = 'sort-arrow'; th.appendChild(arrow); }
+        arrow.textContent = sortDir === 1 ? ' ▲' : ' ▼';
+    }
+    renderCustomers();
+}
+
+// VIP消费分档：0-300蓝 #3B82F6 / 301-1000紫 #8B5CF6 / 1001-3000玫红 #F43F5E / 3000+橙金 #F59E0B
+function vipTierStyle(totalSpent) {
+    const t = Number(totalSpent || 0);
+    if (t > 3000) return { bg: 'rgba(245,158,11,0.2)', color: '#F59E0B', border: '1px solid rgba(245,158,11,0.55)' };
+    if (t > 1000) return { bg: 'rgba(244,63,94,0.18)', color: '#F43F5E', border: '1px solid rgba(244,63,94,0.5)' };
+    if (t > 300) return { bg: 'rgba(139,92,246,0.18)', color: '#8B5CF6', border: '1px solid rgba(139,92,246,0.5)' };
+    return { bg: 'rgba(59,130,246,0.16)', color: '#3B82F6', border: '1px solid rgba(59,130,246,0.45)' };
+}
+
 function renderCustomers() {
     const tbody = document.getElementById('customerList');
     document.getElementById('customerCount').textContent = allCustomers.length;
 
     if (!allCustomers.length) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无客户，直播记账时添加客户后自动出现</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无客户</td></tr>';
         return;
     }
 
-    tbody.innerHTML = allCustomers.map(c => {
+    tbody.innerHTML = sortCustomers().map(c => {
         const initial = (c.nickname || c.vip_no || '?').charAt(0);
         const nick = c.nickname || '<span style="color:var(--text-tertiary);">(无昵称)</span>';
+        const tier = vipTierStyle(c.total_spent);
+        const sessionText = c.session_count > 0
+            ? `${escapeHtml(c.last_session_name || ('#' + c.last_session_id))}`
+            : '<span style="color:var(--text-tertiary);">从未消费</span>';
         return `
         <tr>
             <td>
@@ -128,10 +183,10 @@ function renderCustomers() {
                     <span>${nick}</span>
                 </div>
             </td>
-            <td><span class="vip-badge">${escapeHtml(c.vip_no)}</span></td>
+            <td><span class="vip-badge" style="background:${tier.bg}; color:${tier.color}; border:${tier.border};">${escapeHtml(c.vip_no)}</span></td>
             <td style="font-weight:600; color:var(--danger);">¥${Number(c.total_spent || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
             <td>${c.session_count} 次</td>
-            <td>${escapeHtml(c.last_session_name || ('#' + c.last_session_id))}</td>
+            <td>${sessionText}</td>
             <td style="font-size:13px; color:var(--text-tertiary);">${c.last_used_at || '-'}</td>
             <td>
                 <div style="display:flex; gap:6px;">

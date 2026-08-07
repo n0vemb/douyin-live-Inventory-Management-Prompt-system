@@ -17,6 +17,9 @@ if (!is_array($input)) {
 
 $sessionId = isset($input['session_id']) ? (int)$input['session_id'] : 0;
 $sessionName = trim($input['session_name'] ?? '');
+$anchor = trim($input['anchor'] ?? '');
+$operator = trim($input['operator'] ?? '');
+$account = trim($input['account'] ?? '');
 $activityType = $input['activity_type'] ?? 'none';
 $giftEveryN = isset($input['gift_every_n']) ? (int)$input['gift_every_n'] : 3;
 $reduceThreshold = isset($input['reduce_threshold']) ? floatval($input['reduce_threshold']) : 30;
@@ -42,20 +45,20 @@ if ($sessionId > 0) {
     if ($existing['status'] !== 'active') error('已结束的场次不能修改');
 
     $stmt = $pdo->prepare("UPDATE live_ledger_session SET
-        session_name = ?, activity_type = ?, gift_every_n = ?, reduce_threshold = ?,
+        session_name = ?, anchor = ?, operator = ?, account = ?, activity_type = ?, gift_every_n = ?, reduce_threshold = ?,
         reduce_amount = ?, platform_fee_rate = ?, packing_cost = ?,
         shipping_fee_8 = ?, shipping_fee_9 = ?
         WHERE id = ? AND store_id = ?");
-    $stmt->execute([$sessionName, $activityType, $giftEveryN, $reduceThreshold, $reduceAmount,
+    $stmt->execute([$sessionName, $anchor, $operator, $account, $activityType, $giftEveryN, $reduceThreshold, $reduceAmount,
         $platformFeeRate, $packingCost, $shippingFee8, $shippingFee9, $sessionId, $storeId]);
     success(['data' => ['session_id' => $sessionId]]);
 } else {
     // 创建新场次
     $stmt = $pdo->prepare("INSERT INTO live_ledger_session
-        (store_id, session_name, activity_type, gift_every_n, reduce_threshold, reduce_amount,
+        (store_id, session_name, anchor, operator, account, activity_type, gift_every_n, reduce_threshold, reduce_amount,
          platform_fee_rate, packing_cost, shipping_fee_8, shipping_fee_9, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')");
-    $stmt->execute([$storeId, $sessionName, $activityType, $giftEveryN, $reduceThreshold, $reduceAmount,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')");
+    $stmt->execute([$storeId, $sessionName, $anchor, $operator, $account, $activityType, $giftEveryN, $reduceThreshold, $reduceAmount,
         $platformFeeRate, $packingCost, $shippingFee8, $shippingFee9]);
     $newId = (int)$pdo->lastInsertId();
     success(['data' => ['session_id' => $newId]]);

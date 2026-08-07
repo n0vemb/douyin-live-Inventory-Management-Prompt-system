@@ -25,15 +25,26 @@ if ($nickname === null && $newVipNo === null) {
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
 
-// 确认该VIP在本店存在
+// 确认该VIP在客户库或历史记录中存在
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM vip_customers WHERE vip_no = ?");
+$stmt->execute([$oldVipNo]);
+$inLib = (int)$stmt->fetchColumn() > 0;
+
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM live_ledger_customer c JOIN live_ledger_session s ON c.session_id = s.id WHERE c.vip_no = ? AND s.store_id = ?");
 $stmt->execute([$oldVipNo, $storeId]);
-if ((int)$stmt->fetchColumn() === 0) {
+$inHistory = (int)$stmt->fetchColumn() > 0;
+
+if (!$inLib && !$inHistory) {
     error('未找到该VIP编号的客户');
 }
 
-// 换编号时检查目标编号冲突（目标已有记录且不是自己）
+// 换编号时检查目标编号冲突（客户库或历史已有且不是自己）
 if ($newVipNo !== null && $newVipNo !== '' && $newVipNo !== $oldVipNo) {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM vip_customers WHERE vip_no = ?");
+    $stmt->execute([$newVipNo]);
+    if ((int)$stmt->fetchColumn() > 0) {
+        error('新VIP编号已存在，如需合并请先删除目标客户');
+    }
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM live_ledger_customer c JOIN live_ledger_session s ON c.session_id = s.id WHERE c.vip_no = ? AND s.store_id = ?");
     $stmt->execute([$newVipNo, $storeId]);
     if ((int)$stmt->fetchColumn() > 0) {
@@ -41,14 +52,22 @@ if ($newVipNo !== null && $newVipNo !== '' && $newVipNo !== $oldVipNo) {
     }
 }
 
-// 更新昵称：该VIP的所有历史记录
+// 更新昵称：客户库 + 该VIP的所有历史记录
 if ($nickname !== null && $nickname !== '') {
+    if ($inLib) {
+        $stmt = $pdo->prepare("UPDATE vip_customers SET nickname = ? WHERE vip_no = ?");
+        $stmt->execute([$nickname, $oldVipNo]);
+    }
     $stmt = $pdo->prepare("UPDATE live_ledger_customer SET nickname = ? WHERE vip_no = ? AND session_id IN (SELECT id FROM live_ledger_session WHERE store_id = ?)");
     $stmt->execute([$nickname, $oldVipNo, $storeId]);
 }
 
 // 更新编号
 if ($newVipNo !== null && $newVipNo !== '' && $newVipNo !== $oldVipNo) {
+    if ($inLib) {
+        $stmt = $pdo->prepare("UPDATE vip_customers SET vip_no = ? WHERE vip_no = ?");
+        $stmt->execute([$newVipNo, $oldVipNo]);
+    }
     $stmt = $pdo->prepare("UPDATE live_ledger_customer SET vip_no = ? WHERE vip_no = ? AND session_id IN (SELECT id FROM live_ledger_session WHERE store_id = ?)");
     $stmt->execute([$newVipNo, $oldVipNo, $storeId]);
 }

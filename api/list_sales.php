@@ -15,11 +15,11 @@ $canSeeProfit = !isOperator();
 $sql = 'SELECT s.*,
             (s.qty - s.returned_qty) as qty,
             p.name as product_name, p.barcode, p.series,
-            (SELECT MIN(ib.purchase_price) FROM inventory_batches ib
-             WHERE ib.product_id = s.product_id AND ib.condition_type = s.condition_type
-             AND ib.remaining_qty > 0 AND ib.purchase_price > 0 AND ib.store_id = s.store_id LIMIT 1) as batch_purchase_price
+            ib.batch_no as batch_no,
+            ib.purchase_price as batch_purchase_price
         FROM sales_log s
         LEFT JOIN products p ON s.product_id = p.id
+        LEFT JOIN inventory_batches ib ON s.batch_id = ib.id
         WHERE s.qty > s.returned_qty';
 $params = [];
 
@@ -59,9 +59,25 @@ $stmt->bindValue($paramIndex, max(1, $limit), PDO::PARAM_INT);
 $stmt->execute();
 $sales = $stmt->fetchAll();
 
+// 兜底：无批次关联（历史非直播销售）时用 purchase_cost；仍为0则按商品+成色取最低进价
+foreach ($sales as &$s) {
+    if ($s['batch_purchase_price'] === null || $s['batch_purchase_price'] === '') {
+        $cost = floatval($s['purchase_cost'] ?? 0);
+        if ($cost <= 0) {
+            $stmt2 = $pdo->prepare("SELECT MIN(purchase_price) FROM inventory_batches WHERE product_id = ? AND condition_type = ? AND purchase_price > 0" . ($storeId ? " AND store_id = ?" : ""));
+            $p2 = [$s['product_id'], $s['condition_type']];
+            if ($storeId) $p2[] = $storeId;
+            $stmt2->execute($p2);
+            $cost = floatval($stmt2->fetchColumn()) ?: 0;
+        }
+        $s['batch_purchase_price'] = $cost;
+    }
+}
+unset($s);
+
 $summarySql = 'SELECT SUM(s.sale_price * (s.qty - s.returned_qty)) as total_amount,
             SUM(s.qty - s.returned_qty) as total_qty,
-            SUM((s.sale_price - COALESCE((SELECT MIN(ib.purchase_price) FROM inventory_batches ib WHERE ib.product_id = s.product_id AND ib.condition_type = s.condition_type AND ib.remaining_qty > 0 AND ib.purchase_price > 0 AND ib.store_id = s.store_id LIMIT 1), 0)) * (s.qty - s.returned_qty)) as total_profit
+            SUM((s.sale_price - COALESCE(NULLIF(s.purchase_cost, 0), (SELECT MIN(ib.purchase_price) FROM inventory_batches ib WHERE ib.product_id = s.product_id AND ib.condition_type = s.condition_type AND ib.purchase_price > 0 AND ib.store_id = s.store_id LIMIT 1), 0)) * (s.qty - s.returned_qty)) as total_profit
         FROM sales_log s
         WHERE 1=1';
 $summaryParams = [];

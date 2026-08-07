@@ -73,6 +73,14 @@ try {
             $purchaseCost = floatval($item['purchase_cost'] ?? 0);
             $isGift = !empty($item['is_gift']) ? 1 : 0;
 
+            // 进价缺失/为0时自动补真实进价（防运营端或漏传导致成本丢失）
+            if ($purchaseCost <= 0 && !$isGift && $productId > 0) {
+                $stmt = $pdo->prepare("SELECT purchase_price FROM inventory_batches WHERE product_id = ? AND condition_type = ? AND remaining_qty > 0 AND purchase_price > 0 AND store_id = ? ORDER BY purchased_at DESC, id DESC LIMIT 1");
+                $stmt->execute([$productId, $conditionType, $storeId]);
+                $realCost = $stmt->fetchColumn();
+                if ($realCost !== false) $purchaseCost = floatval($realCost);
+            }
+
             if ($itemId > 0) {
                 $stmt = $pdo->prepare("UPDATE live_ledger_item SET product_id = ?, condition_type = ?, product_name = ?, qty = ?, sell_price = ?, purchase_cost = ?, is_gift = ? WHERE id = ? AND customer_id = ?");
                 $stmt->execute([$productId, $conditionType, $productName, $qty, $sellPrice, $purchaseCost, $isGift, $itemId, $custId]);

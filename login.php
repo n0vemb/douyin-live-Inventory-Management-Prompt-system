@@ -1,9 +1,13 @@
 <?php
 require_once __DIR__ . '/config.php';
 
-// 如果已登录，直接跳转
+// 如果已登录，直接跳转（运营跳直播场次，其余跳首页）
 if (!empty($_SESSION['user_id'])) {
-    header('Location: ../admin/');
+    if (($_SESSION['role'] ?? '') === 'operator') {
+        header('Location: ../admin/sessions.php');
+    } else {
+        header('Location: ../admin/');
+    }
     exit;
 }
 
@@ -63,7 +67,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?')
                     ->execute([$user['id']]);
 
-                header('Location: admin/');
+                // 运营登录后直达直播场次页，其余角色到首页
+                if (($user['role'] ?? '') === 'operator') {
+                    header('Location: admin/sessions.php');
+                } else {
+                    header('Location: admin/');
+                }
                 exit;
             } else {
                 $error = '用户名或密码错误';

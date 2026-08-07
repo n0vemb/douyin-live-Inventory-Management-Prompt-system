@@ -37,8 +37,11 @@ $settings = $data['settings'];
 $pdo->beginTransaction();
 try {
     // ===== 汇总购买（按 product_id 聚合，排除赠品）=====
+    // 同时保留 客户→商品 明细，供出库时按客户逐一 FIFO（确保 outbound/sales_log 可关联客户，支持撤单/退货）
     $purchaseMap = [];   // product_id => { qty, sell_total }
+    $customerItems = []; // customer_id => [ {product_id, qty, price, item_id} ]
     foreach ($customers as $c) {
+        $cid = (int)$c['id'];
         foreach ($c['items'] as $item) {
             if (!empty($item['is_gift'])) continue;
             $pid = (int)$item['product_id'];
@@ -49,6 +52,7 @@ try {
             }
             $purchaseMap[$pid]['qty'] += $qty;
             $purchaseMap[$pid]['sell_total'] += $price * $qty;
+            $customerItems[$cid][] = ['product_id' => $pid, 'qty' => $qty, 'price' => $price, 'item_id' => (int)$item['id']];
         }
     }
 
@@ -60,48 +64,61 @@ try {
     $totalQty = 0;
     $totalGmv = 0.0;
 
-    // ===== 出库扣库存（FIFO）=====
+    // ===== 出库扣库存（FIFO，按客户逐一扣，保证可追溯客户）=====
+    // 每个客户的每件商品独立 FIFO：从最早批次扣，记录 customer_id + item_id
+    // 预取所有商品批次（有库存的）
+    $allBatches = [];
     foreach ($purchaseMap as $pid => $need) {
-        $needQty = $need['qty'];
-        $totalQty += $needQty;
-        $totalGmv += $need['sell_total'];
-
-        // 找该商品有库存的批次（FIFO 按时间升序）
         $stmt = $pdo->prepare("SELECT * FROM inventory_batches WHERE product_id = ? AND remaining_qty > 0" . ($storeId ? " AND store_id = ?" : "") . " ORDER BY purchased_at ASC, id ASC FOR UPDATE");
         $params = [$pid];
         if ($storeId) $params[] = $storeId;
         $stmt->execute($params);
-        $batches = $stmt->fetchAll();
+        $allBatches[$pid] = $stmt->fetchAll();
+    }
 
-        $remaining = $needQty;
-        foreach ($batches as $batch) {
-            if ($remaining <= 0) break;
-            $take = min($remaining, (int)$batch['remaining_qty']);
-            $newRemaining = $batch['remaining_qty'] - $take;
-            $stmt = $pdo->prepare("UPDATE inventory_batches SET remaining_qty = ? WHERE id = ?" . ($storeId ? " AND store_id = ?" : ""));
-            $upParams = [$newRemaining, $batch['id']];
-            if ($storeId) $upParams[] = $storeId;
-            $stmt->execute($upParams);
+    // 客户顺序：按 customer id（保持与明细添加顺序一致）
+    foreach ($customerItems as $cid => $items) {
+        foreach ($items as $item) {
+            $pid = $item['product_id'];
+            $needQty = $item['qty'];
+            $price = $item['price'];
+            $totalQty += $needQty;
+            $totalGmv += $price * $needQty;
 
-            // 写 outbound_log
-            $stmt = $pdo->prepare("INSERT INTO outbound_log (batch_id, product_id, condition_type, qty, outbound_price, order_no, outbound_batch_no, remark, platform, account, store_id, shipping_fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$batch['id'], $pid, $batch['condition_type'], $take, $need['sell_total'] / $needQty, null, $outboundBatchNo, '直播出库(' . $session['session_name'] . ')', 'live', '', $storeId, null]);
+            $remaining = $needQty;
+            foreach ($allBatches[$pid] as &$batch) {
+                if ($remaining <= 0) break;
+                if ($batch['remaining_qty'] <= 0) continue;
+                $take = min($remaining, (int)$batch['remaining_qty']);
+                $batch['remaining_qty'] -= $take;
+                $newRemaining = $batch['remaining_qty'];
+                $stmt = $pdo->prepare("UPDATE inventory_batches SET remaining_qty = ? WHERE id = ?" . ($storeId ? " AND store_id = ?" : ""));
+                $upParams = [$newRemaining, $batch['id']];
+                if ($storeId) $upParams[] = $storeId;
+                $stmt->execute($upParams);
 
-            // 写 live_ledger_outbound 关联
-            $outboundLogId = (int)$pdo->lastInsertId();
-            $stmt = $pdo->prepare("INSERT INTO live_ledger_outbound (session_id, product_id, qty, batch_id, outbound_log_id) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$sessionId, $pid, $take, $batch['id'], $outboundLogId]);
+                // 写 outbound_log
+                $stmt = $pdo->prepare("INSERT INTO outbound_log (batch_id, product_id, condition_type, qty, outbound_price, order_no, outbound_batch_no, remark, platform, account, store_id, shipping_fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$batch['id'], $pid, $batch['condition_type'], $take, $price, null, $outboundBatchNo, '直播出库(' . $session['session_name'] . ')', 'live', '', $storeId, null]);
 
-            // 写 sales_log（live_session_id 置 NULL：sales_log 外键指向旧 live_sessions 表，
-            // 直播记账有独立历史体系，不关联旧场次，避免外键冲突）
-            $stmt = $pdo->prepare("INSERT INTO sales_log (store_id, product_id, condition_type, sale_price, qty, live_session_id) VALUES (?, ?, ?, ?, ?, NULL)");
-            $stmt->execute([$storeId, $pid, $batch['condition_type'], $need['sell_total'] / $needQty, $take]);
+                // 写 live_ledger_outbound 关联（带 customer_id + item_id）
+                $outboundLogId = (int)$pdo->lastInsertId();
+                $stmt = $pdo->prepare("INSERT INTO live_ledger_outbound (session_id, customer_id, item_id, product_id, qty, batch_id, outbound_log_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$sessionId, $cid, $item['item_id'], $pid, $take, $batch['id'], $outboundLogId]);
 
-            $remaining -= $take;
-        }
+                // 写 sales_log（live_session_id 置 NULL：sales_log 外键指向旧 live_sessions 表，
+                // 直播记账有独立历史体系，不关联旧场次，避免外键冲突）
+                // 记录当时批次 batch_id + 固化进价 purchase_cost，销售记录页可精确追溯
+                $stmt = $pdo->prepare("INSERT INTO sales_log (store_id, product_id, condition_type, sale_price, purchase_cost, batch_id, qty, live_session_id) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)");
+                $stmt->execute([$storeId, $pid, $batch['condition_type'], $price, $batch['purchase_price'], $batch['id'], $take]);
 
-        if ($remaining > 0) {
-            throw new Exception("商品 #$pid 库存不足，还差 $remaining 件");
+                $remaining -= $take;
+            }
+            unset($batch);
+
+            if ($remaining > 0) {
+                throw new Exception("商品 #$pid 库存不足，还差 $remaining 件");
+            }
         }
     }
 

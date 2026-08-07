@@ -272,7 +272,7 @@ $canSeeProfit = $currentUser['can_see_profit'] ?? true;
                                 <th>售价</th>
                                 <th>库存</th>
                                 <th>入库时间</th>
-                                <th>操作</th>
+                                <?php if ($canSeeProfit): ?><th>操作</th><?php endif; ?>
                             </tr>
                         </thead>
                         <tbody id="stockDetailBatches"></tbody>
@@ -917,9 +917,9 @@ $canSeeProfit = $currentUser['can_see_profit'] ?? true;
                                     <td>${batch.remaining_qty}</td>
                                     <td>${batch.purchased_at}</td>
                                     <td>
-                                        <button class="btn btn-secondary btn-sm" onclick="openEditBatchModal(${productId}, '${batch.condition_type}', ${batch.batch_id})">
+                                        ${CAN_SEE_PROFIT ? `<button class="btn btn-secondary btn-sm" onclick="openEditBatchModal(${productId}, '${batch.condition_type}', ${batch.batch_id})">
                                             ✏️ 编辑
-                                        </button>
+                                        </button>` : ''}
                                     </td>
                                 </tr>
                             `;
@@ -930,7 +930,7 @@ $canSeeProfit = $currentUser['can_see_profit'] ?? true;
                 document.getElementById('stockDetailTotalQty').textContent = totalQty;
                 document.getElementById('stockDetailTotalValue').textContent = '¥' + totalValue.toLocaleString();
                 document.getElementById('stockDetailDistribution').innerHTML = distributionHtml;
-                document.getElementById('stockDetailBatches').innerHTML = batchesHtml || '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary);">暂无批次记录</td></tr>';
+                document.getElementById('stockDetailBatches').innerHTML = batchesHtml || `<tr><td colspan="${CAN_SEE_PROFIT ? 6 : 4}" style="text-align:center;color:var(--text-tertiary);">暂无批次记录</td></tr>`;
             }
         } catch (err) {
             console.error(err);

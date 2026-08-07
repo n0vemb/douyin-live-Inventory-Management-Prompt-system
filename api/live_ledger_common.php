@@ -71,6 +71,9 @@ function ledgerGetSettings($pdo, $sessionId) {
     if (!$row) return null;
     return [
         'session_name' => $row['session_name'],
+        'anchor' => $row['anchor'] ?? '',
+        'operator' => $row['operator'] ?? '',
+        'account' => $row['account'] ?? '',
         'activity_type' => $row['activity_type'],
         'gift_every_n' => (int)$row['gift_every_n'],
         'reduce_threshold' => floatval($row['reduce_threshold']),
