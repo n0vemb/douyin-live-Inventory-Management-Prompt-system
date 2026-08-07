@@ -143,5 +143,9 @@ try {
 
 } catch (Exception $e) {
     $pdo->rollBack();
+    // 超管未选店铺时 store_id 为 null，友好提示
+    if (strpos($e->getMessage(), 'store_id') !== false) {
+        error('请先选择店铺后再操作');
+    }
     error('盘点更新失败: ' . $e->getMessage());
 }
