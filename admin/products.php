@@ -1298,6 +1298,7 @@ function filterAuditTable() {
     });
 }
 async function saveAuditChanges() {
+    if (!requireStore()) return;
     const changed = [];
     document.querySelectorAll('.audit-qty').forEach(input => {
         const orig = parseInt(input.dataset.orig);

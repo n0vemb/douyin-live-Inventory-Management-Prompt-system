@@ -10,6 +10,9 @@ if (!$input || !isset($input['items']) || !is_array($input['items']) || empty($i
 
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
+if (empty($storeId)) {
+    error('请先选择店铺后再操作');
+}
 $pdo->beginTransaction();
 
 try {
@@ -43,8 +46,25 @@ try {
             // 清零同商品同状态的其他批次，避免库存重复计算
             // 必须放在 if($diff) 外面：即使 qty 恰好等于最新批次的库存，
             // 其他批次也可能有剩余库存需要清零
-            $stmt = $pdo->prepare("UPDATE inventory_batches SET remaining_qty = 0 WHERE product_id = ? AND condition_type = ? AND store_id = ? AND id != ?");
+            $stmt = $pdo->prepare("SELECT id, remaining_qty FROM inventory_batches WHERE product_id = ? AND condition_type = ? AND store_id = ? AND id != ?");
             $stmt->execute([$productId, $conditionType, $storeId, $batch['id']]);
+            $otherBatches = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($otherBatches as $ob) {
+                if ((int)$ob['remaining_qty'] > 0) {
+                    $stmt = $pdo->prepare("UPDATE inventory_batches SET remaining_qty = 0 WHERE id = ? AND store_id = ?");
+                    $stmt->execute([(int)$ob['id'], $storeId]);
+                    // 清零也记录日志
+                    $stmt = $pdo->prepare("
+                        INSERT INTO inventory_log (product_id, condition_type, change_type, qty_change, before_qty, after_qty, remark, store_id)
+                        VALUES (?, ?, 'adjust', ?, ?, 0, '盘点清零', ?)
+                    ");
+                    $stmt->execute([$productId, $conditionType, -(int)$ob['remaining_qty'], (int)$ob['remaining_qty'], $storeId]);
+                } else {
+                    // 已为 0 的批次直接更新（无日志）
+                    $stmt = $pdo->prepare("UPDATE inventory_batches SET remaining_qty = 0 WHERE id = ? AND store_id = ?");
+                    $stmt->execute([(int)$ob['id'], $storeId]);
+                }
+            }
 
             // 更新数量
             if ($diff !== 0) {
