@@ -25,6 +25,9 @@ if ($sourceProductId === $targetProductId && $sourceConditionType === $targetCon
 
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
+if (empty($storeId)) {
+    error('请先选择店铺后再操作');
+}
 
 if (!$storeId) {
     error('请先选择店铺后再进行SKU转换');

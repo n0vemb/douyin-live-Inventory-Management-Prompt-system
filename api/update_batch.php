@@ -26,6 +26,10 @@ if ($purchasePrice <= 0 || $suggestedPrice <= 0) {
 
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
+requireNonOperator();
+if (empty($storeId)) {
+    error('请先选择店铺后再操作');
+}
 $pdo->beginTransaction();
 
 try {

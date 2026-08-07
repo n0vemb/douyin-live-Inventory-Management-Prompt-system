@@ -20,16 +20,29 @@ if ($suggestedPrice <= 0) {
 
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
+if (empty($storeId)) {
+    error('请先选择店铺后再操作');
+}
 $pdo->beginTransaction();
 
 try {
 
-    $stmt = $pdo->prepare('
-        SELECT id, purchase_price
-        FROM inventory_batches
-        WHERE product_id = ? AND condition_type = ? AND remaining_qty > 0 AND store_id = ?
-    ');
-    $stmt->execute([$productId, $conditionType, $storeId]);
+    if ($conditionType === 'all') {
+        // 全部状态：取该商品所有有库存的批次
+        $stmt = $pdo->prepare('
+            SELECT id, purchase_price
+            FROM inventory_batches
+            WHERE product_id = ? AND remaining_qty > 0 AND store_id = ?
+        ');
+        $stmt->execute([$productId, $storeId]);
+    } else {
+        $stmt = $pdo->prepare('
+            SELECT id, purchase_price
+            FROM inventory_batches
+            WHERE product_id = ? AND condition_type = ? AND remaining_qty > 0 AND store_id = ?
+        ');
+        $stmt->execute([$productId, $conditionType, $storeId]);
+    }
     $batches = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($batches)) {

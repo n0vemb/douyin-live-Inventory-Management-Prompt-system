@@ -22,6 +22,13 @@ if (empty($name)) {
 
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
+if (empty($storeId)) {
+    error('请先选择店铺后再操作');
+}
+// 超管全平台视角（store_id=null）新建商品时默认归属店铺1（主店铺）
+if (empty($storeId)) {
+    $storeId = 1;
+}
 
 if (empty($barcode) && $barcode !== '0') {
     $barcode = generateBarcode($pdo, $_SESSION['barcode_prefix'] ?? '69414486');

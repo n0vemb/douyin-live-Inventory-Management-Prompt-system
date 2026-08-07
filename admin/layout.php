@@ -144,10 +144,6 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
                     <span class="nav-label">商品出库</span>
                 </a>
                 <?php endif; ?>
-                <a href="sku_convert.php" class="nav-item <?= ($currentPage ?? '') === 'sku_convert' ? 'active' : '' ?>">
-                    <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></span>
-                    <span class="nav-label">SKU转换</span>
-                </a>
             </div>
             <div class="nav-section">
                 <div class="nav-section-title">直播</div>

@@ -4,6 +4,9 @@ require_once __DIR__ . '/../auth.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 
+// 运营不可删除商品（2026-08-08 重构时新增权限保护）
+requireNonOperator();
+
 // 支持批量删除：product_ids 数组，也兼容原有的 product_id 单个删除
 $productIds = $input['product_ids'] ?? [];
 if (empty($productIds)) {
@@ -18,6 +21,9 @@ if (empty($productIds)) {
 
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
+if (empty($storeId)) {
+    error('请先选择店铺后再操作');
+}
 
 // 先收集所有要删除的商品的图片路径
 $imagesToDelete = [];

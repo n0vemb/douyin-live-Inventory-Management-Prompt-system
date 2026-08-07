@@ -13,8 +13,8 @@ if (empty($productId)) {
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
 
-$stmt = $pdo->prepare('SELECT * FROM products WHERE id = ? AND store_id = ?');
-$stmt->execute([$productId, $storeId]);
+$stmt = $pdo->prepare('SELECT * FROM products WHERE id = ?' . ($storeId ? ' AND store_id = ?' : ''));
+$stmt->execute($storeId ? [$productId, $storeId] : [$productId]);
 $product = $stmt->fetch();
 
 if (!$product) {
@@ -64,10 +64,10 @@ try {
 
 $stmt = $pdo->prepare('
     SELECT * FROM inventory_batches
-    WHERE product_id = ? AND store_id = ?
+    WHERE product_id = ?' . ($storeId ? ' AND store_id = ?' : '') . '
     ORDER BY condition_type, purchased_at ASC
 ');
-$stmt->execute([$productId, $storeId]);
+$stmt->execute($storeId ? [$productId, $storeId] : [$productId]);
 $batches = $stmt->fetchAll();
 
 $inventoryData = [];
@@ -87,10 +87,14 @@ foreach ($conditionNames as $key => $name) {
         $latestSuggestedPrice = $batch['suggested_price'];
         $batchList[] = [
             'batch_id' => $batch['id'],
+            'id' => $batch['id'],
+            'condition_type' => $batch['condition_type'],
             'batch_no' => $batch['batch_no'],
             'purchase_price' => $batch['purchase_price'],
             'suggested_price' => $batch['suggested_price'],
             'remaining_qty' => $batch['remaining_qty'],
+            'total_qty' => $batch['total_qty'],
+            'supplier' => $batch['supplier'],
             'purchased_at' => $batch['purchased_at'],
             'is_history' => $batch['remaining_qty'] <= 0
         ];

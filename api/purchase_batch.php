@@ -22,6 +22,9 @@ if ($qty <= 0) {
 
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
+if (empty($storeId)) {
+    error('请先选择店铺后再操作');
+}
 
 $batchNo = 'B' . date('YmdHis') . sprintf('%04d', rand(0, 9999));
 
