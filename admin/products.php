@@ -454,7 +454,7 @@ function showToast(msg, isError) {
     if (!t) {
         t = document.createElement('div');
         t.id = 'pmToast';
-        t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg-active);color:var(--text);padding:11px 20px;border-radius:10px;font-size:13.5px;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,.4);border:1px solid var(--border);transition:opacity .25s;opacity:0;';
+        t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg-active);color:var(--text);padding:11px 20px;border-radius:10px;font-size:13.5px;z-index:3000;box-shadow:0 8px 24px rgba(0,0,0,.4);border:1px solid var(--border);transition:opacity .25s;opacity:0;';
         document.body.appendChild(t);
     }
     t.textContent = msg;
@@ -1312,7 +1312,7 @@ async function saveAuditChanges() {
         const res = await fetch('../api/batch_inventory_update.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ updates: changed })
+            body: JSON.stringify({ items: changed })
         });
         const data = await res.json();
         if (data.success) {
