@@ -71,6 +71,7 @@ function ledgerGetSettings($pdo, $sessionId) {
     if (!$row) return null;
     return [
         'session_name' => $row['session_name'],
+        'store_id' => $row['store_id'] ?? null,
         'anchor' => $row['anchor'] ?? '',
         'operator' => $row['operator'] ?? '',
         'account' => $row['account'] ?? '',
@@ -95,6 +96,36 @@ function ledgerLoadSession($pdo, $sessionId) {
     $settings = ledgerGetSettings($pdo, $sessionId);
     if (!$settings) return null;
 
+    // 动态加载 condition 名称（店铺级优先，否则系统级；均无则回退写死映射）
+    $conditionNames = ['sealed' => '原盒未拆', 'opened' => '拆盒无瑕', 'boxless' => '无盒无瑕', 'flawed' => '微瑕'];
+    try {
+        $storeId = $settings['store_id'] ?? null;
+        if (!empty($storeId)) {
+            $stmt = $pdo->prepare("SELECT condition_types FROM stores WHERE id = ?");
+            $stmt->execute([$storeId]);
+            $result = $stmt->fetch();
+            if ($result && !empty($result['condition_types'])) {
+                $types = json_decode($result['condition_types'], true);
+                if (is_array($types)) {
+                    $conditionNames = [];
+                    foreach ($types as $t) { $conditionNames[$t['key']] = $t['name']; }
+                }
+            }
+        }
+        if (empty($conditionNames) || (count($conditionNames) === 4 && $conditionNames['sealed'] === '原盒未拆')) {
+            $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types' AND store_id IS NULL");
+            $stmt->execute();
+            $result = $stmt->fetch();
+            if ($result && !empty($result['setting_value'])) {
+                $types = json_decode($result['setting_value'], true);
+                if (is_array($types)) {
+                    $conditionNames = [];
+                    foreach ($types as $t) { $conditionNames[$t['key']] = $t['name']; }
+                }
+            }
+        }
+    } catch (Exception $e) {}
+
     $stmt = $pdo->prepare("SELECT * FROM live_ledger_customer WHERE session_id = ? ORDER BY sort_order, id");
     $stmt->execute([$sessionId]);
     $customers = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -103,6 +134,11 @@ function ledgerLoadSession($pdo, $sessionId) {
         $stmt = $pdo->prepare("SELECT * FROM live_ledger_item WHERE customer_id = ? ORDER BY id");
         $stmt->execute([$c['id']]);
         $c['items'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // 补 condition_name（动态配置）
+        foreach ($c['items'] as &$item) {
+            $item['condition_name'] = $conditionNames[$item['condition_type']] ?? $item['condition_type'];
+        }
+        unset($item);
 
         $stmt = $pdo->prepare("SELECT * FROM live_ledger_gift WHERE customer_id = ? ORDER BY id");
         $stmt->execute([$c['id']]);

@@ -616,6 +616,7 @@ function render() {
             if (isReadOnly) {
                 return `<tr class="${isGift ? 'gift-row' : ''}">
                 <td>${esc(item.product_name)}${isGift ? '<span class="gift-badge">赠品</span>' : ''}</td>
+                <td>${isGift ? '' : esc(item.condition_name || '')}</td>
                 ${CAN_SEE_PROFIT ? `<td>${fmt(item.purchase_cost)}</td>` : ''}
                 <td>${fmt(item.sell_price)}</td>
                 <td>${item.qty}</td>
@@ -625,6 +626,7 @@ function render() {
             }
             return `<tr class="${isGift ? 'gift-row' : ''}">
                 <td>${esc(item.product_name)}${isGift ? '<span class="gift-badge">赠品</span>' : ''}</td>
+                <td>${isGift ? '' : esc(item.condition_name || '')}</td>
                 ${CAN_SEE_PROFIT ? `<td>${fmt(item.purchase_cost)}</td>` : ''}
                 <td><span class="stepper"><button type="button" class="stepper-btn" onclick="stepPrice(${c.id}, ${item.id}, -1)">−</button><input type="text" inputmode="decimal" value="${item.sell_price}" class="form-input stepper-input" style="width:56px;" onchange="updateItemPrice(${c.id}, ${item.id}, this.value)"><button type="button" class="stepper-btn" onclick="stepPrice(${c.id}, ${item.id}, 1)">+</button></span></td>
                 <td><span class="stepper"><button type="button" class="stepper-btn" onclick="stepQty(${c.id}, ${item.id}, -1)">−</button><input type="text" inputmode="numeric" value="${item.qty}" class="form-input stepper-input" style="width:44px;" onchange="updateItemQty(${c.id}, ${item.id}, this.value)"><button type="button" class="stepper-btn" onclick="stepQty(${c.id}, ${item.id}, 1)">+</button></span></td>
@@ -637,7 +639,7 @@ function render() {
             <tr class="gift-row">
                 <td>赠品${g.description ? ' - ' + esc(g.description) : ''}</td>
                 ${CAN_SEE_PROFIT ? `<td>${fmt(g.cost)}</td>` : ''}
-                <td colspan="${CAN_SEE_PROFIT ? 3 : 2}" style="color:var(--text-tertiary);">不入库，仅计成本</td>
+                <td colspan="${CAN_SEE_PROFIT ? 4 : 3}" style="color:var(--text-tertiary);">不入库，仅计成本</td>
                 ${isReadOnly ? '' : `<td><button class="del-btn" onclick="deleteGift(${c.id}, ${gi})">✕</button></td>`}
             </tr>`).join('');
 
@@ -685,7 +687,7 @@ function render() {
                         <label>VIP编号</label><input type="text" value="${esc(c.vip_no)}" class="form-input" style="width:120px;" placeholder="选填" onchange="updateVip(${c.id}, this.value)">`}
                     </div>
                     <table>
-                        <thead><tr><th>商品</th>${CAN_SEE_PROFIT ? '<th>进价</th>' : ''}<th>售价</th><th>数量</th><th>小计</th><th></th></tr></thead>
+                        <thead><tr><th>商品</th><th>SKU</th>${CAN_SEE_PROFIT ? '<th>进价</th>' : ''}<th>售价</th><th>数量</th><th>小计</th><th></th></tr></thead>
                         <tbody>${itemsHtml}${giftHtml}</tbody>
                     </table>
                     ${isReadOnly ? '' : `<div style="margin-top:10px;">
