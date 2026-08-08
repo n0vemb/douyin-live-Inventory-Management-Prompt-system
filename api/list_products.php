@@ -91,9 +91,19 @@ if (!empty($productIds)) {
         $inventoryData[$key]['total_stock'] += $b['remaining_qty'];
         $inventoryData[$key]['batch_count']++;
     }
+
+    // 每个商品的最新入库时间（批次按 purchased_at DESC 排序，第一个即最新）
+    $latestPurchaseAt = [];
+    foreach ($allBatches as $b) {
+        $pid = $b['product_id'];
+        if (!isset($latestPurchaseAt[$pid])) {
+            $latestPurchaseAt[$pid] = $b['purchased_at'];
+        }
+    }
 }
 
 foreach ($products as &$p) {
+    $p['latest_purchase_at'] = $latestPurchaseAt[$p['id']] ?? null;
     $p['inventory_summary'] = [];
     foreach (['sealed', 'opened', 'boxless', 'flawed'] as $ct) {
         $key = $p['id'] . '_' . $ct;

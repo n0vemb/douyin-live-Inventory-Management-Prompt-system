@@ -380,6 +380,10 @@ $isOperator = ($currentUser['role'] === 'operator');
 .pm-warn-dot.ok{background:var(--success);}
 .pm-price{font-variant-numeric:tabular-nums;font-weight:600;color:var(--success);}
 .pm-row-actions{display:flex;gap:6px;flex-wrap:wrap;}
+/* 24小时内新入库商品：柔和青色底（暗黑主题适配，区别于库存警告色） */
+.pm-row-newin{background:rgba(56,189,248,0.06);}
+.pm-row-newin:hover{background:rgba(56,189,248,0.1);}
+.pm-row-newin td:first-child{border-left:3px solid rgba(56,189,248,0.35);}
 
 /* 抽屉 */
 .pm-mask{position:fixed;inset:0;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:.2s;z-index:90;}
@@ -641,7 +645,13 @@ function renderProducts(products) {
         const badges = renderBadges(p.inventory_summary);
         const price = p.overall_suggested_price ? '¥' + parseFloat(p.overall_suggested_price).toFixed(2) : '-';
         const checked = selectedIds.has(p.id) ? 'checked' : '';
-        return `<tr>
+        // 24小时内新入库：行底色柔和高亮（区分新入库商品）
+        let newInClass = '';
+        if (p.latest_purchase_at) {
+            const diffMs = Date.now() - new Date(p.latest_purchase_at.replace(' ', 'T')).getTime();
+            if (diffMs >= 0 && diffMs <= 24 * 3600 * 1000) newInClass = 'pm-row-newin';
+        }
+        return `<tr class="${newInClass}">
             <td><input type="checkbox" class="pm-cb" value="${p.id}" ${checked} onchange="toggleSelectOne(${p.id}, this)"></td>
             <td>${imageHtml}</td>
             <td><div style="cursor:pointer;" onclick="openDrawer(${p.id})">${nameHtml}${barcodeHtml}</div></td>
