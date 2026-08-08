@@ -804,10 +804,12 @@ async function confirmAddCustomer() {
         } catch (e) {}
     }
     if (!nick) { toast('未匹配到昵称，请手动输入'); return; }
-    // 同场次重复VIP检查：已有同VIP编号客户时阻止，避免重复
+    // 同场次重复VIP检查：已有同VIP编号客户时阻止，并定位到已存在客户
     const dup = sessionData.customers.find(c => c.vip_no === vip);
     if (dup) {
-        toast(`该场次已添加过 VIP ${vip}（${dup.nickname}），请勿重复添加`);
+        toast(`该场次已添加过 VIP ${vip}（${dup.nickname}），已定位到该客户`);
+        closeAddCustomerModal();
+        scrollToCustomer(dup.id);
         return;
     }
     const newId = nextLocalId--;
