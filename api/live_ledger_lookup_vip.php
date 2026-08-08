@@ -16,14 +16,19 @@ $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
 
 // 跨所有历史场次查该VIP的最新昵称（按场次ID倒序取最近）
+// 超管全平台（store_id=null）时跨所有店铺匹配
 $sql = "SELECT c.nickname
         FROM live_ledger_customer c
         JOIN live_ledger_session s ON c.session_id = s.id
-        WHERE c.vip_no = ? AND c.nickname != '' AND s.store_id = ?
-        ORDER BY s.id DESC
-        LIMIT 1";
+        WHERE c.vip_no = ? AND c.nickname != ''";
+$params = [$vipNo];
+if (!empty($storeId)) {
+    $sql .= " AND s.store_id = ?";
+    $params[] = $storeId;
+}
+$sql .= " ORDER BY s.id DESC LIMIT 1";
 $stmt = $pdo->prepare($sql);
-$stmt->execute([$vipNo, $storeId]);
+$stmt->execute($params);
 $row = $stmt->fetch();
 
 success(['data' => ['nickname' => $row ? $row['nickname'] : null]]);
