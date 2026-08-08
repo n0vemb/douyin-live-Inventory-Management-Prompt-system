@@ -39,11 +39,20 @@ try {
     $seenCustomerIds = [];
 
     $sortOrder = 0;
+    $seenVipNos = [];
     foreach ($customers as $customer) {
         $sortOrder++;
         $custId = isset($customer['id']) ? (int)$customer['id'] : 0;
         $nickname = trim($customer['nickname'] ?? '');
         $vipNo = trim($customer['vip_no'] ?? '');
+
+        // 同批次内 VIP 重复检测（新增客户）
+        if ($vipNo !== '' && $custId <= 0) {
+            if (isset($seenVipNos[$vipNo])) {
+                throw new Exception("VIP $vipNo 在本场次已存在，请勿重复添加");
+            }
+            $seenVipNos[$vipNo] = true;
+        }
 
         if ($custId > 0) {
             // 校验该客户属于本场次
