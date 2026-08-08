@@ -616,7 +616,7 @@ function render() {
             if (isReadOnly) {
                 return `<tr class="${isGift ? 'gift-row' : ''}">
                 <td>${esc(item.product_name)}${isGift ? '<span class="gift-badge">赠品</span>' : ''}</td>
-                <td>${isGift ? '' : esc(item.condition_name || '')}</td>
+                <td>${isGift ? '' : esc(item.condition_name || item.condition_type || '')}</td>
                 ${CAN_SEE_PROFIT ? `<td>${fmt(item.purchase_cost)}</td>` : ''}
                 <td>${fmt(item.sell_price)}</td>
                 <td>${item.qty}</td>
@@ -626,7 +626,7 @@ function render() {
             }
             return `<tr class="${isGift ? 'gift-row' : ''}">
                 <td>${esc(item.product_name)}${isGift ? '<span class="gift-badge">赠品</span>' : ''}</td>
-                <td>${isGift ? '' : esc(item.condition_name || '')}</td>
+                <td>${isGift ? '' : esc(item.condition_name || item.condition_type || '')}</td>
                 ${CAN_SEE_PROFIT ? `<td>${fmt(item.purchase_cost)}</td>` : ''}
                 <td><span class="stepper"><button type="button" class="stepper-btn" onclick="stepPrice(${c.id}, ${item.id}, -1)">−</button><input type="text" inputmode="decimal" value="${item.sell_price}" class="form-input stepper-input" style="width:56px;" onchange="updateItemPrice(${c.id}, ${item.id}, this.value)"><button type="button" class="stepper-btn" onclick="stepPrice(${c.id}, ${item.id}, 1)">+</button></span></td>
                 <td><span class="stepper"><button type="button" class="stepper-btn" onclick="stepQty(${c.id}, ${item.id}, -1)">−</button><input type="text" inputmode="numeric" value="${item.qty}" class="form-input stepper-input" style="width:44px;" onchange="updateItemQty(${c.id}, ${item.id}, this.value)"><button type="button" class="stepper-btn" onclick="stepQty(${c.id}, ${item.id}, 1)">+</button></span></td>
@@ -1045,6 +1045,7 @@ function pickSku(sku) {
         id: nextLocalId--,
         product_id: sku.product_id,
         condition_type: sku.condition_type || '',
+        condition_name: sku.condition_name || '',
         product_name: sku.product_name,
         qty: 1,
         sell_price: parseFloat(sku.suggested_price || 0),
