@@ -293,7 +293,7 @@ $isOperator = $user['role'] === 'operator';
 .gift-badge { background: var(--warning, #f59e0b); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
 .del-btn { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--text-tertiary, #9ca3af); padding: 4px 6px; border-radius: 4px; }
 .del-btn:hover { color: var(--danger, #ef4444); background: #fee2e2; }
-.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 14px; z-index: 200; display: none; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 14px; z-index: 3000; display: none; }
 .toast.show { display: block; }
 
 /* 场次表格：进行中行高亮（表格/badge/按钮/悬浮全部用全局样式） */
@@ -782,10 +782,22 @@ async function lookupNicknameByVip() {
     } catch (e) {}
 }
 
-function confirmAddCustomer() {
+async function confirmAddCustomer() {
     const vip = document.getElementById('newCustomerVip').value.trim();
-    const nick = document.getElementById('newCustomerNickname').value.trim();
+    const nickInput = document.getElementById('newCustomerNickname');
+    let nick = nickInput.value.trim();
     if (!vip) { toast('请输入VIP编号'); return; }
+    // 昵称为空时先尝试自动匹配（防止 onblur 异步结果未返回就点添加）
+    if (!nick) {
+        try {
+            const res = await fetch('../api/live_ledger_lookup_vip.php?vip_no=' + encodeURIComponent(vip));
+            const data = await res.json();
+            if (data.success && data.data.nickname) {
+                nick = data.data.nickname;
+                nickInput.value = nick;
+            }
+        } catch (e) {}
+    }
     if (!nick) { toast('未匹配到昵称，请手动输入'); return; }
     const newId = nextLocalId--;
     sessionData.customers.push({ id: newId, nickname: nick, vip_no: vip, items: [], gifts: [], _collapsed: false });
