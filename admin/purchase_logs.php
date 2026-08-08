@@ -93,7 +93,7 @@ require_once __DIR__ . '/layout.php';
                     <div style="display:flex; gap:10px; margin-top:20px;">
                         <button type="button" class="btn btn-secondary" onclick="openEditor()" style="flex:1;">✏️ 编辑模板</button>
                         <button type="button" class="btn btn-primary" onclick="previewLabels()" style="flex:1;">👁️ 预览</button>
-                        <button type="button" class="btn btn-success" onclick="directPrint()" style="flex:1;">🖨️ 直打</button>
+                        <button type="button" id="btnDirectPrint" class="btn btn-success" onclick="directPrint()" style="flex:1;">🖨️ 直打</button>
                     </div>
                     <div style="display:flex; gap:10px; margin-top:8px;">
                         <button type="button" class="btn btn-secondary" onclick="printLabels()" style="flex:0.5; font-size:12px;">🖨️ 浏览器打印</button>
@@ -264,36 +264,6 @@ require_once __DIR__ . '/layout.php';
         var el = document.getElementById('sort' + (idMap[field] || field));
         if (el) el.className = 'sort-indicator ' + (logSort.dir === 'asc' ? 'sort-asc' : 'sort-desc');
         searchPurchaseLogs(currentPage);
-    }
-
-    function applyLogSort(records) {
-        var f = logSort.field;
-        if (!f || !records) return records;
-        return records.sort(function(a, b) {
-            var va, vb;
-            switch (f) {
-                case 'date':
-                    va = a.purchased_at || ''; vb = b.purchased_at || ''; break;
-                case 'batch_no':
-                    va = a.batch_no || ''; vb = b.batch_no || ''; break;
-                case 'barcode':
-                    va = a.barcode || ''; vb = b.barcode || ''; break;
-                case 'name':
-                    va = (a.product_name || a.common_name || '').toLowerCase();
-                    vb = (b.product_name || b.common_name || '').toLowerCase(); break;
-                case 'sku':
-                    va = a.condition_type || ''; vb = b.condition_type || ''; break;
-                case 'qty':
-                    va = parseInt(a.qty) || 0; vb = parseInt(b.qty) || 0; break;
-                case 'price':
-                    va = parseFloat(a.suggested_price) || 0; vb = parseFloat(b.suggested_price) || 0; break;
-                default: return 0;
-            }
-            if (typeof va === 'string') {
-                return logSort.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-            }
-            return logSort.dir === 'asc' ? va - vb : vb - va;
-        });
     }
 
     let conditionTypes = [];
@@ -754,14 +724,17 @@ require_once __DIR__ . '/layout.php';
                     keyword: keyword,
                     condition_type: conditionType,
                     page: page,
-                    page_size: 50
+                    page_size: 50,
+                    sort_by: logSort.field || 'date',
+                    sort_dir: logSort.dir || 'desc'
                 })
             });
 
             const data = await res.json();
             if (data.success) {
                 allRecords = data.data.records;
-                renderPurchaseLogs(applyLogSort(data.data.records));
+                // 后端已按 sort_by/sort_dir 全量排序后分页，前端不再重复排序
+                renderPurchaseLogs(data.data.records);
                 renderPagination(data.data.total, data.data.page_size);
             } else {
                 document.getElementById('purchaseLogList').innerHTML = 
@@ -792,7 +765,7 @@ require_once __DIR__ . '/layout.php';
                     <td>${formatDate(r.purchased_at)}</td>
                     <td><code style="font-size:12px;">${r.batch_no}</code></td>
                     <td><code style="font-size:12px;">${r.barcode}</code></td>
-                    <td>${r.product_name || r.common_name || '-'}</td>
+                    <td>${escapeHtml(r.product_name || r.common_name || '-')}</td>
                     <td><span class="condition-badge ${getConditionClass(r.condition_type)}">${getConditionName(r.condition_type)}</span></td>
                     <td style="font-weight:bold;">${r.qty}</td>
                     <td style="color:var(--danger); font-weight:bold;">¥${parseFloat(r.suggested_price).toFixed(2)}</td>
@@ -805,7 +778,7 @@ require_once __DIR__ . '/layout.php';
     }
 
     function escapeHtml(text) {
-        return String(text).replace(/'/g, "\\'").replace(/"/g, '\\"');
+        return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
     }
 
     function toggleSelectAll() {
@@ -907,7 +880,7 @@ require_once __DIR__ . '/layout.php';
         selectedItems.forEach(item => {
             const printNum = oneEachMode ? 1 : item.qty;
             summaryHtml += `<div style="padding:3px 0; border-bottom:1px solid var(--border);">
-                ${item.productName} ×${printNum} <span style="color:var(--danger);">¥${parseFloat(item.price).toFixed(2)}</span>
+                ${escapeHtml(item.productName)} ×${printNum} <span style="color:var(--danger);">¥${parseFloat(item.price).toFixed(2)}</span>
             </div>`;
         });
         document.getElementById('selectedItemsSummary').innerHTML = summaryHtml || '<div style="color:var(--text-tertiary);">暂无选中</div>';
@@ -1082,10 +1055,9 @@ require_once __DIR__ . '/layout.php';
         selectedItems.forEach(item => { batchQty[item.batch_id] = oneEachMode ? 1 : item.qty; });
         const batchIds = selectedItems.map(item => item.batch_id);
 
-        const btn = document.querySelector('.btn-success');
-        const origText = btn.textContent;
-        btn.textContent = '⏳ 正在打印...';
-        btn.disabled = true;
+        const btn = document.getElementById('btnDirectPrint');
+        const origText = btn ? btn.textContent : '';
+        if (btn) { btn.textContent = '⏳ 正在打印...'; btn.disabled = true; }
 
         fetch('../api/direct_print.php', {
             method: 'POST',
@@ -1114,8 +1086,7 @@ require_once __DIR__ . '/layout.php';
             alert('❌ 请求失败: ' + err.message);
         })
         .finally(() => {
-            btn.textContent = origText;
-            btn.disabled = false;
+            if (btn) { btn.textContent = origText; btn.disabled = false; }
         });
     }
 
@@ -1190,6 +1161,8 @@ require_once __DIR__ . '/layout.php';
                         box-sizing:border-box;
                     " class="barcode-placeholder" data-barcode="${item.barcode}" data-width="${el.width}" data-height="${el.height}"></div>`;
                 } else {
+                    // name 等用户输入内容转义，防止 HTML 注入
+                    const safeContent = (el.type === 'name') ? escapeHtml(content) : content;
                     html += `<div style="
                         position:absolute;
                         left:${el.x}mm;
@@ -1199,7 +1172,7 @@ require_once __DIR__ . '/layout.php';
                         color:${el.color || '#000'};
                         white-space:nowrap;
                         line-height:1.2;
-                    ">${content}</div>`;
+                    ">${safeContent}</div>`;
                 }
             });
 
@@ -1339,6 +1312,7 @@ waitForJsBarcode(function() {
                         " class="barcode-placeholder" data-barcode="${item.barcode}" data-width="${el.width}" data-height="${el.height}"></div>`;
                     } else {
                         // 文本元素：只用 fontSize 控制大小
+                        const safeContent = (el.type === 'name') ? escapeHtml(content) : content;
                         html += `<div style="
                             position:absolute;
                             left:${el.x}mm;
@@ -1348,7 +1322,7 @@ waitForJsBarcode(function() {
                             color:${el.color || '#000'};
                             white-space:nowrap;
                             line-height:1.2;
-                        ">${content}</div>`;
+                        ">${safeContent}</div>`;
                     }
                 });
 

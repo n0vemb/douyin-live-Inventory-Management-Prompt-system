@@ -17,6 +17,8 @@ try {
     $conditionType = $data["condition_type"] ?? "";
     $page = (int)($data["page"] ?? 1);
     $pageSize = (int)($data["page_size"] ?? 20);
+    $sortBy = $data["sort_by"] ?? "date";
+    $sortDir = strtolower($data["sort_dir"] ?? "desc") === "asc" ? "asc" : "desc";
 
     $offset = ($page - 1) * $pageSize;
 
@@ -127,11 +129,28 @@ try {
         }
     }
 
-    // 按 purchased_at DESC 排序（最新在前）
+    // 按 sort_by/sort_dir 排序（默认 purchased_at DESC，最新在前）
     $groupedRecords = array_values($groups);
-    usort($groupedRecords, function ($a, $b) {
-        return strcmp((string)($b["purchased_at"] ?? ""), (string)($a["purchased_at"] ?? ""));
-    });
+    $sortCmp = function ($a, $b) use ($sortBy, $sortDir) {
+        $va = null; $vb = null;
+        switch ($sortBy) {
+            case "batch_no": $va = (string)($a["batch_no"] ?? ""); $vb = (string)($b["batch_no"] ?? ""); break;
+            case "barcode":  $va = (string)($a["barcode"] ?? "");  $vb = (string)($b["barcode"] ?? "");  break;
+            case "name":     $va = (string)($a["product_name"] ?? $a["common_name"] ?? ""); $vb = (string)($b["product_name"] ?? $b["common_name"] ?? ""); break;
+            case "sku":      $va = (string)($a["condition_type"] ?? ""); $vb = (string)($b["condition_type"] ?? ""); break;
+            case "qty":      $va = (int)($a["qty"] ?? 0); $vb = (int)($b["qty"] ?? 0); break;
+            case "price":    $va = (float)($a["suggested_price"] ?? 0); $vb = (float)($b["suggested_price"] ?? 0); break;
+            case "date":
+            default:         $va = (string)($a["purchased_at"] ?? ""); $vb = (string)($b["purchased_at"] ?? ""); break;
+        }
+        if (is_string($va)) {
+            $cmp = strcmp($va, $vb);
+        } else {
+            $cmp = $va <=> $vb;
+        }
+        return $sortDir === "asc" ? $cmp : -$cmp;
+    };
+    usort($groupedRecords, $sortCmp);
 
     // 手动分页
     $total = count($groupedRecords);
