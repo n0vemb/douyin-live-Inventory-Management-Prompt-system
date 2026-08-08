@@ -31,4 +31,13 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $row = $stmt->fetch();
 
-success(['data' => ['nickname' => $row ? $row['nickname'] : null]]);
+$nickname = $row ? $row['nickname'] : null;
+
+// 直播场次无记录时，查客户管理表（vip_customers）
+if ($nickname === null) {
+    $stmt = $pdo->prepare("SELECT nickname FROM vip_customers WHERE vip_no = ? LIMIT 1");
+    $stmt->execute([$vipNo]);
+    $nickname = $stmt->fetchColumn() ?: null;
+}
+
+success(['data' => ['nickname' => $nickname]]);
