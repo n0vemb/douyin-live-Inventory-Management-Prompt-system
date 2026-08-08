@@ -11,6 +11,9 @@ require_once __DIR__ . '/../auth.php';
 
 $pdo = getDB();
 requireNonOperator(); $storeId = getStoreId();
+if (empty($storeId)) {
+    error('请先选择店铺后再操作');
+}
 
 $input = json_decode(file_get_contents('php://input'), true);
 $sessionId = isset($input['session_id']) ? (int)$input['session_id'] : 0;

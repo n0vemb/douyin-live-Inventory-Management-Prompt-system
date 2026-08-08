@@ -288,7 +288,8 @@ $isOperator = $user['role'] === 'operator';
 .metric .value.green { color: var(--success, #10b981); }
 .metric .value.red { color: var(--danger, #ef4444); }
 .metric .sub { font-size: 11px; color: var(--text-secondary, #6b7280); margin-top: 2px; }
-.gift-row { background: #fefce8; }
+.gift-row { background: rgba(245, 158, 11, 0.07); border-left: 3px solid rgba(245, 158, 11, 0.5); }
+.gift-row td:first-child { padding-left: 10px; }
 .gift-badge { background: var(--warning, #f59e0b); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
 .del-btn { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--text-tertiary, #9ca3af); padding: 4px 6px; border-radius: 4px; }
 .del-btn:hover { color: var(--danger, #ef4444); background: #fee2e2; }
