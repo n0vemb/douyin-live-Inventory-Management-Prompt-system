@@ -521,6 +521,9 @@ async function saveSettings() {
             body: JSON.stringify({
                 session_id: currentSessionId,
                 session_name: document.getElementById('sessionName').value,
+                anchor: (sessionData.settings && sessionData.settings.anchor) || '',
+                operator: (sessionData.settings && sessionData.settings.operator) || '',
+                account: (sessionData.settings && sessionData.settings.account) || '',
                 activity_type: document.getElementById('activityType').value,
                 gift_every_n: parseInt(document.getElementById('giftEveryN').value) || 3,
                 reduce_threshold: parseFloat(document.getElementById('reduceThreshold').value) || 30,

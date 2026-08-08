@@ -41,11 +41,16 @@ $platformFeeRate = $platformFeeRate / 100;
 
 if ($sessionId > 0) {
     // 更新已有场次（仅 active 状态可改配置）
-    $stmt = $pdo->prepare("SELECT status FROM live_ledger_session WHERE id = ? AND store_id = ?");
+    $stmt = $pdo->prepare("SELECT status, anchor, operator, account FROM live_ledger_session WHERE id = ? AND store_id = ?");
     $stmt->execute([$sessionId, $storeId]);
     $existing = $stmt->fetch();
     if (!$existing) error('场次不存在');
     if ($existing['status'] !== 'active') error('已结束的场次不能修改');
+
+    // 前端未传 anchor/operator/account 时保留原值（防止设置保存误清空）
+    if (!array_key_exists('anchor', $input))     $anchor = $existing['anchor'] ?? '';
+    if (!array_key_exists('operator', $input))   $operator = $existing['operator'] ?? '';
+    if (!array_key_exists('account', $input))    $account = $existing['account'] ?? '';
 
     $stmt = $pdo->prepare("UPDATE live_ledger_session SET
         session_name = ?, anchor = ?, operator = ?, account = ?, activity_type = ?, gift_every_n = ?, reduce_threshold = ?,
