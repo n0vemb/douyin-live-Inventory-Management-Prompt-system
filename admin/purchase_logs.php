@@ -161,7 +161,7 @@ $isOperator = ($currentUser['role'] === 'operator');
 </div>
 
 <!-- 模板编辑器 -->
-<div class="modal" id="mEditor" style="display:none">
+<div class="modal" id="mEditor">
   <div class="modal-content" style="width:min(880px,94vw);max-width:880px">
     <div class="modal-header">
       <span class="modal-title">模板编辑器</span>
@@ -195,7 +195,7 @@ $isOperator = ($currentUser['role'] === 'operator');
 </div>
 
 <!-- 打印代理设置 -->
-<div class="modal" id="mPrinter" style="display:none">
+<div class="modal" id="mPrinter">
   <div class="modal-content" style="width:min(580px,94vw);max-width:580px">
     <div class="modal-header">
       <span class="modal-title">打印代理设置</span>
@@ -229,12 +229,17 @@ $isOperator = ($currentUser['role'] === 'operator');
 ⚠️ 前提：页面需用 http 访问（https 页面禁止请求 http://局域网IP，
 Chrome 会报 mixed content 拦截）。print_server.py 已带 CORS 头，无需改动。</div>
       </details>
+      <div class="modal-header" style="border-top:1px solid var(--border);border-bottom:none;margin-top:10px;padding-top:12px">
+        <button class="btn btn-secondary" onclick="closeModal('mPrinter')">取消</button>
+        <div class="spacer" style="flex:1"></div>
+        <button class="btn btn-primary" onclick="savePrinterSettings()">保存</button>
+      </div>
     </div>
   </div>
 </div>
 
 <!-- 发送打印结果 -->
-<div class="modal" id="mSend" style="display:none">
+<div class="modal" id="mSend">
   <div class="modal-content" style="width:min(560px,94vw);max-width:560px">
     <div class="modal-header">
       <span class="modal-title">发送打印</span>
@@ -267,8 +272,8 @@ function getCondName(k){return conditionNameMap[k]||k;}
 function getCondClass(k){return conditionClassMap[k]||'';}
 let toastT;
 function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>t.style.display='none',2200);}
-function openModal(id){$(id).style.display='block';}
-function closeModal(id){$(id).style.display='none';}
+function openModal(id){$(id).classList.add('show');}
+function closeModal(id){$(id).classList.remove('show');}
 
 // 装饰条码（预览用确定性条纹，高度可传）
 // ===== EAN-13 条码（标准护条结构：左护条101 / 中分隔01010 / 右护条101）=====
@@ -637,6 +642,13 @@ function openPrinterSettings(){
   $('psHost').value=psHost;$('psPrinter').value=psPrinter;checkStatus();openModal('mPrinter');
 }
 function baseURL(){return (psHost||'').replace(/\/+$/,'');}
+function savePrinterSettings(){
+  psHost=$('psHost').value.trim();psPrinter=$('psPrinter').value.trim();
+  localStorage.setItem('ppmart_print_host',psHost);localStorage.setItem('ppmart_print_printer',psPrinter);
+  refreshSetPanel();
+  closeModal('mPrinter');
+  toast(psHost?'打印代理设置已保存':'已保存（代理地址为空 = 使用服务端配置）');
+}
 function checkStatus(){
   psHost=$('psHost').value.trim();psPrinter=$('psPrinter').value.trim();
   localStorage.setItem('ppmart_print_host',psHost);localStorage.setItem('ppmart_print_printer',psPrinter);
