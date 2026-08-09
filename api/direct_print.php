@@ -16,21 +16,11 @@ register_shutdown_function(function() {
 
 try {
     require_once __DIR__ . '/../config.php';
+    require_once __DIR__ . '/../auth.php';
 
     // 检查 GD 库
     if (!function_exists('imagecreatetruecolor')) {
         error('服务器未安装 PHP GD 库，无法生成标签图片');
-    }
-
-    // 检查可用的命令执行函数
-    $disabled_fns = explode(',', str_replace(' ', '', ini_get('disable_functions')));
-    $disabled_fns = array_flip($disabled_fns);
-    $hasProcOpen = function_exists('proc_open') && !isset($disabled_fns['proc_open']);
-    $hasShellExec = function_exists('shell_exec') && !isset($disabled_fns['shell_exec']);
-    $hasExec = function_exists('exec') && !isset($disabled_fns['exec']);
-
-    if (!$hasProcOpen && !$hasShellExec && !$hasExec) {
-        error('服务器禁用了所有命令执行函数（exec/proc_open/shell_exec），无法打印');
     }
 
     $input = json_decode(file_get_contents('php://input'), true);
@@ -44,8 +34,9 @@ try {
 requireAuth(); $storeId = getStoreId();
         $placeholders = implode(',', array_fill(0, count($input['batch_ids']), '?'));
         $stmt = $pdo->prepare("
-            SELECT ib.id AS batch_id, ib.remaining_qty, ib.suggested_price, ib.condition_type,
-                   p.barcode, COALESCE(p.common_name, p.name) AS product_name
+            SELECT ib.id AS batch_id, ib.batch_no, ib.remaining_qty, ib.suggested_price, ib.condition_type,
+                   p.barcode, COALESCE(p.common_name, p.name) AS product_name, p.common_name,
+                   COALESCE(ib.purchased_at, ib.created_at) AS purchased_at
             FROM inventory_batches ib
             JOIN products p ON ib.product_id = p.id
             WHERE ib.id IN ({$placeholders})" . ($storeId ? " AND ib.store_id = ?" : "") . "
@@ -61,6 +52,9 @@ requireAuth(); $storeId = getStoreId();
             $labels[] = array(
                 'barcode'       => $row['barcode'],
                 'productName'   => $row['product_name'],
+                'commonName'    => $row['common_name'],
+                'batchNo'       => $row['batch_no'],
+                'purchasedAt'   => $row['purchased_at'],
                 'price'         => $row['suggested_price'],
                 'conditionType' => $row['condition_type'],
                 'qty'           => isset($batchQtyMap[$row['batch_id']]) ? intval($batchQtyMap[$row['batch_id']]) : intval($row['remaining_qty']),
@@ -149,9 +143,13 @@ requireAuth(); $storeId = getStoreId();
         error('没有生成任何标签');
     }
 
-    $proxyUrl = defined('WINDOWS_PRINT_PROXY_URL') && WINDOWS_PRINT_PROXY_URL !== ''
-        ? WINDOWS_PRINT_PROXY_URL
-        : '';
+    // 前端可传 proxy 覆盖（设置弹窗填写的代理地址优先），否则用服务端配置
+    $proxyOverride = isset($input['proxy']) ? trim($input['proxy']) : '';
+    $proxyUrl = $proxyOverride !== ''
+        ? $proxyOverride
+        : (defined('WINDOWS_PRINT_PROXY_URL') && WINDOWS_PRINT_PROXY_URL !== ''
+            ? WINDOWS_PRINT_PROXY_URL
+            : '');
 
     if ($proxyUrl !== '') {
         // ---- Windows 打印代理模式 ----
@@ -193,7 +191,15 @@ requireAuth(); $storeId = getStoreId();
 
         success(array('message' => "已发送 " . count($images) . " 个标签到 Windows 打印机"));
     } else {
-        // ---- 本地 CUPS (lp/lpr) 模式 ----
+        // ---- 本地 CUPS (lp/lpr) 模式（需要命令执行函数） ----
+        $disabled_fns = explode(',', str_replace(' ', '', ini_get('disable_functions')));
+        $disabled_fns = array_flip($disabled_fns);
+        $hasProcOpen = function_exists('proc_open') && !isset($disabled_fns['proc_open']);
+        $hasShellExec = function_exists('shell_exec') && !isset($disabled_fns['shell_exec']);
+        $hasExec = function_exists('exec') && !isset($disabled_fns['exec']);
+        if (!$hasProcOpen && !$hasShellExec && !$hasExec) {
+            throw new Exception('服务器禁用了所有命令执行函数（exec/proc_open/shell_exec），且未配置打印代理地址，无法本地打印');
+        }
         $printed = 0;
         foreach ($tempFiles as $file) {
             $err = '';
@@ -258,6 +264,20 @@ function getElementContent($type, $item) {
             return isset($item['barcode']) ? $item['barcode'] : '';
         case 'name':
             return isset($item['productName']) ? $item['productName'] : '';
+        case 'common':
+            return isset($item['commonName']) ? $item['commonName'] : '';
+        case 'batch':
+            return isset($item['batchNo']) ? $item['batchNo'] : '';
+        case 'date':
+            $t = isset($item['purchasedAt']) ? $item['purchasedAt'] : '';
+            return $t !== '' ? substr($t, 0, 10) : '';
+        case 'condition':
+            $ct = isset($item['conditionType']) ? $item['conditionType'] : '';
+            $parts = array();
+            foreach (CONDITION_TYPES as $key => $name) {
+                $parts[] = ($key === $ct ? '☑' : '□') . ' ' . $name;
+            }
+            return implode('  ', $parts);
         case 'price':
             $price = floatval(isset($item['price']) ? $item['price'] : 0);
             return '¥' . number_format($price, 2);

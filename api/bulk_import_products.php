@@ -141,7 +141,10 @@ requireAuth(); $storeId = getStoreId();
             throw new Exception('无法读取CSV文件头');
         }
         
-        // 清理表头数据
+        // 清理表头数据（剥离 UTF-8 BOM，避免第一列名带 \uFEFF 匹配不上）
+        if (isset($header[0])) {
+            $header[0] = preg_replace('/^\xEF\xBB\xBF/', '', $header[0]);
+        }
         $header = array_map(function($value) {
             return trim($value ?? '');
         }, $header);

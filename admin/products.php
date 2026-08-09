@@ -279,8 +279,9 @@ $isOperator = ($currentUser['role'] === 'operator');
             <h3 class="modal-title">批量导入（Excel / CSV）</h3>
             <button class="modal-close" onclick="closeImportModal()">&times;</button>
         </div>
-        <div style="font-size:12px; color:var(--text-tertiary); margin-bottom:15px;">
-            支持 .xlsx / .csv。表头需包含：官方商品名称、常用名称、系列、条码、参考价、品牌、状态、数量、进价、售价。状态填 原盒未拆 / 拆盒无瑕 / 无盒无瑕 / 微瑕。
+        <div style="font-size:12px; color:var(--text-tertiary); margin-bottom:15px; line-height:1.7;">
+            支持 .xlsx / .csv，格式与「库存导出」一致：<b>每个商品一行</b>，列 = 商品名称、常用名称、系列、品牌、条码、参考价、发售时间、产品介绍、图片链接，<b>每个 SKU 状态各占 数量 / 进价 / 售价 三列</b>（如：未拆袋数量、未拆袋进价、未拆袋售价…），最后加 供应商、备注。<br>
+            有数量的 SKU 才会入库；同条码/同名商品自动匹配补库存，不重复建商品。
         </div>
         <div style="display:flex; gap:15px; margin-bottom:15px;">
             <button class="btn btn-secondary" onclick="downloadTemplate()">下载导入模板</button>
@@ -288,11 +289,10 @@ $isOperator = ($currentUser['role'] === 'operator');
                 <input type="file" id="importFile" accept=".csv,.xlsx" style="display:none;" onchange="handleImportFile(this)">
             </label>
         </div>
-        <div id="importPreview" class="pm-imp-prev pm-hidden"></div>
+        <div id="importResult" class="pm-imp-prev"></div>
         <div id="importErr" class="pm-imp-err"></div>
         <div style="display:flex; gap:15px; margin-top:20px; justify-content:flex-end;">
-            <button class="btn btn-secondary" onclick="closeImportModal()">取消</button>
-            <button class="btn btn-primary" id="importConfirm" onclick="confirmImport()" disabled>确认导入</button>
+            <button class="btn btn-secondary" onclick="closeImportModal()">关闭</button>
         </div>
     </div>
 </div>
@@ -1336,21 +1336,27 @@ async function saveAuditChanges() {
 }
 
 /* ---------- 批量导入 ---------- */
-let importRows = [];
+// 原批量导入流程：选择文件 → 上传后端 bulk_import_products.php（服务端解析，支持 csv/xlsx）
+// 格式与「库存导出」一致：每商品一行，每个 SKU 状态各占 数量/进价/售价 三列
 function openImportModal() {
     if (!requireStore()) return;
-    importRows = [];
-    $('importPreview').classList.add('pm-hidden');
+    $('importResult').innerHTML = '';
     $('importErr').textContent = '';
-    $('importConfirm').disabled = true;
     $('importFile').value = '';
     showModal('importModal');
 }
 function closeImportModal() { closeModal('importModal'); }
 function downloadTemplate() {
-    const head = '官方商品名称,常用名称,系列,条码,参考价,品牌,状态,数量,进价,售价';
-    const sample = '泡泡玛特 DIMOO 盲盒,DIMOO 大长久,DIMOO,6901234001,79,泡泡玛特,原盒未拆,12,49,79';
-    const csv = '\uFEFF' + head + '\n' + sample + '\n';
+    // 表头：商品基础信息 + 每个状态 数量/进价/售价 三列 + 供应商/备注（与导出格式一致）
+    const base = ['商品名称', '常用名称', '系列', '品牌', '条码', '参考价', '发售时间', '产品介绍', '图片链接'];
+    const conds = getConditionKeys(); // 动态取店铺配置的状态
+    conds.forEach(k => { base.push(getCN(k) + '数量'); base.push(getCN(k) + '进价'); base.push(getCN(k) + '售价'); });
+    base.push('供应商', '备注');
+    const head = base.join(',');
+    const row = ['示例商品', '示例·常用名', '示例系列', '示例品牌', '6901234000001', '79', '2026-01-01', '产品介绍', ''];
+    conds.forEach((k, i) => { row.push(i === 0 ? '12' : ''); row.push(i === 0 ? '49' : ''); row.push(i === 0 ? '79' : ''); });
+    row.push('', '');
+    const csv = '\uFEFF' + head + '\n' + row.join(',') + '\n';
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -1358,87 +1364,36 @@ function downloadTemplate() {
     a.click();
     showToast('模板已下载');
 }
-function handleImportFile(input) {
+async function handleImportFile(input) {
     const f = input.files[0];
     if (!f) return;
-    const rd = new FileReader();
-    rd.onload = e => parseImport(e.target.result);
-    rd.readAsText(f, 'utf-8');
-}
-function parseImport(text) {
-    const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
-    if (lines.length < 2) { $('importErr').textContent = '文件无数据行'; return; }
-    const header = lines[0].split(',').map(s => s.trim());
-    const need = ['官方商品名称', '状态', '数量'];
-    const miss = need.filter(h => !header.includes(h));
-    if (miss.length) { $('importErr').textContent = '缺少必要列：' + miss.join('、'); return; }
-    const idx = k => header.indexOf(k);
-    importRows = [];
-    let err = '';
-    // 状态名 → key 映射（用系统配置 + 常见别名）
-    const nameToKey = {};
-    getConditionKeys().forEach(k => nameToKey[getCN(k)] = k);
-    nameToKey['原盒'] = 'sealed'; nameToKey['已拆'] = 'opened'; nameToKey['拆盒无瑕'] = 'opened'; nameToKey['微瑕'] = 'flawed'; nameToKey['瑕疵'] = 'flawed'; nameToKey['瑕疵品'] = 'flawed'; nameToKey['无盒'] = 'boxless';
-    for (let i = 1; i < lines.length; i++) {
-        const c = lines[i].split(',');
-        const name = (c[idx('官方商品名称')] || '').trim();
-        const condRaw = (c[idx('状态')] || '').trim();
-        const qty = parseInt(c[idx('数量')]) || 0;
-        const cond = nameToKey[condRaw];
-        if (!name) { err += '第' + (i + 1) + '行：缺少商品名称\n'; continue; }
-        if (!cond) { err += '第' + (i + 1) + '行：状态「' + condRaw + '」无法识别\n'; continue; }
-        if (!qty || qty < 1) { err += '第' + (i + 1) + '行：数量无效\n'; continue; }
-        importRows.push({
-            name,
-            common_name: (c[idx('常用名称')] || '').trim() || null,
-            series: (c[idx('系列')] || '').trim() || null,
-            barcode: (c[idx('条码')] || '').trim() || null,
-            refPrice: parseFloat(c[idx('参考价')]) || 0,
-            brand: (c[idx('品牌')] || '').trim() || null,
-            cond,
-            cost: parseFloat(c[idx('进价')]) || 0,
-            price: parseFloat(c[idx('售价')]) || 0,
-            qty
-        });
-    }
-    $('importErr').textContent = err;
-    $('importConfirm').disabled = importRows.length === 0;
-    const prev = $('importPreview');
-    prev.classList.remove('pm-hidden');
-    prev.innerHTML = '<table><thead><tr><th>商品</th><th>系列</th><th>状态</th><th>数量</th>' + (CAN_SEE_PROFIT ? '<th>进价</th>' : '') + '<th>售价</th></tr></thead><tbody>' +
-        importRows.map(r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.series || '-')}</td><td>${escapeHtml(getCN(r.cond))}</td><td>${r.qty}</td>${CAN_SEE_PROFIT ? `<td>${r.cost || '-'}</td>` : ''}<td>${r.price || '-'}</td></tr>`).join('') + '</tbody></table>';
-}
-async function confirmImport() {
-    if (!importRows.length) return;
-    let ok = 0, fail = 0;
-    for (const r of importRows) {
-        try {
-            // 本地匹配：按条码优先，其次商品名
-            let existing = null;
-            if (r.barcode) existing = allProducts.find(p => p.barcode === r.barcode);
-            if (!existing) existing = allProducts.find(p => p.name === r.name);
-            if (!existing) {
-                const addRes = await fetch('../api/add_product.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: r.name, common_name: r.common_name, series: r.series, barcode: r.barcode, qiandao_price: r.refPrice || null, brand: r.brand, product_description: null, remark: null })
-                });
-                const addData = await addRes.json();
-                if (addData.success) existing = addData.data;
-                else { fail++; showErrorToast('导入失败: ' + (addData.error || '')); continue; }
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    if (!['csv', 'xlsx'].includes(ext)) { $('importErr').textContent = '仅支持 .csv / .xlsx 文件'; return; }
+    const formData = new FormData();
+    formData.append('import_file', f);
+    $('importResult').innerHTML = '<div style="text-align:center; padding:24px; color:var(--text-tertiary);">正在导入，请稍候…（数据量较大时可能需数十秒）</div>';
+    $('importErr').textContent = '';
+    try {
+        const res = await fetch('../api/bulk_import_products.php', { method: 'POST', body: formData });
+        const result = await res.json();
+        if (result.success) {
+            const { success_count, total_count, errors } = result.data || {};
+            let html = `<div style="padding:16px;">
+                <div style="color:var(--success); font-size:15px; margin-bottom:12px;">✅ 导入完成：成功 ${success_count} 个商品 / 共处理 ${total_count} 个</div>`;
+            if (errors && errors.length) {
+                html += `<div style="color:var(--danger); margin-bottom:10px;"><strong>部分行有错误：</strong><ul style="margin:8px 0; padding-left:20px; max-height:180px; overflow:auto;">` +
+                    errors.map(e => `<li>${escapeHtml(e)}</li>`).join('') + `</ul></div>`;
             }
-            const pbRes = await fetch('../api/purchase_batch.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ product_id: existing.id, condition_type: r.cond, qty: r.qty, purchase_price: r.cost, suggested_price: r.price, supplier: '批量导入', remark: '批量导入' })
-            });
-            const pbData = await pbRes.json();
-            if (pbData.success) ok++; else { fail++; showErrorToast('批次导入失败: ' + (pbData.error || '')); }
-        } catch (err) { fail++; showErrorToast('导入失败: ' + err.message); }
+            html += `<div style="font-size:12px; color:var(--text-tertiary);">可关闭后查看商品列表（已自动刷新）。</div></div>`;
+            $('importResult').innerHTML = html;
+            showToast(`导入完成：成功 ${success_count} / ${total_count}`);
+            await loadProducts();
+        } else {
+            $('importResult').innerHTML = `<div style="padding:16px; color:var(--danger);">❌ 导入失败：${escapeHtml(result.message || '未知错误')}</div>`;
+        }
+    } catch (err) {
+        $('importResult').innerHTML = `<div style="padding:16px; color:var(--danger);">❌ 导入失败：${escapeHtml(err.message)}</div>`;
     }
-    showToast(`导入完成：成功 ${ok} 条，失败 ${fail} 条`);
-    closeImportModal();
-    await loadProducts();
 }
 
 /* ---------- 导出 ---------- */

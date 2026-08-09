@@ -1,1626 +1,839 @@
 <?php
-$pageTitle = '标签打印';
+$pageTitle = '标签打印台';
 $currentPage = 'purchase_logs';
 require_once __DIR__ . '/layout.php';
+$isOperator = ($currentUser['role'] === 'operator');
 ?>
-        <div class="page-title">🏷️ 标签打印</div>
+<div class="page-title">🏷️ 标签打印台</div>
 
-        <div class="card">
-            <div style="display:flex; gap:15px; flex-wrap:wrap; margin-bottom:20px;">
-                <div class="form-group" style="flex:1; min-width:200px;">
-                    <label class="form-label">开始日期</label>
-                    <input type="date" class="form-input" id="startDate">
-                </div>
-                <div class="form-group" style="flex:1; min-width:200px;">
-                    <label class="form-label">结束日期</label>
-                    <input type="date" class="form-input" id="endDate">
-                </div>
-                <div class="form-group" style="flex:1; min-width:200px;">
-                    <label class="form-label">商品名称/条码</label>
-                    <div style="position:relative;">
-                        <input type="text" class="form-input" id="searchKeyword" placeholder="搜索商品名称/拼音/条码..." oninput="liveSearchProducts()">
-                        <div class="search-dropdown" id="plSearchDropdown" style="position:absolute;top:100%;left:0;right:0;z-index:200;"></div>
-                    </div>
-                </div>
-                <div class="form-group" style="flex:1; min-width:150px;">
-                    <label class="form-label">SKU类型</label>
-                    <select class="form-input" id="conditionType">
-                        <option value="">全部SKU</option>
-                    </select>
-                </div>
-                <div class="form-group" style="min-width:120px;">
-                    <label class="form-label">操作</label>
-                    <div style="display:flex; gap:8px;">
-                        <button class="btn btn-primary" onclick="searchPurchaseLogs()">查询</button>
-                        <button class="btn btn-secondary" onclick="resetFilters()">重置</button>
-                    </div>
-                </div>
-            </div>
+<style>
+/* ===== 标签打印台 局部样式（对齐全局暗黑主题变量） ===== */
+.lp-layout{display:grid;grid-template-columns:65fr 35fr;gap:14px;align-items:start}
+@media(max-width:1200px){.lp-layout{grid-template-columns:1fr}}
+.lp-right{display:flex;flex-direction:column;gap:14px;position:sticky;top:14px;max-height:calc(100vh - 28px);overflow:auto}
+.lp-right .lp-panel{flex-shrink:0}
+/* 预览区固定 4:3 比例（增高，模板区块自然下移） */
+.lp-right .lp-panel:first-child{flex:0 0 auto}
+.lp-preview-wrap{aspect-ratio:4/3;width:100%;display:flex;align-items:center;justify-content:center;background:repeating-conic-gradient(var(--bg-surface) 0% 25%,var(--bg-body) 0% 50%) 50%/22px 22px;border:1px dashed var(--border);border-radius:10px;padding:14px;overflow:hidden}
+#previewLabel{max-width:100%;margin:auto}
+.lp-panel .card-title{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.lp-panel .sub{font-size:12px;color:var(--text-tertiary);font-weight:500}
+.lp-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.lp-filters input[type=date]{padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text);background:var(--bg-body)}
+.lp-filters input[type=date]:focus{outline:none;border-color:var(--primary)}
+.lp-filters .fsep{color:var(--text-tertiary)}
+.lp-sku-filters{display:flex;gap:6px;flex-wrap:wrap;margin-left:2px}
+.lp-sku-btn{padding:6px 10px;font-size:12px;border:1px solid var(--border);border-radius:7px;background:var(--bg-hover);color:var(--text-secondary);cursor:pointer;transition:all .15s}
+.lp-sku-btn:hover{background:var(--bg-active)}
+.lp-sku-btn.on{background:var(--primary-light);border-color:var(--primary);color:var(--primary)}
+.lp-bulkbar{display:flex;gap:6px;margin-bottom:10px}
+.lp-bulkbar .btn{flex:1;padding:7px 4px;font-size:12px}
+.lp-search{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;margin-bottom:10px;background:var(--bg-body);color:var(--text)}
+.lp-search:focus{outline:none;border-color:var(--primary)}
+.lp-sortbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;color:var(--text-tertiary)}
+.lp-sortbar select{padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text);background:var(--bg-body)}
+.lp-row{border:1px solid var(--border);border-radius:9px;margin-bottom:8px;padding:9px 10px;background:var(--bg-surface);transition:border-color .15s}
+.lp-row.on{border-color:var(--primary);background:var(--primary-light)}
+.lp-row-top{display:flex;align-items:center;gap:8px}
+.lp-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;font-size:13px}
+.lp-name i{font-style:normal;font-size:11.5px;color:var(--text-tertiary);margin-left:4px;font-weight:500}
+.lp-meta{font-size:11.5px;color:var(--text-tertiary);margin-top:5px;display:flex;gap:10px;flex-wrap:wrap}
+.lp-meta code{font-size:11px;background:var(--bg-hover);padding:1px 5px;border-radius:4px;color:var(--text-secondary)}
+.lp-row-bottom{display:flex;align-items:center;gap:8px;margin-top:8px}
+.lp-stock{font-size:12px;color:var(--text-secondary)}
+.lp-price{font-size:13px;font-weight:700;color:var(--danger)}
+.lp-acts{margin-left:auto;display:flex;align-items:center;gap:6px}
+.lp-stepper{display:flex;align-items:center;border:1px solid var(--border);border-radius:7px;overflow:hidden}
+.lp-stepper button{width:26px;height:28px;border:none;background:var(--bg-hover);color:var(--text-secondary);font-size:15px;cursor:pointer;line-height:1}
+.lp-stepper button:hover{background:var(--bg-active)}
+.lp-stepper input{width:46px;height:28px;border:none;border-left:1px solid var(--border);border-right:1px solid var(--border);text-align:center;font-size:12.5px;font-weight:700;color:var(--primary);background:var(--bg-body)}
+.lp-stepper input:focus{outline:none}
+.lp-empty{padding:36px 20px;text-align:center;color:var(--text-tertiary);font-size:13px}
+.lp-pagination{display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 0 2px}
+.lp-pagination .pageinfo{font-size:12px;color:var(--text-tertiary)}
+.lp-preview-note{font-size:12px;color:var(--text-tertiary);margin-top:8px;text-align:center;max-width:420px;line-height:1.5}
+.lp-tpl-card{border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:9px;cursor:pointer;background:var(--bg-surface);position:relative}
+.lp-tpl-card.on{border-color:var(--primary);background:var(--primary-light)}
+.lp-tpl-card .tn{font-weight:600;color:var(--text)}
+.lp-tpl-card .ts{font-size:11.5px;color:var(--text-tertiary);margin-top:2px}
+.lp-tpl-del{position:absolute;top:6px;right:8px;width:18px;height:18px;line-height:16px;text-align:center;border-radius:50%;color:var(--text-tertiary);font-size:14px;cursor:pointer;display:none;background:transparent;border:none}
+.lp-tpl-card:hover .lp-tpl-del{display:block}
+.lp-tpl-del:hover{color:var(--danger);background:var(--danger-light)}
+.lp-kv{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px dashed var(--border);color:var(--text-secondary)}
+.lp-kv b{font-weight:600;color:var(--text)}
+.lp-actions{position:sticky;bottom:0;display:flex;gap:10px;padding:14px 0;background:var(--bg-body);border-top:1px solid var(--border);margin-top:14px}
+.lp-actions .hint{font-size:12px;color:var(--text-tertiary);align-self:center;margin-right:auto;line-height:1.5}
+/* 标签画布（白纸，出纸可读） */
+.lp-canvas{position:relative;background:#fff;border:1px solid var(--border);margin:0 auto;overflow:hidden}
+.lp-el{position:absolute;font-size:12px;cursor:move;user-select:none;padding:1px 2px;color:#1d2330;display:inline-flex;align-items:flex-start;border:1px dashed var(--border);box-sizing:border-box}
+.lp-el>*{pointer-events:none}
+.lp-el .barcode{display:flex;flex-direction:column;align-items:center;width:100%}
+.lp-el .bc{display:block;width:100%}
+.lp-el .bct{font-family:ui-monospace,monospace;font-size:9px;margin-top:2px;color:#1d2330}
+.lp-el .rm{position:absolute;top:-8px;right:-8px;width:16px;height:16px;border-radius:50%;background:var(--danger);color:#fff;font-size:11px;line-height:16px;text-align:center;display:none;cursor:pointer}
+.lp-el:hover .rm{display:block}
+.lp-el.sel{border:1px solid var(--primary)}
+.lp-el.sel .rm{display:block}
+.lp-el .rs{position:absolute;bottom:-5px;right:-5px;width:13px;height:13px;background:var(--primary);border:2px solid #fff;border-radius:3px;cursor:nwse-resize;display:none}
+.lp-el.sel .rs{display:block}
+.lp-el-tools{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.lp-el-tools .btn{padding:5px 8px;font-size:11.5px}
+.lp-el-props{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;padding:10px 12px;background:var(--bg-surface);border:1px solid var(--border);border-radius:8px}
+.lp-el-props label{display:flex;flex-direction:column;font-size:11px;color:var(--text-tertiary);gap:3px}
+.lp-el-props input{width:64px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg-body);color:var(--text)}
+.lp-field-row{display:flex;gap:10px;margin-bottom:10px}
+.lp-field-row .f{flex:1}
+.lp-field-row label{display:block;font-size:11px;color:var(--text-tertiary);margin-bottom:3px}
+.lp-field-row input,.lp-field-row select{width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-body);color:var(--text)}
+.lp-field-row input:focus,.lp-field-row select:focus{outline:none;border-color:var(--primary)}
+.lp-payload{background:#0f172a;color:#cfe3ff;font-family:ui-monospace,monospace;font-size:11.5px;padding:12px;border-radius:8px;white-space:pre-wrap;max-height:240px;overflow:auto;line-height:1.55}
+.lp-status{font-size:12.5px;color:var(--text-secondary);margin-top:8px}
+.lp-details{margin-top:10px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12.5px;background:var(--bg-surface)}
+.lp-details summary{cursor:pointer;font-weight:600;color:var(--primary)}
+/* 浏览器打印走独立 iframe，不再依赖主页面 @media print */
+</style>
 
-            <div style="margin-bottom:15px; display:flex; justify-content:space-between; align-items:center;">
-                <div id="selectedCount" style="color:var(--text-secondary); font-size:14px;"></div>
-                <div id="printButtonContainer"></div>
-            </div>
-
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
-                        <th onclick="sortLogsBy('date')" class="sortable">入库时间 <span class="sort-indicator" id="sortDate"></span></th>
-                        <th onclick="sortLogsBy('batch_no')" class="sortable">批次号 <span class="sort-indicator" id="sortBatchNo"></span></th>
-                        <th onclick="sortLogsBy('barcode')" class="sortable">商品条码 <span class="sort-indicator" id="sortBarcode"></span></th>
-                        <th onclick="sortLogsBy('name')" class="sortable">商品名称 <span class="sort-indicator" id="sortName"></span></th>
-                        <th onclick="sortLogsBy('sku')" class="sortable">SKU <span class="sort-indicator" id="sortSku"></span></th>
-                        <th onclick="sortLogsBy('qty')" class="sortable">数量 <span class="sort-indicator" id="sortQty"></span></th>
-                        <th onclick="sortLogsBy('price')" class="sortable">售价 <span class="sort-indicator" id="sortPrice"></span></th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody id="purchaseLogList"></tbody>
-            </table>
-
-            <div class="pagination" id="pagination"></div>
-        </div>
-
-        <!-- 打印设置面板 -->
-        <div class="modal" id="printModal">
-            <div class="modal-content"><!-- 打印设置 -->
-                <div class="modal-header">
-                    <h3 class="modal-title">🖨️ 批量打印标签</h3>
-                    <button class="modal-close" onclick="closeModal('printModal')">&times;</button>
-                </div>
-                
-                <div style="padding:15px 0;">
-                    <div style="background:var(--bg-hover); padding:12px; border-radius:8px; margin-bottom:15px;">
-                        <div style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">
-                            已选择 <strong id="selectedPrintCount">0</strong> 条记录，共 <strong id="totalLabels">0</strong> 个标签
-                        </div>
-                        <div id="selectedItemsSummary" style="max-height:100px; overflow-y:auto; font-size:12px;"></div>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">选择模板</label>
-                        <select class="form-input" id="labelTemplate">
-                            <option value="">选择模板...</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group" style="margin-top:12px;">
-                        <label class="form-label">打印机（留空使用系统默认）</label>
-                        <input type="text" class="form-input" id="printerName" placeholder="例如: Brother_QL_820NWB" style="font-size:13px;">
-                    </div>
-
-                    <div style="display:flex; gap:10px; margin-top:20px;">
-                        <button type="button" class="btn btn-secondary" onclick="openEditor()" style="flex:1;">✏️ 编辑模板</button>
-                        <button type="button" class="btn btn-primary" onclick="previewLabels()" style="flex:1;">👁️ 预览</button>
-                        <button type="button" id="btnDirectPrint" class="btn btn-success" onclick="directPrint()" style="flex:1;">🖨️ 直打</button>
-                    </div>
-                    <div style="display:flex; gap:10px; margin-top:8px;">
-                        <button type="button" class="btn btn-secondary" onclick="printLabels()" style="flex:0.5; font-size:12px;">🖨️ 浏览器打印</button>
-                    </div>
-                    <div style="margin-top:12px; padding:10px; background:#fff3cd; border-radius:6px; font-size:12px; color:#856404; line-height:1.6;">
-                        ⚠️ 打印前请在浏览器打印对话框中设置：<br>
-                        <strong>纸张尺寸</strong> = 匹配标签纸（如 60×40mm 或自定义）、
-                        <strong>边距</strong> = 无、
-                        <strong>缩放</strong> = 100、
-                        <strong>页眉页脚</strong> = 关闭
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 可视化编辑器模态框 -->
-        <div class="modal" id="editorModal">
-            <div class="modal-content modal-full" style="max-height:95vh;"><!-- 编辑器 -->
-                <div class="modal-header">
-                    <h3 class="modal-title">✏️ 标签可视化编辑器</h3>
-                    <button class="modal-close" onclick="closeEditor()">&times;</button>
-                </div>
-                
-                <div style="display:flex; gap:15px; max-height:calc(95vh - 80px); margin-top:15px;">
-                    <!-- 左侧工具栏 -->
-                    <div style="width:200px; flex-shrink:0; border-right:1px solid var(--border); padding-right:15px;">
-                        <div style="margin-bottom:15px;">
-                            <div style="font-weight:bold; margin-bottom:8px; font-size:12px;">📐 画布设置</div>
-                            <div class="form-group">
-                                <label class="form-label" style="font-size:10px;">宽度 (mm)</label>
-                                <input type="number" class="form-input" id="canvasWidth" value="60" min="20" max="150" onchange="updateFabricCanvas()">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" style="font-size:10px;">高度 (mm)</label>
-                                <input type="number" class="form-input" id="canvasHeight" value="40" min="10" max="150" onchange="updateFabricCanvas()">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" style="font-size:10px;">打印浓度</label>
-                                <select class="form-input" id="printDensity">
-                                    <option value="light">淡</option>
-                                    <option value="normal" selected>正常</option>
-                                    <option value="dark">浓</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div style="border-top:1px solid var(--border); padding-top:12px;">
-                            <div style="font-weight:bold; margin-bottom:8px; font-size:12px;">➕ 添加元素</div>
-                            <button class="btn btn-sm btn-primary" onclick="addFabricElement('barcode')" style="margin-bottom:5px; width:100%;">📊 条码</button>
-                            <button class="btn btn-sm btn-primary" onclick="addFabricElement('barcodeText')" style="margin-bottom:5px; width:100%;">🔢 数字</button>
-                            <button class="btn btn-sm btn-primary" onclick="addFabricElement('name')" style="margin-bottom:5px; width:100%;">🏷️ 名称</button>
-                            <button class="btn btn-sm btn-primary" onclick="addFabricElement('price')" style="margin-bottom:5px; width:100%;">💰 价格</button>
-                            <button class="btn btn-sm btn-primary" onclick="addFabricElement('condition')" style="margin-bottom:5px; width:100%;">📋 SKU</button>
-                        </div>
-
-                        <div style="margin-top:15px; padding-top:12px; border-top:1px solid var(--border);">
-                            <div style="font-weight:bold; margin-bottom:8px; font-size:12px;">🗑️ 操作</div>
-                            <button class="btn btn-sm btn-danger" onclick="deleteFabricSelected()" style="width:100%;">删除选中</button>
-                        </div>
-
-                        <div style="margin-top:15px; padding-top:12px; border-top:1px solid var(--border);">
-                            <div style="font-weight:bold; margin-bottom:8px; font-size:12px;">📋 画布信息</div>
-                            <div style="font-size:11px; color:var(--text-secondary);">
-                                尺寸: <span id="fabricSizeLabel">60×40mm</span><br>
-                                元素: <span id="fabricElementCount">0</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 中间画布区域 -->
-                    <div style="flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0;">
-                        <div id="fabricCanvasWrapper" style="flex:1; background:var(--bg-hover); border-radius:6px; overflow:auto; padding:20px; display:flex; justify-content:center; align-items:center;">
-                            <canvas id="fabricCanvas"></canvas>
-                        </div>
-
-                        <div style="margin-top:10px; display:flex; gap:10px;">
-                            <button type="button" class="btn btn-secondary" onclick="resetFabricCanvas()">🔄 重置</button>
-                            <button type="button" class="btn btn-primary" onclick="saveFabricTemplate()" style="flex:1;">💾 保存模板</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 预览模态框 -->
-        <div class="modal" id="previewModal">
-            <div class="modal-content modal-full" style="max-height:90vh;"><!-- 预览 -->
-                <div class="modal-header">
-                    <h3 class="modal-title">👁️ 标签预览</h3>
-                    <button class="modal-close" onclick="closeModal('previewModal')">&times;</button>
-                </div>
-                <div id="previewContent" style="overflow:auto; max-height:70vh; background:var(--bg-surface); padding:20px; border-radius:8px;"></div>
-                <div style="display:flex; gap:10px; margin-top:15px;">
-                    <button type="button" class="btn btn-success" onclick="printLabelsDirect()" style="flex:1;">🖨️ 打印</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('previewModal')">关闭</button>
-                </div>
-            </div>
-        </div>
+<div class="lp-layout">
+  <!-- 左：商品/SKU 列表（照原页 get_purchase_logs 聚合行） -->
+  <div class="card lp-panel">
+    <div class="card-title">① 选择商品 / SKU <span class="sub" id="selSub">份数 = 张数</span></div>
+    <div class="lp-filters">
+      <input type="date" id="fStart" onchange="loadProducts(1)">
+      <span class="fsep">—</span>
+      <input type="date" id="fEnd" onchange="loadProducts(1)">
+      <button class="btn btn-sm btn-secondary" onclick="setRange(1)">近1天</button>
+      <div class="lp-sku-filters" id="skuFilters"></div>
     </div>
+    <input class="lp-search" id="batchSearch" placeholder="搜索商品名称 / 常用名 / 条码 / 拼音" oninput="loadProducts(1)">
+    <div class="lp-sortbar">
+      排序
+      <select id="sortBy" onchange="loadProducts(1)">
+        <option value="date">入库时间</option>
+        <option value="qty">数量</option>
+        <option value="price">售价</option>
+      </select>
+      <select id="sortDir" onchange="loadProducts(1)">
+        <option value="desc">降序</option>
+        <option value="asc">升序</option>
+      </select>
+    </div>
+    <div class="lp-bulkbar">
+      <button class="btn btn-secondary btn-sm" onclick="bulk('all')">全部库存</button>
+      <button class="btn btn-secondary btn-sm" onclick="bulk('one')">每SKU一张</button>
+      <button class="btn btn-secondary btn-sm" onclick="bulk('clear')">清空</button>
+    </div>
+    <div id="prodList"></div>
+    <div class="lp-pagination" id="pagination"></div>
+  </div>
 
-    <style>
-    .element-tool {
-        padding:5px 8px;
-        background:var(--bg-hover);
-        border:1px solid var(--border);
-        border-radius:4px;
-        cursor:grab;
-        font-size:11px;
-        transition: all 0.2s;
-    }
-    .element-tool:hover {
-        background:var(--info-light);
-        border-color:var(--primary);
-    }
-    .element-tool:active {
-        cursor: grabbing;
-    }
-    .pl-search-dropdown {
-        position: absolute; top: calc(100% + 4px); left: 0; right: 0;
-        background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px;
-        overflow: hidden; display: none; max-height: 300px; overflow-y: auto;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.3); z-index: 300;
-    }
-    .pl-search-dropdown.show { display: block; }
-    .pl-sd-item {
-        display: flex; align-items: center; gap: 10px;
-        padding: 10px 14px; border-bottom: 1px solid var(--border);
-        font-size: 13px; cursor: pointer; transition: background 0.15s;
-    }
-    .pl-sd-item:hover { background: var(--bg-hover); }
-    .pl-sd-item:last-child { border-bottom: none; }
-    .pl-sd-item .pl-sd-name { font-weight: 600; flex:1; }
-    .pl-sd-item .pl-sd-sku { font-size: 11px; color: var(--text-tertiary); }
-    .pl-sd-empty {
-        padding: 30px; text-align: center; color: var(--text-tertiary); font-size: 14px;
-    }
-    .sortable { cursor: pointer; user-select: none; }
-    .sortable:hover { background: var(--bg-hover); }
-    .sort-indicator { font-size: 11px; margin-left: 3px; color: var(--text-tertiary); }
-    .sort-asc::after { content: ' ▲'; color: var(--primary); }
-    .sort-desc::after { content: ' ▼'; color: var(--primary); }
-    </style>
+  <!-- 右上：标签预览 -->
+  <div class="lp-right">
+  <div class="card lp-panel">
+    <div class="card-title">② 标签预览 <span class="sub" id="previewSub">模板实时渲染</span></div>
+    <div class="lp-preview-wrap">
+      <div id="previewLabel"></div>
+    </div>
+  </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <!-- 右下：模板 + 打印设置 -->
+  <div class="card lp-panel">
+    <div class="card-title">③ 模板 <span class="sub">点选 / 新建 / 编辑</span></div>
+    <div id="tplList"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-secondary btn-sm" style="flex:1" onclick="newTemplate()">新建模板</button>
+      <button class="btn btn-secondary btn-sm" style="flex:1" onclick="openEditor(curTpl)">编辑当前</button>
+    </div>
+    <div class="card-title" style="margin-top:16px">当前打印设置</div>
+    <div class="lp-kv"><span>纸张</span><b id="setPaper">—</b></div>
+    <div class="lp-kv"><span>打印代理</span><b id="setHost">—</b></div>
+    <div class="lp-kv"><span>目标打印机</span><b id="setPrinter">—</b></div>
+    <div class="lp-kv"><span>发送格式</span><b id="setFormat">PHP GD → 打印代理</b></div>
+    <div class="lp-kv"><span>待打印标签</span><b id="setCount">0 张</b></div>
+  </div>
+  </div>
+</div>
+
+<div class="lp-actions">
+  <span class="hint" id="actHint">设置份数 → 发送打印会把任务交给打印代理（不再走浏览器）。</span>
+  <button class="btn btn-secondary" onclick="openPrinterSettings()">打印代理设置</button>
+  <button class="btn btn-outline" onclick="browserPrint()">浏览器打印（备用）</button>
+  <button class="btn btn-primary" onclick="sendPrint(this)">发送打印</button>
+</div>
+
+<!-- 模板编辑器 -->
+<div class="modal" id="mEditor" style="display:none">
+  <div class="modal-content" style="width:min(880px,94vw);max-width:880px">
+    <div class="modal-header">
+      <span class="modal-title">模板编辑器</span>
+      <button class="modal-close" onclick="closeModal('mEditor')">×</button>
+    </div>
+    <div style="padding:16px 18px">
+      <div class="lp-field-row">
+        <div class="f"><label>模板名称</label><input id="tplName" placeholder="如：标准小标签"></div>
+        <div class="f"><label>宽度 (mm)</label><input id="tplW" type="number" value="58" min="20" max="150"></div>
+        <div class="f"><label>高度 (mm)</label><input id="tplH" type="number" value="40" min="10" max="150"></div>
+      </div>
+      <div class="lp-el-tools" id="elTools"></div>
+      <div style="text-align:center">
+        <div class="lp-canvas" id="designCanvas"></div>
+      </div>
+      <div class="lp-el-props" id="elProps" style="display:none">
+        <label>X <input type="number" id="propX" min="0" step="0.5" onchange="applyProps()"></label>
+        <label>Y <input type="number" id="propY" min="0" step="0.5" onchange="applyProps()"></label>
+        <label>字号(mm) <input type="number" id="propFs" min="1" step="0.5" onchange="applyProps()"></label>
+        <label>宽度(mm) <input type="number" id="propW" min="5" step="0.5" onchange="applyProps()"></label>
+        <label>高度(mm) <input type="number" id="propH" min="1" step="0.5" onchange="applyProps()"></label>
+        <label>对齐 <select id="propAlign" onchange="applyProps()"><option value="left">左</option><option value="center">居中</option><option value="right">右</option></select></label>
+      </div>
+      <div style="font-size:11.5px;color:var(--text-tertiary);margin-top:8px">画布按毫米缩放预览，拖拽定位，选中元素可在下方精确设置坐标/字号/宽度；保存后模板对所有设备生效（服务端存储）。</div>
+    </div>
+    <div class="modal-header" style="border-top:1px solid var(--border);border-bottom:none;justify-content:flex-end;gap:15px">
+      <button class="btn btn-secondary" onclick="closeModal('mEditor')">取消</button>
+      <button class="btn btn-primary" onclick="saveTemplate()">保存模板</button>
+    </div>
+  </div>
+</div>
+
+<!-- 打印代理设置 -->
+<div class="modal" id="mPrinter" style="display:none">
+  <div class="modal-content" style="width:min(580px,94vw);max-width:580px">
+    <div class="modal-header">
+      <span class="modal-title">打印代理设置</span>
+      <button class="modal-close" onclick="closeModal('mPrinter')">×</button>
+    </div>
+    <div style="padding:16px 18px">
+      <div class="lp-field-row">
+        <div class="f"><label>打印代理地址</label><input id="psHost" placeholder="如 http://192.168.1.50:9101"></div>
+      </div>
+      <div class="lp-field-row">
+        <div class="f"><label>目标打印机名（留空 = 服务默认）</label><input id="psPrinter" placeholder="留空 / USB-Thermal"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="checkStatus()">检测连接</button>
+        <button class="btn btn-secondary btn-sm" onclick="testPrint()">测试打印</button>
+      </div>
+      <div class="lp-status" id="psStatus"></div>
+      <details class="lp-details" open>
+        <summary>真实打印链路</summary>
+        <p style="line-height:1.7;color:var(--text-secondary)">有代理地址时 = <b>浏览器直连</b>（canvas 渲染 PNG 直接发到你的电脑），不走服务器：</p>
+        <div class="lp-payload">浏览器
+  → canvas 渲染每个标签为 PNG @203DPI（含条码）
+  → POST {代理地址}/print
+        { images:[base64 PNG…], printer, pageWidth, pageHeight }
+        （print_server.py 的 HTTP /print，已内置 CORS，直接可用）
+  → USB 热敏出纸
+
+状态检测：GET {代理地址}/health → {"status":"ok"}
+代理地址留空 = 回退服务器转发（PHP GD 渲染 → direct_print.php）
+
+⚠️ 前提：页面需用 http 访问（https 页面禁止请求 http://局域网IP，
+Chrome 会报 mixed content 拦截）。print_server.py 已带 CORS 头，无需改动。</div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<!-- 发送打印结果 -->
+<div class="modal" id="mSend" style="display:none">
+  <div class="modal-content" style="width:min(560px,94vw);max-width:560px">
+    <div class="modal-header">
+      <span class="modal-title">发送打印</span>
+      <button class="modal-close" onclick="closeModal('mSend')">×</button>
+    </div>
+    <div style="padding:16px 18px">
+      <div class="lp-status" id="sendStatus"></div>
+      <p style="color:var(--text-tertiary);font-size:12px">下方为前端实际发给打印服务的请求体：</p>
+      <div class="lp-payload" id="sendPayload">—</div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg-elevated);color:var(--text);padding:10px 18px;border-radius:10px;font-size:13px;z-index:3000;display:none;border:1px solid var(--border)"></div>
+
 <script>
-    let currentPage = 1;
-    let totalPages = 1;
-    let selectedItems = [];
-    let allRecords = [];
-    let logSort = { field: null, dir: 'asc' };
+const SCALE=7; // px per mm（预览）
+let conditionNameMap={}, conditionClassMap={}, allConditionTypes=[];
+let templates=[], curTpl=null;
+let records=[], copies={}, currentPage=1, totalPages=1;
+let psHost='', psPrinter='';
+let skuFilter='';
+let selEl=-1;
+const $=id=>document.getElementById(id);
 
-    function clearLogSortIndicators() {
-        document.querySelectorAll('.sort-indicator').forEach(function(el) {
-            el.className = 'sort-indicator';
-        });
+// ---------- 工具 ----------
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
+function fmtDate(d){if(!d)return '-';const s=String(d).replace(' ','T');const dt=new Date(s);if(isNaN(dt))return String(d);const p=n=>String(n).padStart(2,'0');return `${dt.getFullYear()}-${p(dt.getMonth()+1)}-${p(dt.getDate())} ${p(dt.getHours())}:${p(dt.getMinutes())}`;}
+function getCondName(k){return conditionNameMap[k]||k;}
+function getCondClass(k){return conditionClassMap[k]||'';}
+let toastT;
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>t.style.display='none',2200);}
+function openModal(id){$(id).style.display='block';}
+function closeModal(id){$(id).style.display='none';}
+
+// 装饰条码（预览用确定性条纹，高度可传）
+// ===== EAN-13 条码（标准护条结构：左护条101 / 中分隔01010 / 右护条101）=====
+const EAN_L={0:'0001101',1:'0011001',2:'0010011',3:'0111101',4:'0100011',5:'0110001',6:'0101111',7:'0111011',8:'0110111',9:'0001011'};
+const EAN_G={0:'0100111',1:'0110011',2:'0011011',3:'0100001',4:'0011101',5:'0111001',6:'0000101',7:'0010001',8:'0001001',9:'0010111'};
+const EAN_R={0:'1110010',1:'1100110',2:'1101100',3:'1000010',4:'1011100',5:'1001110',6:'1010000',7:'1000100',8:'1001000',9:'1110100'};
+const EAN_FIRST={0:'LLLLLL',1:'LLGLGG',2:'LLGGLG',3:'LLGGGL',4:'LGLLGG',5:'LGGLLG',6:'LGGGLL',7:'LGLGLG',8:'LGLGGL',9:'LGGLGL'};
+function ean13Check(code){
+  const s=String(code).replace(/\D/g,'');
+  const d=s.slice(0,12);
+  if(d.length!==12)return null;
+  let sum=0;for(let i=0;i<12;i++)sum+=(i%2===0?1:3)*+d[i];
+  const check=(10-sum%10)%10;
+  return d+check;
+}
+function ean13Bars(code){
+  const full=ean13Check(code)||String(code).slice(0,13).padEnd(13,'0');
+  const first=+full[0],left=full.slice(1,7),right=full.slice(7,13);
+  const pattern=EAN_FIRST[first];
+  let bits='101'; // 左护条
+  for(let i=0;i<6;i++){const table=pattern[i]==='L'?EAN_L:EAN_G;bits+=table[+left[i]];}
+  bits+='01010'; // 中间分隔
+  for(let i=0;i<6;i++){bits+=EAN_R[+right[i]];}
+  bits+='101'; // 右护条
+  return {bits,digits:full};
+}
+// SVG 版（预览 / 编辑器 / 浏览器打印）：EAN-13 标准条码，viewBox 固定 100×50（2:1 宽高比），不变形居中
+function barcodeBars(code,H){
+  H=H||26;
+  const {bits}=ean13Bars(code);
+  const xUnit=100/bits.length; // viewBox 相对宽度（100 单位）
+  let rects='';
+  for(let i=0;i<bits.length;i++){
+    if(bits[i]==='1')rects+=`<rect x="${(i*xUnit).toFixed(3)}" y="0" width="${(xUnit+0.05).toFixed(3)}" height="50" fill="#111"/>`;
+  }
+  return `<svg class="bc" viewBox="0 0 100 50" width="100%" height="${H}px" preserveAspectRatio="xMidYMid meet" style="display:block">${rects}</svg>`;
+}
+
+// ---------- 状态名动态加载 ----------
+async function loadSettings(){
+  try{
+    const res=await fetch('../api/get_settings.php');
+    const data=await res.json();
+    const s=(data.settings||data.data||{});
+    (s.condition_types||[]).forEach(c=>{conditionNameMap[c.key]=c.name;conditionClassMap[c.key]='condition-'+c.key;});
+    allConditionTypes=Object.keys(conditionNameMap);
+    renderSkuFilters();
+    loadTemplates();loadProducts(1);
+  }catch(e){console.error(e);renderSkuFilters();loadTemplates();loadProducts(1);}
+}
+function renderSkuFilters(){
+  let html=`<button class="lp-sku-btn ${skuFilter===''?'on':''}" onclick="setSkuFilter('')">全部</button>`;
+  allConditionTypes.forEach(k=>{html+=`<button class="lp-sku-btn ${skuFilter===k?'on':''}" onclick="setSkuFilter('${k}')">${esc(getCondName(k))}</button>`;});
+  $('skuFilters').innerHTML=html;
+}
+function setSkuFilter(k){skuFilter=k;renderSkuFilters();loadProducts(1);}
+
+// ---------- 商品/SKU 列表（照原页 get_purchase_logs 聚合行） ----------
+async function loadProducts(page=1){
+  currentPage=page;
+  const startDate=$('fStart').value,endDate=$('fEnd').value,keyword=$('batchSearch').value.trim();
+  try{
+    const res=await fetch('../api/get_purchase_logs.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      start_date:startDate,end_date:endDate,keyword,condition_type:skuFilter,page,page_size:50,
+      sort_by:$('sortBy').value||'date',sort_dir:$('sortDir').value||'desc'
+    })});
+    const data=await res.json();
+    if(data.success){
+      records=data.data.records||[];
+      totalPages=Math.max(1,Math.ceil((data.data.total||0)/data.data.page_size));
+      renderProducts();renderPagination(data.data.total||0);
+    }else{
+      $('prodList').innerHTML=`<div class="lp-empty">${esc(data.error||'暂无入库记录')}</div>`;
+      $('pagination').innerHTML='';updateCount();
     }
+  }catch(e){console.error(e);$('prodList').innerHTML='<div class="lp-empty">查询失败</div>';}
+}
+function renderProducts(){
+  if(!records.length){$('prodList').innerHTML='<div class="lp-empty">暂无入库记录<br><span style="font-size:12px">该时间段内没有有库存的批次</span></div>';updateCount();return;}
+  $('prodList').innerHTML=records.map(r=>{
+    const c=copies[r.batch_id]||0;
+    const name=esc(r.product_name||r.common_name||'-');
+    const common=r.common_name&&r.common_name!==r.product_name?esc(r.common_name):'';
+    return `<div class="lp-row ${c?'on':''}">
+      <div class="lp-row-top">
+        <span class="lp-name">${name}${common?` <i>${common}</i>`:''}</span>
+        <span class="condition-badge ${getCondClass(r.condition_type)}">${esc(getCondName(r.condition_type))}</span>
+      </div>
+      <div class="lp-meta">
+        <code>${esc(r.barcode||'-')}</code>
+        <span>批次 ${esc(r.batch_no||'-')}</span>
+        <span>入库 ${fmtDate(r.purchased_at)}</span>
+      </div>
+      <div class="lp-row-bottom">
+        <span class="lp-stock">库存 ${r.qty}</span>
+        <span class="lp-price">¥${parseFloat(r.suggested_price||0).toFixed(2)}</span>
+        <span class="lp-acts">
+          <span class="lp-stepper">
+            <button onclick="step('${r.batch_id}',-1)">−</button>
+            <input type="number" min="0" value="${c}" onchange="setCopies('${r.batch_id}',this.value)">
+            <button onclick="step('${r.batch_id}',1)">+</button>
+          </span>
+          <button class="btn btn-sm btn-primary" onclick="quickPrint('${r.batch_id}')">打1张</button>
+        </span>
+      </div>
+    </div>`;
+  }).join('');
+  updateCount();
+}
+function renderPagination(total){
+  if(totalPages<=1){$('pagination').innerHTML=`<span class="pageinfo">共 ${total} 条</span>`;return;}
+  $('pagination').innerHTML=`
+    <button class="btn btn-sm btn-secondary" ${currentPage<=1?'disabled':''} onclick="loadProducts(${currentPage-1})">上一页</button>
+    <span class="pageinfo">第 ${currentPage} / ${totalPages} 页 · 共 ${total} 条</span>
+    <button class="btn btn-sm btn-secondary" ${currentPage>=totalPages?'disabled':''} onclick="loadProducts(${currentPage+1})">下一页</button>`;
+}
+function setRange(n){
+  const now=new Date();const fmt=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  if(n===0){$('fStart').value='';$('fEnd').value='';}
+  else{const s=new Date(now);s.setDate(s.getDate()-(n-1));$('fEnd').value=fmt(now);$('fStart').value=fmt(s);}
+  loadProducts(1);
+}
+function step(id,d){copies[id]=Math.max(0,(copies[id]||0)+d);renderProducts();}
+function setCopies(id,v){copies[id]=Math.max(0,+v||0);renderProducts();}
+function bulk(mode){
+  if(mode==='clear'){records.forEach(r=>copies[r.batch_id]=0);}
+  else if(mode==='all'){records.forEach(r=>copies[r.batch_id]=r.qty);}
+  else if(mode==='one'){records.forEach(r=>copies[r.batch_id]=1);}
+  renderProducts();
+}
+function updateCount(){
+  let n=0,skuCnt=0;
+  records.forEach(r=>{const v=+copies[r.batch_id]||0;n+=v;if(v>0)skuCnt++;});
+  $('setCount').textContent=n+' 张';
+  $('selSub').textContent=`已选 ${n} 张 / ${skuCnt} 个SKU`;
+  $('actHint').textContent=n>0?`已设 ${n} 张标签（${skuCnt} 个SKU），发送即交给打印代理`:'请设置份数：批量按钮铺底，或逐条设置';
+}
 
-    function sortLogsBy(field) {
-        if (logSort.field === field) {
-            logSort.dir = logSort.dir === 'asc' ? 'desc' : 'asc';
-        } else {
-            logSort.field = field;
-            logSort.dir = 'asc';
-        }
-        clearLogSortIndicators();
-        var idMap = {date:'Date',batch_no:'BatchNo',barcode:'Barcode',name:'Name',sku:'Sku',qty:'Qty',price:'Price'};
-        var el = document.getElementById('sort' + (idMap[field] || field));
-        if (el) el.className = 'sort-indicator ' + (logSort.dir === 'asc' ? 'sort-asc' : 'sort-desc');
-        searchPurchaseLogs(currentPage);
+// ---------- 模板 ----------
+const EL_TOOLS=[
+  {type:'name',label:'商品名称'},{type:'common',label:'常用名'},{type:'barcode',label:'条码'},
+  {type:'barcodeText',label:'条码数字'},{type:'price',label:'售价'},{type:'condition',label:'SKU'},
+  {type:'batch',label:'批次号'},{type:'date',label:'入库日期'}
+];
+function defaultElSize(type){
+  const m={
+    barcode:{width:50,height:10,fontSize:3},
+    barcodeText:{width:50,height:4,fontSize:2.5},
+    name:{width:50,height:6,fontSize:4.5,fontWeight:'bold',color:'#000000'},
+    common:{width:50,height:4,fontSize:3},
+    price:{width:50,height:6,fontSize:5,fontWeight:'bold',color:'#e53e3e'},
+    condition:{width:50,height:4,fontSize:2.5},
+    batch:{width:50,height:4,fontSize:2.5},
+    date:{width:50,height:4,fontSize:2.5}
+  };
+  return Object.assign({color:'#000000',fontWeight:'normal'},m[type]||m.name);
+}
+function sampleItem(){
+  const hit=records.find(r=>(copies[r.batch_id]||0)>0);
+  const r=hit||records[0]||{};
+  return {barcode:r.barcode||'',productName:r.product_name||r.common_name||'',commonName:r.common_name||'',price:parseFloat(r.suggested_price||0),conditionType:r.condition_type||'sealed',batchNo:r.batch_no||'',date:r.purchased_at||''};
+}
+// elHTML：fsPx=字号(px)、bhPx=条码高度(px)——编辑器/预览/浏览器打印按各自 scale 传入，缩放元素时字号/条码真实变化
+// elHTML：fsPx=字号(px)、bhPx=条码高度(px)、align=对齐——编辑器/预览/浏览器打印按各自 scale 传入
+function elHTML(type,item,fsPx,bhPx,align){
+  fsPx=fsPx||13;
+  const alignStyle=align?`text-align:${align};`:'';
+  // name 允许换行（width:100% 保证在元素宽度内折行）；其他元素单行（nowrap 不裁剪不换行）
+  const base=(pct,nowrap)=>`${alignStyle}width:100%;${nowrap?'white-space:nowrap;':''}font-size:${Math.round(fsPx*pct)}px;line-height:1.2`;
+  if(type==='name')return `<div style="${base(1,false)};font-weight:700">${esc(item.productName)}</div>`;
+  if(type==='common')return `<div style="${base(0.75,true)};color:#5b6478">${esc(item.commonName||'')}</div>`;
+  if(type==='barcode')return `<div class="barcode" style="height:${bhPx||26}px;width:100%">${barcodeBars(item.barcode,bhPx)}</div>`;
+  if(type==='barcodeText')return `<div style="${alignStyle}font-family:ui-monospace,monospace;font-size:${Math.round(fsPx*0.8)}px;color:#1d2330">${esc(item.barcode)}</div>`;
+  if(type==='price')return `<div style="${base(1,true)};font-weight:700;color:#d92d20">¥${(+item.price||0).toFixed(2)}</div>`;
+  if(type==='condition')return `<div style="${base(0.8,true)}">${esc(allConditionTypes.map(k=>`${k===item.conditionType?'☑':'□'} ${getCondName(k)}`).join('  '))}</div>`;
+  if(type==='batch')return `<div style="${base(0.8,true)};color:#5b6478">批次 ${esc(item.batchNo)}</div>`;
+  if(type==='date')return `<div style="${base(0.8,true)};color:#5b6478">${esc(item.date?String(item.date).slice(0,10):'')}</div>`;
+  return '';
+}
+// labelHTML：scale=px per mm，元素字号/条码/尺寸都按 scale 渲染
+function labelHTML(tpl,item,scale){
+  scale=scale||SCALE;
+  const w=tpl.canvasWidth*scale,h=tpl.canvasHeight*scale;
+  const inner=(tpl.elements||[]).map(e=>{
+    const base=defaultElSize(e.type);
+    const fs=(e.fontSize||base.fontSize)*scale;
+    // 所有元素都应用宽度（文本元素宽度=配置宽度，超宽裁剪/换行，不再只 barcode/align）
+    const wStyle=`width:${(e.width||base.width)*scale}px;`;
+    const hStyle=e.type==='barcode'?`height:${(e.height||base.height)*scale}px;`:'';
+    return `<div class="lp-el ${e.type}" style="left:${(e.x||0)*scale}px;top:${(e.y||0)*scale}px;${wStyle}${hStyle}font-size:${fs}px">${elHTML(e.type,item,fs,(e.height||base.height)*scale,e.align)}</div>`;
+  }).join('');
+  return `<div style="position:relative;width:${w}px;height:${h}px;background:#fff;border:1px solid #d7dcea">${inner}</div>`;
+}
+function renderPreview(){
+  if(!curTpl)return;
+  const t=templates.find(x=>String(x.id)===String(curTpl));if(!t)return;
+  // 动态缩放：标签完整显示在预览容器内，不超出
+  const wrap=$('previewLabel').parentElement;
+  const availW=Math.max(80,wrap.clientWidth-36);
+  const availH=Math.max(80,wrap.clientHeight-40);
+  const scale=Math.max(1.5,Math.min(SCALE,availW/t.canvasWidth,availH/t.canvasHeight));
+  $('previewLabel').innerHTML=labelHTML(t,sampleItem(),scale);
+  $('previewSub').textContent=`模板：${esc(t.name)} · 物理 ${t.canvasWidth}×${t.canvasHeight}mm`;
+  refreshSetPanel();
+}
+function renderTpls(){
+  $('tplList').innerHTML=templates.map(t=>`<div class="lp-tpl-card ${String(t.id)===String(curTpl)?'on':''}" onclick="chooseTpl('${t.id}')">
+    <div class="tn">${esc(t.name)} <button class="lp-tpl-del" title="删除模板" onclick="event.stopPropagation();delTemplate('${t.id}','${esc(t.name)}')">×</button></div>
+    <div class="ts">${t.canvasWidth}×${t.canvasHeight}mm · ${(t.elements||[]).length} 个元素</div></div>`).join('');
+}
+async function delTemplate(id,name){
+  if(!confirm(`删除模板「${name}」？`))return;
+  try{
+    const res=await fetch('../api/delete_label_template.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:+id})});
+    const data=await res.json();
+    if(data.success){
+      if(String(curTpl)===String(id)){curTpl=null;localStorage.removeItem('ppmart_last_template');}
+      toast('模板已删除');await loadTemplates();
+    }else toast('删除失败：'+(data.error||''));
+  }catch(e){toast('删除失败：'+e.message);}
+}
+function chooseTpl(id){curTpl=String(id);renderTpls();renderPreview();localStorage.setItem('ppmart_last_template',String(id));}
+async function loadTemplates(){
+  try{
+    const res=await fetch('../api/get_label_templates.php');
+    const data=await res.json();
+    if(data.success){
+      templates=(data.templates||[]).map(t=>({id:String(t.id),name:t.name,canvasWidth:t.canvasWidth,canvasHeight:t.canvasHeight,elements:t.elements||[]}));
+      const saved=localStorage.getItem('ppmart_last_template');
+      curTpl=templates.some(t=>String(t.id)===saved)?saved:(templates[0]?String(templates[0].id):null);
+      renderTpls();renderPreview();
     }
+  }catch(e){console.error(e);}
+}
 
-    let conditionTypes = [];
-    let conditionNameMap = {};
-    let conditionClassMap = {};
-    let allConditionTypes = ['sealed', 'opened', 'boxless', 'flawed'];
-    let labelTemplates = [];
-    let oneEachMode = false;
-    
-    let fabricCanvas = null;
-    let fabricScale = 3;
-    const MM_TO_PX = 3.78;
-    
-    const sampleItem = {
-        barcode: '6901234567892',  // 有效的 EAN13 条码（校验位正确）
-        productName: '示例商品',
-        price: 51.00,
-        conditionType: 'sealed'
+// ---------- 模板编辑器 ----------
+let editingTpl=null;
+function newTemplate(){editingTpl={id:null,name:'',canvasWidth:58,canvasHeight:40,elements:[]};openEditor(editingTpl);}
+function openEditor(t){
+  if(typeof t==='string')t=templates.find(x=>String(x.id)===String(t));
+  if(!t){toast('请先选择模板');return;}
+  editingTpl=JSON.parse(JSON.stringify(t));
+  $('tplName').value=editingTpl.name||'';
+  $('tplW').value=editingTpl.canvasWidth;
+  $('tplH').value=editingTpl.canvasHeight;
+  $('elTools').innerHTML=EL_TOOLS.map(x=>`<button class="btn btn-secondary" onclick="addEl('${x.type}')">+ ${x.label}</button>`).join('');
+  drawCanvas();openModal('mEditor');
+}
+function drawCanvas(){
+  const c=$('designCanvas');c.innerHTML='';
+  c.style.width=(editingTpl.canvasWidth*SCALE)+'px';c.style.height=(editingTpl.canvasHeight*SCALE)+'px';
+  (editingTpl.elements||[]).forEach((e,i)=>{
+    const base=defaultElSize(e.type);
+    const d=document.createElement('div');d.className='lp-el '+e.type+(i===selEl?' sel':'');
+    d.style.left=(e.x*SCALE)+'px';d.style.top=(e.y*SCALE)+'px';
+    // 所有元素都应用宽度（文本元素宽度=配置宽度），条码用高度
+    d.style.width=((e.width||base.width)*SCALE)+'px';
+    if(e.type==='barcode')d.style.height=((e.height||base.height)*SCALE)+'px';
+    d.style.fontSize=((e.fontSize||base.fontSize)*SCALE)+'px';
+    d.innerHTML=elHTML(e.type,sampleItem(),(e.fontSize||base.fontSize)*SCALE,(e.height||base.height)*SCALE,e.align);
+    if(i===selEl)d.innerHTML+='<div class="rm" title="删除元素">×</div><div class="rs" title="拖拽缩放"></div>';
+    d.onmousedown=ev=>{onElMouseDown(ev,i);};
+    d.ondblclick=ev=>{ev.stopPropagation();removeEl(i);};
+    c.appendChild(d);
+  });
+  c.onmousedown=ev=>{if(ev.target===c&&selEl!==-1){setSel(-1);}};
+  updateProps();
+}
+function setSel(i){
+  selEl=i;
+  // 只更新选中态，不重建画布（重建会使拖拽中的元素引用失效 → 点击元素跳左上角）
+  const c=$('designCanvas');
+  [...c.children].forEach((d,idx)=>{
+    d.classList.toggle('sel',idx===selEl);
+    const rm=d.querySelector('.rm'),rs=d.querySelector('.rs');
+    if(idx===selEl){if(!rm)d.insertAdjacentHTML('beforeend','<div class="rm" title="删除元素">×</div><div class="rs" title="拖拽缩放"></div>');}
+    else{if(rm)rm.remove();if(rs)rs.remove();}
+  });
+  updateProps();
+}
+function updateProps(){
+  const p=$('elProps');
+  if(selEl<0||!editingTpl||!editingTpl.elements[selEl]){p.style.display='none';return;}
+  const e=editingTpl.elements[selEl];const base=defaultElSize(e.type);
+  p.style.display='flex';
+  $('propX').value=e.x;$('propY').value=e.y;
+  $('propFs').value=e.fontSize||base.fontSize;
+  $('propW').value=e.width||base.width;
+  $('propH').value=e.height||base.height;
+  $('propAlign').value=e.align||'left';
+}
+function applyProps(){
+  if(selEl<0)return;
+  const e=editingTpl.elements[selEl];const base=defaultElSize(e.type);
+  e.x=Math.max(0,+$('propX').value||0);
+  e.y=Math.max(0,+$('propY').value||0);
+  e.fontSize=Math.max(1,+$('propFs').value||base.fontSize);
+  e.width=Math.max(5,+$('propW').value||base.width);
+  e.height=Math.max(1,+$('propH').value||base.height);
+  e.align=$('propAlign').value||'left';
+  drawCanvas();
+}
+function onElMouseDown(ev,i){
+  ev.preventDefault();ev.stopPropagation();
+  if(ev.target.classList.contains('rm')){removeEl(i);return;}
+  if(ev.target.classList.contains('rs')){startResize(ev,i);return;}
+  if(selEl!==i){setSel(i);}
+  startDrag(ev,i);
+}
+function startDrag(ev,i){
+  const d=$('designCanvas').children[i];if(!d)return;
+  const sx=ev.clientX,sy=ev.clientY,ox=d.offsetLeft,oy=d.offsetTop;
+  const mv=e2=>{d.style.left=(ox+e2.clientX-sx)+'px';d.style.top=(oy+e2.clientY-sy)+'px';};
+  const up=e2=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);
+    const e=editingTpl.elements[i];
+    e.x=Math.max(0,Math.round(d.offsetLeft/SCALE));e.y=Math.max(0,Math.round(d.offsetTop/SCALE));
+    updateProps();};
+  document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
+}
+function startResize(ev,i){
+  ev.preventDefault();
+  const e=editingTpl.elements[i];
+  const base=defaultElSize(e.type);
+  const ow=e.width||base.width, os=e.fontSize||base.fontSize;
+  const sx=ev.clientX,sy=ev.clientY;
+  const mv=e2=>{
+    // 缩放 = 调整字号 + barcode 宽度（内容真实变大）
+    const ratio=Math.max(0.5,Math.min(3,(1+(e2.clientX-sx)/SCALE/ow)));
+    const nw=Math.max(10,Math.round(ow*ratio*10)/10);
+    e.width=nw;
+    e.fontSize=Math.max(2,Math.round(os*ratio*10)/10);
+    if(e.type==='barcode')e.height=Math.max(4,Math.round((e.height||base.height)*ratio*10)/10);
+    drawCanvas();
+  };
+  const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);drawCanvas();};
+  document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
+}
+function addEl(type){
+  const base=defaultElSize(type);
+  const n=(editingTpl.elements||[]).length;
+  editingTpl.elements.push(Object.assign({type,x:4+(n%4)*14,y:4+Math.floor(n/4)*12},base));
+  selEl=editingTpl.elements.length-1;drawCanvas();
+}
+function removeEl(i){editingTpl.elements.splice(i,1);if(selEl>=i)selEl=editingTpl.elements.length?Math.min(selEl,editingTpl.elements.length-1):-1;drawCanvas();}
+async function saveTemplate(){
+  if(!editingTpl)return;
+  editingTpl.name=$('tplName').value.trim()||'未命名模板';
+  editingTpl.canvasWidth=Math.max(20,+$('tplW').value||58);
+  editingTpl.canvasHeight=Math.max(10,+$('tplH').value||40);
+  const config={canvasWidth:editingTpl.canvasWidth,canvasHeight:editingTpl.canvasHeight,paperType:'continuous',density:'normal',
+    elements:(editingTpl.elements||[]).map(e=>{
+      const base=defaultElSize(e.type);
+      return {type:e.type,x:e.x,y:e.y,width:e.width??base.width,height:e.height??base.height,fontSize:e.fontSize??base.fontSize,fontWeight:e.fontWeight||base.fontWeight,color:e.color||base.color,align:e.align||'left'};
+    })};
+  try{
+    const res=await fetch('../api/save_label_template.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:editingTpl.name,config})});
+    const data=await res.json();
+    if(data.success){
+      closeModal('mEditor');await loadTemplates();toast('模板已保存');
+    }else toast('保存失败：'+esc(data.error||''));
+  }catch(e){toast('保存失败：'+e.message);}
+}
+
+// ---------- 打印代理设置 ----------
+function openPrinterSettings(){
+  $('psHost').value=psHost;$('psPrinter').value=psPrinter;checkStatus();openModal('mPrinter');
+}
+function baseURL(){return (psHost||'').replace(/\/+$/,'');}
+function checkStatus(){
+  psHost=$('psHost').value.trim();psPrinter=$('psPrinter').value.trim();
+  localStorage.setItem('ppmart_print_host',psHost);localStorage.setItem('ppmart_print_printer',psPrinter);
+  refreshSetPanel();
+  $('psStatus').textContent='检测中…';
+  const url=baseURL();
+  if(!url){$('psStatus').innerHTML='<span style="color:var(--text-tertiary)">代理地址为空，将使用服务端配置</span>';return;}
+  fetch(url+'/health').then(r=>r.json()).then(d=>{
+    $('psStatus').innerHTML=d.status==='ok'
+      ?`<span style="color:var(--success)">代理在线：${esc(url)}</span>`
+      :`<span style="color:var(--danger)">代理响应异常：${esc(JSON.stringify(d))}</span>`;
+  }).catch(()=>{
+    $('psStatus').innerHTML=`<span style="color:var(--danger)">无法连接 ${esc(url)}/health</span>`;
+  });
+}
+function refreshSetPanel(){
+  const t=templates.find(x=>String(x.id)===String(curTpl));
+  $('setPaper').textContent=t?t.canvasWidth+'×'+t.canvasHeight+'mm':'—';
+  $('setHost').textContent=baseURL()||'服务端配置';
+  $('setPrinter').textContent=psPrinter||'服务默认';
+}
+function quickPrint(id){
+  const r=records.find(x=>String(x.batch_id)===String(id));if(!r){toast('未找到该记录');return;}
+  doDirectPrint([{batch_id:r.batch_id,qty:1}],'已打印 1 张：'+(r.product_name||r.common_name));
+}
+async function doDirectPrint(items,okMsg){
+  const t=templates.find(x=>String(x.id)===String(curTpl));if(!t){toast('请先选择模板');return;}
+  // 浏览器直连打印代理（psHost 有值时）
+  if(baseURL()){
+    try{
+      const images=[];
+      items.forEach(i=>{
+        const item=batchItem(i.batch_id);
+        for(let k=0;k<i.qty;k++)images.push(renderLabelCanvas(t,item));
+      });
+      const payload={images,printer:psPrinter,pageWidth:t.canvasWidth,pageHeight:t.canvasHeight};
+      const res=await fetch(baseURL()+'/print',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const data=await res.json().catch(()=>({}));
+      if(data.success!==false&&res.ok)toast(okMsg||(data.message||`已发送 ${data.printed||images.length} 张到打印机`));
+      else toast('打印失败：'+(data.error||(data.errors&&data.errors[0])||('HTTP '+res.status)));
+    }catch(e){toast('直连打印失败：'+e.message);}
+    return;
+  }
+  // 回退：服务器转发（PHP GD 渲染）
+  const batchQty={};items.forEach(i=>{batchQty[i.batch_id]=i.qty;});
+  const payload={batch_ids:items.map(i=>i.batch_id),batch_qty:batchQty,
+    template:{canvasWidth:t.canvasWidth,canvasHeight:t.canvasHeight,elements:t.elements},
+    printer:psPrinter,proxy:''};
+  try{
+    const res=await fetch('../api/direct_print.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data=await res.json();
+    if(data.success)toast(okMsg||(data.message||'打印完成'));
+    else toast('打印失败：'+(data.error||''));
+  }catch(e){toast('请求失败：'+e.message);}
+}
+// ===== 浏览器直连打印：canvas 渲染 PNG（203DPI ≈ 8px/mm）=====
+const DPI_PX=8;
+function drawBarcodeCanvas(ctx,code,x,y,w,h){
+  // EAN-13 标准条码：按 bits 绘制，1=黑 0=白（含护条），不带数字
+  const {bits}=ean13Bars(code);
+  const xUnit=w/bits.length;
+  ctx.fillStyle='#111';
+  for(let i=0;i<bits.length;i++){
+    if(bits[i]==='1')ctx.fillRect(x+i*xUnit,y,Math.ceil(xUnit),h);
+  }
+}
+function renderLabelCanvas(tpl,item){
+  const W=Math.round(tpl.canvasWidth*DPI_PX),H=Math.round(tpl.canvasHeight*DPI_PX);
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  (tpl.elements||[]).forEach(e=>{
+    const base=defaultElSize(e.type);
+    const fs=(e.fontSize||base.fontSize)*DPI_PX;
+    const ex=(e.x||0)*DPI_PX,ey=(e.y||0)*DPI_PX;
+    const ew=(e.width||base.width)*DPI_PX,eh=(e.height||base.height)*DPI_PX;
+    if(e.type==='barcode'){drawBarcodeCanvas(ctx,item.barcode,ex,ey,ew,eh);return;}
+    let text='',color='#111';
+    if(e.type==='name'){text=item.productName;color='#111';}
+    else if(e.type==='common'){text=item.commonName||'';color='#5b6478';}
+    else if(e.type==='price'){text='¥'+(+item.price||0).toFixed(2);color='#d92d20';}
+    else if(e.type==='condition'){text=allConditionTypes.map(k=>`${k===item.conditionType?'☑':'□'} ${getCondName(k)}`).join('  ');color='#111';}
+    else if(e.type==='batch'){text='批次 '+item.batchNo;color='#5b6478';}
+    else if(e.type==='date'){text=(item.date||'').slice(0,10);color='#5b6478';}
+    if(!text)return;
+    ctx.fillStyle=color;
+    ctx.font=(e.type==='name'||e.type==='price'?'bold ':'')+Math.round(fs)+'px sans-serif';
+    ctx.textBaseline='top';
+    const align=e.align||'left';
+    // name 支持多行（超宽换行），其他元素单行不裁剪（溢出即溢出，保持真实）
+    let lineY=ey;
+    const drawLine=(t,x)=>{
+      if(align==='center'){ctx.textAlign='center';ctx.fillText(t,x+ew/2,lineY);}
+      else if(align==='right'){ctx.textAlign='right';ctx.fillText(t,x+ew,lineY);}
+      else{ctx.textAlign='left';ctx.fillText(t,x,lineY);}
     };
-
-    function formatDate(dateStr) {
-        if (!dateStr) return '-';
-        const date = new Date(dateStr);
-        return date.toLocaleString('zh-CN', { 
-            year: 'numeric', month: '2-digit', day: '2-digit',
-            hour: '2-digit', minute: '2-digit'
-        });
+    if(e.type==='name'){
+      const chars=String(text).split('');
+      let line='';
+      const maxW=ew>0?ew:fs*10;
+      for(let i=0;i<chars.length;i++){
+        const test=line+chars[i];
+        if(ctx.measureText(test).width>maxW&&line){
+          drawLine(line,ex);line=chars[i];lineY+=fs*1.2;
+        }else line=test;
+      }
+      if(line)drawLine(line,ex);
+    }else{
+      drawLine(text,ex);
     }
-
-    function getConditionName(key) {
-        return conditionNameMap[key] || key;
-    }
-
-    function getConditionClass(key) {
-        return conditionClassMap[key] || '';
-    }
-
-    function getDefaultContent(type, item = sampleItem) {
-        switch(type) {
-            case 'barcode': return item.barcode;
-            case 'barcodeText': return item.barcode;
-            case 'name': return item.productName;
-            case 'price': return '¥' + item.price.toFixed(2);
-            case 'condition': 
-                return allConditionTypes.map(c => 
-                    `[${c === item.conditionType ? '☑' : '□'}] ${getConditionName(c)}`
-                ).join(' ');
-            default: return type;
-        }
-    }
-
-    function initFabricCanvas() {
-        if (fabricCanvas) {
-            fabricCanvas.dispose();
-        }
-        
-        const widthMm = parseInt(document.getElementById('canvasWidth').value) || 60;
-        const heightMm = parseInt(document.getElementById('canvasHeight').value) || 40;
-        
-        const canvasWidth = widthMm * MM_TO_PX * fabricScale;
-        const canvasHeight = heightMm * MM_TO_PX * fabricScale;
-        
-        fabricCanvas = new fabric.Canvas('fabricCanvas', {
-            width: canvasWidth,
-            height: canvasHeight,
-            backgroundColor: '#ffffff',
-            selection: true
-        });
-        
-        fabricCanvas.on('object:modified', function() {
-            updateFabricElementCount();
-        });
-        
-        fabricCanvas.on('object:added', function() {
-            updateFabricElementCount();
-        });
-        
-        fabricCanvas.on('object:removed', function() {
-            updateFabricElementCount();
-        });
-        
-        document.getElementById('fabricSizeLabel').textContent = widthMm + '×' + heightMm + 'mm';
-        updateFabricElementCount();
-    }
-
-    function updateFabricCanvas() {
-        const widthMm = parseInt(document.getElementById('canvasWidth').value) || 60;
-        const heightMm = parseInt(document.getElementById('canvasHeight').value) || 40;
-        
-        if (fabricCanvas) {
-            fabricCanvas.setDimensions({
-                width: widthMm * MM_TO_PX * fabricScale,
-                height: heightMm * MM_TO_PX * fabricScale
-            });
-        }
-        
-        document.getElementById('fabricSizeLabel').textContent = widthMm + '×' + heightMm + 'mm';
-    }
-
-    function updateFabricElementCount() {
-        if (fabricCanvas) {
-            document.getElementById('fabricElementCount').textContent = fabricCanvas.getObjects().length;
-        }
-    }
-
-    function getDefaultFabricContent(type) {
-        switch(type) {
-            case 'barcode': return sampleItem.barcode;
-            case 'barcodeText': return sampleItem.barcode;
-            case 'name': return sampleItem.productName;
-            case 'price': return '¥' + sampleItem.price.toFixed(2);
-            case 'condition': 
-                return allConditionTypes.map(c => 
-                    `[${c === sampleItem.conditionType ? '☑' : '□'}] ${getConditionName(c)}`
-                ).join(' ');
-            default: return type;
-        }
-    }
-
-    function addFabricElement(type) {
-        if (!fabricCanvas) return;
-
-        const widthMm = parseInt(document.getElementById('canvasWidth').value) || 60;
-        const heightMm = parseInt(document.getElementById('canvasHeight').value) || 40;
-
-        // 默认尺寸（mm）
-        const defaultSizes = {
-            barcode: { width: 50, height: 15, fontSize: 5 },
-            barcodeText: { width: 50, height: 4, fontSize: 2.5 },
-            name: { width: 50, height: 4, fontSize: 3 },
-            price: { width: 50, height: 5, fontSize: 4 },
-            condition: { width: 50, height: 4, fontSize: 2 }
-        };
-
-        const size = defaultSizes[type] || { width: 25, height: 5, fontSize: 3 };
-
-        // 居中位置
-        const leftMm = (widthMm - size.width) / 2;
-        const topMm = type === 'barcode' ? 2 : (heightMm - size.height) / 2;
-
-        // 转换为画布像素
-        const leftPx = leftMm * MM_TO_PX * fabricScale;
-        const topPx = topMm * MM_TO_PX * fabricScale;
-        const fontSizePx = size.fontSize * MM_TO_PX * fabricScale;
-
-        if (type === 'barcode') {
-            const element = new fabric.Text('|||||||||||', {
-                left: leftPx,
-                top: topPx,
-                fontSize: fontSizePx,
-                fontFamily: 'monospace',
-                fontWeight: 'bold',
-                fill: '#000000',
-                originX: 'left',
-                originY: 'top'
-            });
-
-            element.set('dataType', type);
-            element.set('elementType', 'barcode');
-            fabricCanvas.add(element);
-        } else {
-            const fontWeight = (type === 'price' || type === 'name') ? 'bold' : 'normal';
-            const color = type === 'price' ? '#e53e3e' : '#000000';
-
-            const element = new fabric.Text(getDefaultFabricContent(type), {
-                left: leftPx,
-                top: topPx,
-                fontSize: fontSizePx,
-                fontFamily: 'Arial',
-                fontWeight: fontWeight,
-                fill: color,
-                originX: 'left',
-                originY: 'top'
-            });
-
-            element.set('dataType', type);
-            element.set('elementType', type);
-            fabricCanvas.add(element);
-        }
-
-        fabricCanvas.setActiveObject(fabricCanvas.getObjects()[fabricCanvas.getObjects().length - 1]);
-        fabricCanvas.renderAll();
-    }
-
-    function deleteFabricSelected() {
-        if (!fabricCanvas) return;
-        const activeObjects = fabricCanvas.getActiveObjects();
-        if (activeObjects.length) {
-            activeObjects.forEach(function(object) {
-                fabricCanvas.remove(object);
-            });
-            fabricCanvas.discardActiveObject();
-            fabricCanvas.renderAll();
-        }
-    }
-
-    function resetFabricCanvas() {
-        if (!fabricCanvas) return;
-        if (confirm('确定要重置画布吗？')) {
-            fabricCanvas.clear();
-            fabricCanvas.backgroundColor = '#ffffff';
-            fabricCanvas.renderAll();
-            updateFabricElementCount();
-        }
-    }
-
-    async function saveFabricTemplate() {
-        if (!fabricCanvas) return;
-
-        const defaultName = currentTemplateIndex !== '' && labelTemplates[currentTemplateIndex]?.name ? labelTemplates[currentTemplateIndex].name : '新模板';
-        const name = prompt('请输入模板名称：', defaultName);
-        if (!name) return;
-
-        const widthMm = parseInt(document.getElementById('canvasWidth').value) || 60;
-        const heightMm = parseInt(document.getElementById('canvasHeight').value) || 40;
-
-        const elements = fabricCanvas.getObjects().map(obj => {
-            const xMm = obj.left / fabricScale / MM_TO_PX;
-            const yMm = obj.top / fabricScale / MM_TO_PX;
-            const widthMmVal = obj.getScaledWidth() / fabricScale / MM_TO_PX;
-            const heightMmVal = obj.getScaledHeight() / fabricScale / MM_TO_PX;
-            const effectiveFontSizeMm = (obj.fontSize * (obj.scaleY || 1)) / fabricScale / MM_TO_PX;
-
-            return {
-                type: obj.get('dataType') || obj.get('elementType') || 'text',
-                x: parseFloat(xMm.toFixed(1)),
-                y: parseFloat(yMm.toFixed(1)),
-                width: parseFloat(widthMmVal.toFixed(1)),
-                height: parseFloat(heightMmVal.toFixed(1)),
-                fontSize: parseFloat(effectiveFontSizeMm.toFixed(1)),
-                fontWeight: obj.fontWeight || 'normal',
-                color: obj.fill || '#000000',
-                align: obj.textAlign || 'center'
-            };
-        });
-
-        const template = {
-            name: name,
-            canvasWidth: widthMm,
-            canvasHeight: heightMm,
-            paperType: 'continuous',
-            density: document.getElementById('printDensity').value,
-            elements: elements
-        };
-
-        try {
-            const res = await fetch('../api/save_label_template.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: name, config: template })
-            });
-            const data = await res.json();
-
-            if (data.success) {
-                await loadTemplates();
-                const newIndex = labelTemplates.findIndex(t => t.name === name);
-                if (newIndex !== -1) {
-                    currentTemplateIndex = newIndex;
-                    document.getElementById('labelTemplate').value = newIndex;
-                }
-                alert('模板保存成功！');
-                closeEditor();
-            } else {
-                alert('保存失败: ' + (data.error || '未知错误'));
-            }
-        } catch (err) {
-            console.error('保存模板失败:', err);
-            alert('保存失败，请重试');
-        }
-    }
-
-    function loadTemplates() {
-        fetch('../api/get_label_templates.php')
-            .then(res => res.json())
-            .then(data => {
-                if (data.success && data.templates && data.templates.length > 0) {
-                    labelTemplates = data.templates;
-                } else {
-                    labelTemplates = [
-                        {
-                            name: '热敏60mm',
-                            canvasWidth: 60,
-                            canvasHeight: 40,
-                            paperType: 'continuous',
-                            density: 'normal',
-                            elements: [
-                                { type: 'barcode', x: 5, y: 2, width: 50, height: 15, fontSize: 4 },
-                                { type: 'barcodeText', x: 5, y: 19, width: 50, height: 4, fontSize: 2.5, align: 'center' },
-                                { type: 'name', x: 5, y: 25, width: 50, height: 5, fontSize: 3, fontWeight: 'bold', align: 'center' },
-                                { type: 'price', x: 5, y: 32, width: 50, height: 6, fontSize: 4, fontWeight: 'bold', color: '#e53e3e', align: 'center' }
-                            ]
-                        },
-                        {
-                            name: '小标签40mm',
-                            canvasWidth: 40,
-                            canvasHeight: 30,
-                            paperType: 'continuous',
-                            density: 'normal',
-                            elements: [
-                                { type: 'barcode', x: 3, y: 2, width: 34, height: 12, fontSize: 3 },
-                                { type: 'barcodeText', x: 3, y: 15, width: 34, height: 3, fontSize: 2, align: 'center' },
-                                { type: 'name', x: 3, y: 20, width: 34, height: 4, fontSize: 2.5, fontWeight: 'bold', align: 'center' },
-                                { type: 'price', x: 3, y: 25, width: 34, height: 4, fontSize: 3, fontWeight: 'bold', color: '#e53e3e', align: 'center' }
-                            ]
-                        }
-                    ];
-                }
-
-                const select = document.getElementById('labelTemplate');
-                select.innerHTML = '<option value="">选择模板...</option>';
-                labelTemplates.forEach((template, index) => {
-                    const opt = document.createElement('option');
-                    opt.value = index;
-                    opt.textContent = template.name;
-                    select.appendChild(opt);
-                });
-
-                // 恢复上次使用的模板，如果没有则默认第一个
-                const savedIndex = localStorage.getItem('ppmart_last_template');
-                if (savedIndex !== null && labelTemplates[savedIndex]) {
-                    select.value = savedIndex;
-                    currentTemplateIndex = savedIndex;
-                } else if (labelTemplates.length > 0) {
-                    select.value = '0';
-                    currentTemplateIndex = '0';
-                    localStorage.setItem('ppmart_last_template', '0');
-                }
-            })
-            .catch(err => {
-                console.error('加载模板失败:', err);
-                labelTemplates = [];
-            });
-    }
-
-    function openEditor() {
-        // 检查是否有选择的模板
-        const templateSelect = document.getElementById('labelTemplate');
-        const selectedValue = templateSelect.value;
-        
-        if (selectedValue !== '') {
-            // 如果有选择的模板，加载它
-            currentTemplateIndex = selectedValue;
-            document.getElementById('editorModal').classList.add('show');
-            loadTemplateToEditor(selectedValue);
-        } else {
-            // 否则重置并打开空编辑器
-            currentTemplateIndex = '';
-            document.getElementById('labelTemplate').value = '';
-            document.getElementById('editorModal').classList.add('show');
-            initFabricCanvas();
-        }
-    }
-
-    function closeEditor() {
-        document.getElementById('editorModal').classList.remove('show');
-    }
-
-    function loadTemplateToEditor(index) {
-        const template = labelTemplates[index];
-        if (!template) return;
-
-        document.getElementById('canvasWidth').value = template.canvasWidth;
-        document.getElementById('canvasHeight').value = template.canvasHeight;
-        document.getElementById('printDensity').value = template.density || 'normal';
-
-        initFabricCanvas();
-
-        // 所有尺寸从 mm 转换为画布像素
-        // fontSize 已经是等效值（保存时考虑了缩放），直接使用即可
-        template.elements.forEach(el => {
-            const leftPx = el.x * MM_TO_PX * fabricScale;
-            const topPx = el.y * MM_TO_PX * fabricScale;
-            const fontSizePx = el.fontSize * MM_TO_PX * fabricScale;
-
-            if (el.type === 'barcode') {
-                const barcodeEl = new fabric.Text('|||||||||||', {
-                    left: leftPx,
-                    top: topPx,
-                    fontSize: fontSizePx,
-                    fontFamily: 'monospace',
-                    fontWeight: el.fontWeight || 'bold',
-                    fill: '#000000',
-                    originX: 'left',
-                    originY: 'top'
-                });
-
-                barcodeEl.set('dataType', 'barcode');
-                barcodeEl.set('elementType', 'barcode');
-                fabricCanvas.add(barcodeEl);
-            } else {
-                const text = new fabric.Text(getDefaultFabricContent(el.type), {
-                    left: leftPx,
-                    top: topPx,
-                    fontSize: fontSizePx,
-                    fontFamily: 'Arial',
-                    fontWeight: el.fontWeight || 'normal',
-                    fill: el.color || '#000000',
-                    originX: 'left',
-                    originY: 'top',
-                    textAlign: el.align || 'left'
-                });
-
-                text.set('dataType', el.type);
-                text.set('elementType', el.type);
-                fabricCanvas.add(text);
-            }
-        });
-
-        fabricCanvas.renderAll();
-        updateFabricElementCount();
-    }
-
-    async function loadSystemSettings() {
-        try {
-            const res = await fetch('../api/get_settings.php');
-            const data = await res.json();
-            if (data.success) {
-                const settings = data.settings || data.data;
-                if (settings.condition_types) {
-                    conditionTypes = settings.condition_types;
-                    allConditionTypes = conditionTypes.map(c => c.key);
-                    conditionTypes.forEach(c => {
-                        conditionNameMap[c.key] = c.name;
-                        conditionClassMap[c.key] = 'condition-' + c.key;
-                    });
-
-                    const select = document.getElementById('conditionType');
-                    select.innerHTML = '<option value="">全部SKU</option>';
-                    conditionTypes.forEach(c => {
-                        const opt = document.createElement('option');
-                        opt.value = c.key;
-                        opt.textContent = c.name;
-                        select.appendChild(opt);
-                    });
-                }
-                return settings.server_time || null;
-            }
-        } catch (err) {
-            console.error(err);
-        }
-        return null;
-    }
-
-    async function searchPurchaseLogs(page = 1) {
-        currentPage = page;
-        const startDate = document.getElementById('startDate').value;
-        const endDate = document.getElementById('endDate').value;
-        const keyword = document.getElementById('searchKeyword').value;
-        const conditionType = document.getElementById('conditionType').value;
-
-        try {
-            const res = await fetch('../api/get_purchase_logs.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    start_date: startDate,
-                    end_date: endDate,
-                    keyword: keyword,
-                    condition_type: conditionType,
-                    page: page,
-                    page_size: 50,
-                    sort_by: logSort.field || 'date',
-                    sort_dir: logSort.dir || 'desc'
-                })
-            });
-
-            const data = await res.json();
-            if (data.success) {
-                allRecords = data.data.records;
-                // 后端已按 sort_by/sort_dir 全量排序后分页，前端不再重复排序
-                renderPurchaseLogs(data.data.records);
-                renderPagination(data.data.total, data.data.page_size);
-            } else {
-                document.getElementById('purchaseLogList').innerHTML = 
-                    '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary);padding:40px;">' + (data.error || '暂无入库记录') + '</td></tr>';
-                document.getElementById('pagination').innerHTML = '';
-            }
-        } catch (err) {
-            console.error(err);
-            alert('查询失败');
-        }
-    }
-
-    function renderPurchaseLogs(records) {
-        const tbody = document.getElementById('purchaseLogList');
-        if (!records || records.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无入库记录</td></tr>';
-            return;
-        }
-
-        const selectAllChecked = records.every(r => selectedItems.some(s => s.batch_id === r.batch_id));
-        document.getElementById('selectAll').checked = selectAllChecked && records.length > 0;
-
-        tbody.innerHTML = records.map(r => {
-            const isSelected = selectedItems.some(s => s.batch_id === r.batch_id);
-            return `
-                <tr style="${isSelected ? 'background:var(--info-light);' : ''}">
-                    <td><input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelect(event, ${r.batch_id}, '${r.barcode}', '${escapeHtml(r.product_name || r.common_name || '')}', '${r.condition_type}', ${r.qty}, ${r.suggested_price})"></td>
-                    <td>${formatDate(r.purchased_at)}</td>
-                    <td><code style="font-size:12px;">${r.batch_no}</code></td>
-                    <td><code style="font-size:12px;">${r.barcode}</code></td>
-                    <td>${escapeHtml(r.product_name || r.common_name || '-')}</td>
-                    <td><span class="condition-badge ${getConditionClass(r.condition_type)}">${getConditionName(r.condition_type)}</span></td>
-                    <td style="font-weight:bold;">${r.qty}</td>
-                    <td style="color:var(--danger); font-weight:bold;">¥${parseFloat(r.suggested_price).toFixed(2)}</td>
-                    <td><button class="btn btn-sm btn-success" onclick="singlePrint(${r.batch_id})" style="font-size:12px;white-space:nowrap;">🖨️ 打印</button></td>
-                </tr>
-            `;
-        }).join('');
-
-        updateSelectedUI();
-    }
-
-    function escapeHtml(text) {
-        return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-    }
-
-    function toggleSelectAll() {
-        const checked = document.getElementById('selectAll').checked;
-        allRecords.forEach(r => {
-            const exists = selectedItems.some(s => s.batch_id === r.batch_id);
-            if (checked && !exists) {
-                selectedItems.push({
-                    batch_id: r.batch_id,
-                    barcode: r.barcode,
-                    productName: r.product_name || r.common_name || '',
-                    conditionType: r.condition_type,
-                    qty: r.qty,
-                    price: r.suggested_price
-                });
-            } else if (!checked) {
-                selectedItems = selectedItems.filter(s => !allRecords.some(r => r.batch_id === s.batch_id));
-            }
-        });
-        updateSelectedUI();
-        renderPurchaseLogs(allRecords);
-    }
-
-    function toggleSelect(event, batchId, barcode, productName, conditionType, qty, price) {
-        const index = selectedItems.findIndex(item => item.batch_id === batchId);
-        if (index >= 0) {
-            selectedItems.splice(index, 1);
-        } else {
-            selectedItems.push({ batch_id: batchId, barcode, productName, conditionType, qty, price });
-        }
-        
-        const row = event.target.closest('tr');
-        if (row) {
-            row.style.backgroundColor = selectedItems.some(s => s.batch_id === batchId) ? 'var(--info-light)' : '';
-        }
-        
-        updateSelectedUI();
-        updateSelectAllState();
-    }
-    
-    function updateSelectAllState() {
-        if (allRecords.length === 0) {
-            document.getElementById('selectAll').checked = false;
-            return;
-        }
-        const allSelected = allRecords.every(r => selectedItems.some(s => s.batch_id === r.batch_id));
-        document.getElementById('selectAll').checked = allSelected;
-    }
-
-    function updateSelectedUI() {
-        const totalQty = selectedItems.reduce((sum, item) => sum + item.qty, 0);
-        document.getElementById('selectedCount').textContent =
-            selectedItems.length > 0 ? `已选择 ${selectedItems.length} 条入库记录，共 ${totalQty} 个标签` : '';
-
-        const container = document.getElementById('printButtonContainer');
-        container.innerHTML = '';
-        if (selectedItems.length > 0) {
-            const btn1 = document.createElement('button');
-            btn1.className = 'btn btn-success';
-            btn1.textContent = `🖨️ 批量打印全部 (${totalQty}张)`;
-            btn1.style.marginRight = '8px';
-            btn1.onclick = openPrintModal;
-            container.appendChild(btn1);
-
-            const btn2 = document.createElement('button');
-            btn2.className = 'btn btn-primary';
-            btn2.textContent = `📋 每商品1张 (${selectedItems.length}张)`;
-            btn2.onclick = openPrintModalOneEach;
-            container.appendChild(btn2);
-        }
-    }
-
-    function openPrintModal() {
-        if (selectedItems.length === 0) {
-            alert('请先选择要打印标签的入库记录');
-            return;
-        }
-        oneEachMode = false;
-        openPrintModalCommon();
-    }
-
-    function openPrintModalOneEach() {
-        if (selectedItems.length === 0) {
-            alert('请先选择要打印标签的入库记录');
-            return;
-        }
-        oneEachMode = true;
-        openPrintModalCommon();
-    }
-
-    function openPrintModalCommon() {
-        loadTemplates();
-
-        const labelQty = oneEachMode ? selectedItems.length : selectedItems.reduce((sum, item) => sum + item.qty, 0);
-        document.getElementById('selectedPrintCount').textContent = selectedItems.length;
-        document.getElementById('totalLabels').textContent = labelQty;
-
-        let summaryHtml = '';
-        selectedItems.forEach(item => {
-            const printNum = oneEachMode ? 1 : item.qty;
-            summaryHtml += `<div style="padding:3px 0; border-bottom:1px solid var(--border);">
-                ${escapeHtml(item.productName)} ×${printNum} <span style="color:var(--danger);">¥${parseFloat(item.price).toFixed(2)}</span>
-            </div>`;
-        });
-        document.getElementById('selectedItemsSummary').innerHTML = summaryHtml || '<div style="color:var(--text-tertiary);">暂无选中</div>';
-
-        // 恢复上次使用的模板，没有则默认第一个
-        const savedIndex = localStorage.getItem('ppmart_last_template');
-        if (savedIndex !== null && labelTemplates[savedIndex]) {
-            currentTemplateIndex = savedIndex;
-            document.getElementById('labelTemplate').value = savedIndex;
-        } else if (labelTemplates.length > 0) {
-            currentTemplateIndex = '0';
-            document.getElementById('labelTemplate').value = '0';
-        }
-
-        showModal('printModal');
-    }
-
-    function getSelectedTemplate() {
-        const index = document.getElementById('labelTemplate').value;
-        if (index === '' || !labelTemplates[index]) {
-            alert('请先选择一个模板');
-            return null;
-        }
-        return labelTemplates[index];
-    }
-
-    function previewLabels() {
-        const template = getSelectedTemplate();
-        if (!template) return;
-
-        closeModal('printModal');
-        showModal('previewModal');
-
-        const densityFilter = {
-            'light': 'opacity(0.8)',
-            'normal': 'opacity(1)',
-            'dark': 'opacity(1.1)'
-        };
-
-        // 预览使用 mm 单位
-        let html = `<div style="display:inline-block; background:#fff; padding:12px; border-radius:4px; filter:${densityFilter[template.density]}">
-            <div style="position:relative; width:${template.canvasWidth}mm; height:${template.canvasHeight}mm; border:1px dashed #ccc; overflow:visible;">`;
-
-        template.elements.forEach((el, index) => {
-            const content = getDefaultContent(el.type);
-            if (el.type === 'barcode') {
-                html += `<div style="
-                    position:absolute;
-                    left:${el.x}mm;
-                    top:${el.y}mm;
-                    width:${el.width}mm;
-                    height:${el.height}mm;
-                    display:flex;
-                    align-items:center;
-                    justify-content:center;
-                    overflow:visible;
-                    box-sizing:border-box;
-                " class="preview-barcode-container" data-barcode="${sampleItem.barcode}" data-width="${el.width}" data-height="${el.height}"></div>`;
-            } else {
-                // 文本元素：只用 fontSize 控制大小，不设置容器宽高约束
-                html += `<div style="
-                    position:absolute;
-                    left:${el.x}mm;
-                    top:${el.y}mm;
-                    font-size:${el.fontSize}mm;
-                    font-weight:${el.fontWeight || 'normal'};
-                    color:${el.color || '#000'};
-                    white-space:nowrap;
-                    line-height:1.2;
-                ">${content}</div>`;
-            }
-        });
-
-        html += '</div></div>';
-
-        document.getElementById('previewContent').innerHTML = `
-            <div style="display:flex; flex-direction:column; align-items:center; min-height:300px; justify-content:center;">
-                ${html}
-            </div>
-            <div style="text-align:center; padding-top:16px; font-size:13px; color:var(--text-secondary);">
-                尺寸: ${template.canvasWidth}×${template.canvasHeight}mm | 数量: ${oneEachMode ? selectedItems.length : selectedItems.reduce((s, i) => s + i.qty, 0)} 个
-            </div>
-        `;
-
-        // 等待 DOM 更新后再生成条码
-        requestAnimationFrame(() => {
-            generatePreviewBarcodes();
-        });
-    }
-
-    function generatePreviewBarcodes() {
-        const containers = document.querySelectorAll('.preview-barcode-container');
-        containers.forEach(container => {
-            // 清空容器
-            container.innerHTML = '';
-
-            const barcode = container.dataset.barcode;
-            const heightMm = parseFloat(container.dataset.height);
-
-            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svg.style.width = '100%';
-            svg.style.height = '100%';
-            container.appendChild(svg);
-
-            // 使用通用渲染函数
-            if (!renderBarcode(svg, barcode, heightMm * 3.78 * 0.9)) {
-                container.innerHTML = `<span style="font-family:monospace; font-size:3mm;">${barcode}</span>`;
-            }
-        });
-    }
-
-    // 自动检测条码格式
-    function detectBarcodeFormat(barcode) {
-        if (!barcode) return 'CODE128';
-        const str = String(barcode).trim();
-        // EAN13: 13位纯数字（需要校验位正确）
-        if (/^\d{13}$/.test(str)) return 'EAN13';
-        // EAN8: 8位纯数字
-        if (/^\d{8}$/.test(str)) return 'EAN8';
-        // UPC-A: 12位纯数字
-        if (/^\d{12}$/.test(str)) return 'UPC';
-        // 其他情况用 CODE128（支持任意字符，最通用）
-        return 'CODE128';
-    }
-
-    // 生成条码的通用函数，带容错
-    function renderBarcode(svg, barcode, height) {
-        const format = detectBarcodeFormat(barcode);
-        const formats = [format, 'CODE128', 'CODE39'];
-
-        for (let i = 0; i < formats.length; i++) {
-            try {
-                JsBarcode(svg, barcode, {
-                    format: formats[i],
-                    displayValue: false,
-                    width: 2,
-                    height: height,
-                    margin: 0
-                });
-                return true;
-            } catch (e) {
-                console.log('Format ' + formats[i] + ' failed for barcode ' + barcode + ':', e.message);
-            }
-        }
-        return false;
-    }
-
-    function printLabelsDirect() {
-        printLabelsFromTemplate(getSelectedTemplate());
-    }
-
-    function printLabels() {
-        const template = getSelectedTemplate();
-        if (!template) return;
-
-        closeModal('printModal');
-        printLabelsFromTemplate(template);
-    }
-
-    function directPrint() {
-        const template = getSelectedTemplate();
-        if (!template) return;
-
-        if (!selectedItems.length) {
-            alert('请先选择要打印的商品');
-            return;
-        }
-
-        const printerName = document.getElementById('printerName').value.trim();
-
-        const batchQty = {};
-        selectedItems.forEach(item => { batchQty[item.batch_id] = oneEachMode ? 1 : item.qty; });
-        const batchIds = selectedItems.map(item => item.batch_id);
-
-        const btn = document.getElementById('btnDirectPrint');
-        const origText = btn ? btn.textContent : '';
-        if (btn) { btn.textContent = '⏳ 正在打印...'; btn.disabled = true; }
-
-        fetch('../api/direct_print.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                batch_ids: batchIds,
-                batch_qty: batchQty,
-                template: {
-                    canvasWidth: template.canvasWidth,
-                    canvasHeight: template.canvasHeight,
-                    elements: template.elements
-                },
-                printer: printerName
-            })
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                closeModal('printModal');
-                alert('✅ ' + (data.message || '打印完成'));
-            } else {
-                alert('❌ ' + (data.error || '打印失败'));
-            }
-        })
-        .catch(err => {
-            alert('❌ 请求失败: ' + err.message);
-        })
-        .finally(() => {
-            if (btn) { btn.textContent = origText; btn.disabled = false; }
-        });
-    }
-
-    function singlePrint(batchId) {
-        let template = getSelectedTemplate();
-        if (!template) {
-            const savedIndex = localStorage.getItem('ppmart_last_template');
-            if (savedIndex !== null && labelTemplates[savedIndex]) {
-                template = labelTemplates[savedIndex];
-                document.getElementById('labelTemplate').value = savedIndex;
-            } else if (labelTemplates.length > 0) {
-                template = labelTemplates[0];
-                document.getElementById('labelTemplate').value = '0';
-                localStorage.setItem('ppmart_last_template', '0');
-            } else {
-                alert('请先创建一个标签模板');
-                return;
-            }
-        }
-
-        const record = allRecords.find(r => r.batch_id === batchId);
-        if (!record) {
-            alert('未找到该记录');
-            return;
-        }
-
-        const qtyInput = prompt('请输入打印张数：', '1');
-        if (qtyInput === null) return;
-        const qty = parseInt(qtyInput);
-        if (isNaN(qty) || qty < 1) {
-            alert('请输入有效数量');
-            return;
-        }
-
-        // 构造单条打印项（与批量浏览器打印同样的逻辑）
-        const item = {
-            barcode: record.barcode,
-            productName: record.product_name || record.common_name || '',
-            price: record.suggested_price,
-            conditionType: record.condition_type,
-            qty: qty
-        };
-
-        printSingleLabel(item, template, qty);
-    }
-
-    function printSingleLabel(item, template, qty) {
-        const density = template.density || 'normal';
-        const densityFilter = {
-            'light': 'opacity(0.8)',
-            'normal': 'opacity(1)',
-            'dark': 'opacity(1.1)'
-        };
-
-        let html = '';
-        for (let i = 0; i < qty; i++) {
-            html += `<div class="label-page" style="position:relative; width:${template.canvasWidth}mm; min-height:${template.canvasHeight}mm; height:${template.canvasHeight}mm; filter:${densityFilter[density]}; box-sizing:border-box; overflow:hidden; page-break-after:always; page-break-inside:avoid; break-inside:avoid;">`;
-
-            template.elements.forEach(el => {
-                const content = getElementContentForItem(el.type, item);
-                if (el.type === 'barcode') {
-                    html += `<div style="
-                        position:absolute;
-                        left:${el.x}mm;
-                        top:${el.y}mm;
-                        width:${el.width}mm;
-                        height:${el.height}mm;
-                        display:flex;
-                        align-items:center;
-                        justify-content:center;
-                        overflow:visible;
-                        box-sizing:border-box;
-                    " class="barcode-placeholder" data-barcode="${item.barcode}" data-width="${el.width}" data-height="${el.height}"></div>`;
-                } else {
-                    // name 等用户输入内容转义，防止 HTML 注入
-                    const safeContent = (el.type === 'name') ? escapeHtml(content) : content;
-                    html += `<div style="
-                        position:absolute;
-                        left:${el.x}mm;
-                        top:${el.y}mm;
-                        font-size:${el.fontSize}mm;
-                        font-weight:${el.fontWeight || 'normal'};
-                        color:${el.color || '#000'};
-                        white-space:nowrap;
-                        line-height:1.2;
-                    ">${safeContent}</div>`;
-                }
-            });
-
-            html += '</div>';
-        }
-
-        const printStyles = `
-            <style>
-                @media print {
-                    @page { margin: 0mm; size: ${template.canvasWidth}mm ${template.canvasHeight}mm; }
-                    html, body { margin: 0; padding: 0; }
-                    .label-page {
-                        margin: 0; padding: 0;
-                        page-break-after: always;
-                        page-break-inside: avoid;
-                        overflow: hidden;
-                    }
-                    .label-page:last-child { page-break-after: avoid; }
-                }
-                html, body { margin: 0; padding: 0; }
-                * { box-sizing: border-box; }
-                div { font-family: -apple-system, BlinkMacSystemFont, sans-serif; overflow: visible; }
-                @supports (-webkit-print-color-adjust: exact) {
-                    div { -webkit-print-color-adjust: exact; }
-                }
-            </style>
-        `;
-
-        const printWindow = window.open('', '_blank', 'width=800,height=600');
-        printWindow.document.write(`<!DOCTYPE html>
-<html>
-<head>
-    <title>打印标签</title>
-    <meta charset="UTF-8">
-    ${printStyles}
-</head>
-<body>
-${html}
-<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>
-<script>
-function detectBarcodeFormat(barcode) {
-    if (!barcode) return 'CODE128';
-    var str = String(barcode).trim();
-    if (/^\\d{13}$/.test(str)) return 'EAN13';
-    if (/^\\d{8}$/.test(str)) return 'EAN8';
-    if (/^\\d{12}$/.test(str)) return 'UPC';
-    return 'CODE128';
+  });
+  return cv.toDataURL('image/png').split(',')[1];
 }
-function waitForJsBarcode(callback, maxAttempts) {
-    var attempts = 0;
-    var check = function() {
-        attempts++;
-        if (typeof JsBarcode !== 'undefined') {
-            callback();
-        } else if (attempts < maxAttempts) {
-            setTimeout(check, 100);
-        } else {
-            console.error('JsBarcode failed to load');
-            callback();
-        }
-    };
-    check();
-}
-waitForJsBarcode(function() {
-    var placeholders = document.querySelectorAll('.barcode-placeholder');
-    placeholders.forEach(function(placeholder) {
-        var barcode = placeholder.dataset.barcode;
-        var widthMm = parseFloat(placeholder.dataset.width);
-        var heightMm = parseFloat(placeholder.dataset.height);
-        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.style.width = '100%';
-        svg.style.height = '100%';
-        placeholder.appendChild(svg);
-        if (typeof JsBarcode !== 'undefined') {
-            var format = detectBarcodeFormat(barcode);
-            try {
-                JsBarcode(svg, barcode, {
-                    format: format,
-                    displayValue: false,
-                    width: 2,
-                    height: heightMm * 3.78 * 0.9,
-                    margin: 0
-                });
-            } catch (e) {
-                try {
-                    JsBarcode(svg, barcode, {
-                        format: 'CODE128',
-                        displayValue: false,
-                        width: 2,
-                        height: heightMm * 3.78 * 0.9,
-                        margin: 0
-                    });
-                } catch (e2) {
-                    placeholder.innerHTML = '<span style="font-family:monospace; font-size:3mm;">' + barcode + '</span>';
-                }
-            }
-        } else {
-            placeholder.innerHTML = '<span style="font-family:monospace; font-size:3mm;">' + barcode + '</span>';
-        }
-    });
-    setTimeout(function() { window.print(); }, 200);
-}, 50);
-<\/script>
-</body>
-</html>`);
-        printWindow.document.close();
-    }
-
-    function printLabelsFromTemplate(template) {
-        const density = template.density || 'normal';
-        const densityFilter = {
-            'light': 'opacity(0.8)',
-            'normal': 'opacity(1)',
-            'dark': 'opacity(1.1)'
-        };
-
-        let html = '';
-        selectedItems.forEach(item => {
-            const count = oneEachMode ? 1 : item.qty;
-            for (let i = 0; i < count; i++) {
-                html += `<div class="label-page" style="position:relative; width:${template.canvasWidth}mm; min-height:${template.canvasHeight}mm; height:${template.canvasHeight}mm; filter:${densityFilter[density]}; box-sizing:border-box; overflow:hidden; page-break-after:always; page-break-inside:avoid; break-inside:avoid;">`;
-
-                template.elements.forEach(el => {
-                    const content = getElementContentForItem(el.type, item);
-                    if (el.type === 'barcode') {
-                        html += `<div style="
-                            position:absolute;
-                            left:${el.x}mm;
-                            top:${el.y}mm;
-                            width:${el.width}mm;
-                            height:${el.height}mm;
-                            display:flex;
-                            align-items:center;
-                            justify-content:center;
-                            overflow:visible;
-                            box-sizing:border-box;
-                        " class="barcode-placeholder" data-barcode="${item.barcode}" data-width="${el.width}" data-height="${el.height}"></div>`;
-                    } else {
-                        // 文本元素：只用 fontSize 控制大小
-                        const safeContent = (el.type === 'name') ? escapeHtml(content) : content;
-                        html += `<div style="
-                            position:absolute;
-                            left:${el.x}mm;
-                            top:${el.y}mm;
-                            font-size:${el.fontSize}mm;
-                            font-weight:${el.fontWeight || 'normal'};
-                            color:${el.color || '#000'};
-                            white-space:nowrap;
-                            line-height:1.2;
-                        ">${safeContent}</div>`;
-                    }
-                });
-
-                html += '</div>';
-            }
-        });
-
-        const printStyles = `
-            <style>
-                @media print {
-                    @page {
-                        margin: 0mm;
-                        size: ${template.canvasWidth}mm ${template.canvasHeight}mm;
-                    }
-                    html, body {
-                        margin: 0;
-                        padding: 0;
-                    }
-                    .label-page {
-                        margin: 0;
-                        padding: 0;
-                        page-break-after: always;
-                        page-break-inside: avoid;
-                        overflow: hidden;
-                    }
-                    .label-page:last-child {
-                        page-break-after: avoid;
-                    }
-                }
-                html, body {
-                    margin: 0;
-                    padding: 0;
-                }
-                * {
-                    box-sizing: border-box;
-                }
-                div {
-                    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-                    overflow: visible;
-                }
-                @supports (-webkit-print-color-adjust: exact) {
-                    div { -webkit-print-color-adjust: exact; }
-                }
-            </style>
-        `;
-
-        const printWindow = window.open('', '_blank', 'width=800,height=600');
-        printWindow.document.write(`<!DOCTYPE html>
-<html>
-<head>
-    <title>打印标签</title>
-    <meta charset="UTF-8">
-    ${printStyles}
-</head>
-<body>
-${html}
-<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>
-<script>
-function detectBarcodeFormat(barcode) {
-    if (!barcode) return 'CODE128';
-    var str = String(barcode).trim();
-    if (/^\\d{13}$/.test(str)) return 'EAN13';
-    if (/^\\d{8}$/.test(str)) return 'EAN8';
-    if (/^\\d{12}$/.test(str)) return 'UPC';
-    return 'CODE128';
+function batchItem(bid){
+  const r=records.find(x=>String(x.batch_id)===String(bid))||{};
+  return {barcode:r.barcode||'',productName:r.product_name||r.common_name||'',commonName:r.common_name||'',price:parseFloat(r.suggested_price||0),conditionType:r.condition_type||'sealed',batchNo:r.batch_no||'',date:r.purchased_at||''};
 }
 
-function waitForJsBarcode(callback, maxAttempts) {
-    var attempts = 0;
-    var check = function() {
-        attempts++;
-        if (typeof JsBarcode !== 'undefined') {
-            callback();
-        } else if (attempts < maxAttempts) {
-            setTimeout(check, 100);
-        } else {
-            console.error('JsBarcode failed to load');
-            callback();
-        }
-    };
-    check();
+function buildDirectPayload(list){
+  const t=templates.find(x=>String(x.id)===String(curTpl));if(!t){toast('请先选择模板');return null;}
+  const batchIds=list.map(r=>r.batch_id);
+  const batchQty={};list.forEach(r=>{batchQty[r.batch_id]=(copies[r.batch_id]||0)>0?copies[r.batch_id]:1;});
+  return {batch_ids:batchIds,batch_qty:batchQty,
+    template:{canvasWidth:t.canvasWidth,canvasHeight:t.canvasHeight,elements:t.elements},
+    printer:psPrinter,proxy:baseURL()};
+}
+function openSendModal(list,isTest){
+  const payload=buildDirectPayload(list);
+  if(!payload)return;
+  const total=list.reduce((a,r)=>a+((payload.batch_qty[r.batch_id]||1)),0);
+  $('sendStatus').textContent=isTest?`测试打印：${esc(list[0].product_name||'')} 1 张 → /api/direct_print.php`:`将发送 ${total} 张标签 → /api/direct_print.php（PHP 渲染 PNG 并转发到打印代理）`;
+  $('sendPayload').textContent=JSON.stringify(payload,null,2);
+  openModal('mSend');
+}
+async function sendPrint(btn){
+  const list=records.filter(r=>(copies[r.batch_id]||0)>0);
+  if(!list.length){toast('请先设置份数');return;}
+  const orig=btn.textContent;
+  btn.disabled=true;btn.textContent='正在发送…';
+  try{
+    await doDirectPrint(list.map(r=>({batch_id:r.batch_id,qty:copies[r.batch_id]})),'打印任务已发送');
+  }catch(e){toast('请求失败：'+e.message);}
+  finally{btn.disabled=false;btn.textContent=orig;}
+}
+function testPrint(){
+  checkStatus();
+  if(!records.length){toast('暂无商品可测试');return;}
+  doDirectPrint([{batch_id:records[0].batch_id,qty:1}],'测试打印已发送：'+(records[0].product_name||records[0].common_name));
 }
 
-waitForJsBarcode(function() {
-    var placeholders = document.querySelectorAll('.barcode-placeholder');
-    placeholders.forEach(function(placeholder) {
-        var barcode = placeholder.dataset.barcode;
-        var widthMm = parseFloat(placeholder.dataset.width);
-        var heightMm = parseFloat(placeholder.dataset.height);
-
-        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.style.width = '100%';
-        svg.style.height = '100%';
-        placeholder.appendChild(svg);
-
-        if (typeof JsBarcode !== 'undefined') {
-            var format = detectBarcodeFormat(barcode);
-            try {
-                JsBarcode(svg, barcode, {
-                    format: format,
-                    displayValue: false,
-                    width: 2,
-                    height: heightMm * 3.78 * 0.9,
-                    margin: 0
-                });
-            } catch (e) {
-                try {
-                    JsBarcode(svg, barcode, {
-                        format: 'CODE128',
-                        displayValue: false,
-                        width: 2,
-                        height: heightMm * 3.78 * 0.9,
-                        margin: 0
-                    });
-                } catch (e2) {
-                    placeholder.innerHTML = '<span style="font-family:monospace; font-size:3mm;">' + barcode + '</span>';
-                }
-            }
-        } else {
-            placeholder.innerHTML = '<span style="font-family:monospace; font-size:3mm;">' + barcode + '</span>';
-        }
-    });
-
-    setTimeout(function() {
-        window.print();
-    }, 200);
-}, 50);
-<\/script>
-</body>
-</html>`);
-        printWindow.document.close();
+// ---------- 浏览器打印（备用，仅打标签） ----------
+// 用独立 iframe 文档打印：不继承主页面布局/样式，打印预览 = 标签本身，不会空白
+function browserPrint(){
+  const list=records.filter(r=>(copies[r.batch_id]||0)>0);
+  if(!list.length){toast('请先设置份数');return;}
+  const t=templates.find(x=>String(x.id)===String(curTpl));if(!t){toast('请先选择模板');return;}
+  const MM_PX=96/25.4; // 打印 CSS：1mm ≈ 3.78px（1px=1/96in）
+  let labels='';
+  list.forEach(r=>{
+    const item={barcode:r.barcode,productName:r.product_name||r.common_name,commonName:r.common_name,price:parseFloat(r.suggested_price||0),conditionType:r.condition_type,batchNo:r.batch_no,date:r.purchased_at};
+    for(let i=0;i<(copies[r.batch_id]||0);i++){
+      labels+=`<div class="plabel">`+
+        (t.elements||[]).map(e=>{
+          const base=defaultElSize(e.type);
+          // 所有元素应用宽度（mm），name 换行、其他单行不裁剪
+          const wStyle=`width:${e.width||base.width}mm;`;
+          return `<div style="position:absolute;left:${e.x}mm;top:${e.y}mm;${wStyle}">${elHTML(e.type,item,(e.fontSize||base.fontSize)*MM_PX,(e.height||base.height)*MM_PX,e.align)}</div>`;
+        }).join('')+`</div>`;
     }
+  });
+  // 独立 iframe：完整独立 HTML，@page size 精确 = 模板尺寸
+  const f=document.createElement('iframe');
+  f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+  document.body.appendChild(f);
+  const doc=f.contentDocument;
+  doc.open();
+  doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title></title><style>
+    @page{size:${t.canvasWidth}mm ${t.canvasHeight}mm;margin:0}
+    html,body{margin:0;padding:0;width:${t.canvasWidth}mm}
+    .plabel{width:${t.canvasWidth}mm;height:${t.canvasHeight}mm;position:relative;overflow:hidden;background:#fff;page-break-after:always;page-break-inside:avoid}
+    .plabel:last-child{page-break-after:auto}
+    .barcode{display:flex;flex-direction:column;align-items:center;width:100%}
+    .bc{display:block;width:100%;height:auto}
+    .bct{font-family:ui-monospace,monospace;font-size:9px;margin-top:1px;color:#1d2330}
+  </style></head><body>${labels}</body></html>`);
+  doc.close();
+  // 等渲染就绪再打印，打印后清理 iframe
+  setTimeout(()=>{
+    try{f.contentWindow.focus();f.contentWindow.print();}catch(e){toast('打印失败：'+e.message);}
+    setTimeout(()=>{f.remove();},1000);
+  },300);
+}
 
-    function getElementContentForItem(type, item) {
-        switch(type) {
-            case 'barcode': return item.barcode;
-            case 'barcodeText': return item.barcode;
-            case 'name': return item.productName;
-            case 'price': return '¥' + parseFloat(item.price).toFixed(2);
-            case 'condition': 
-                return allConditionTypes.map(c => 
-                    `[${c === item.conditionType ? '☑' : '□'}] ${getConditionName(c)}`
-                ).join(' ');
-            default: return type;
-        }
-    }
-
-    function renderPagination(total, pageSize) {
-        totalPages = Math.ceil(total / pageSize);
-        const pagination = document.getElementById('pagination');
-        
-        if (totalPages <= 1) {
-            pagination.innerHTML = '';
-            return;
-        }
-
-        let html = '';
-        if (currentPage > 1) {
-            html += `<button onclick="searchPurchaseLogs(${currentPage - 1})">上一页</button>`;
-        }
-
-        for (let i = 1; i <= totalPages; i++) {
-            if (i === currentPage) {
-                html += `<button class="active">${i}</button>`;
-            } else {
-                html += `<button onclick="searchPurchaseLogs(${i})">${i}</button>`;
-            }
-        }
-
-        if (currentPage < totalPages) {
-            html += `<button onclick="searchPurchaseLogs(${currentPage + 1})">下一页</button>`;
-        }
-
-        pagination.innerHTML = html;
-    }
-
-    // ---- 拼音搜索下拉 ----
-    function escHtml(str) {
-        if (!str) return '';
-        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-    }
-
-    let plSearchTimer = null;
-
-    function liveSearchProducts() {
-        clearTimeout(plSearchTimer);
-        const kw = document.getElementById('searchKeyword').value.trim();
-        const dd = document.getElementById('plSearchDropdown');
-        if (!kw) {
-            dd.classList.remove('show');
-            dd.innerHTML = '';
-            return;
-        }
-        plSearchTimer = setTimeout(() => {
-            fetch('../api/search_outbound_stock.php?keyword=' + encodeURIComponent(kw))
-                .then(r => r.json())
-                .then(data => {
-                    const items = data.success && data.data ? data.data : [];
-                    if (!items.length) {
-                        dd.innerHTML = '<div class="pl-sd-empty">未找到匹配商品</div>';
-                        dd.classList.add('show');
-                        return;
-                    }
-                    // 按产品去重
-                    const seen = {};
-                    const products = [];
-                    items.forEach(item => {
-                        if (!seen[item.product_id]) {
-                            seen[item.product_id] = true;
-                            products.push(item);
-                        }
-                    });
-                    dd.innerHTML = products.map(p => {
-                        const name = p.common_name || p.product_name;
-                        return '<div class="pl-sd-item" onclick="selectSearchResult(\'' + escHtml(name) + '\')">' +
-                            '<span class="pl-sd-name">' + escHtml(name) + '</span>' +
-                            '<span class="pl-sd-sku">' + escHtml(p.barcode || '') + '</span>' +
-                        '</div>';
-                    }).join('');
-                    dd.classList.add('show');
-                })
-                .catch(() => {});
-        }, 250);
-    }
-
-    function selectSearchResult(name) {
-        document.getElementById('searchKeyword').value = name;
-        document.getElementById('plSearchDropdown').classList.remove('show');
-        searchPurchaseLogs(1);
-    }
-
-    // 点击外部关闭下拉
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('#searchKeyword') && !e.target.closest('#plSearchDropdown')) {
-            var dd = document.getElementById('plSearchDropdown');
-            if (dd) dd.classList.remove('show');
-        }
-    });
-
-    function resetFilters() {
-        document.getElementById('startDate').value = '';
-        document.getElementById('endDate').value = '';
-        document.getElementById('searchKeyword').value = '';
-        document.getElementById('conditionType').value = '';
-        selectedItems = [];
-        searchPurchaseLogs(1);
-    }
-
-    function showModal(id) {
-        document.getElementById(id).classList.add('show');
-    }
-
-    function closeModal(id) {
-        document.getElementById(id).classList.remove('show');
-    }
-
-    window.addEventListener('resize', () => {
-        if (document.getElementById('editorModal').classList.contains('show')) {
-            initFabricCanvas();
-        }
-    });
-
-    document.addEventListener('DOMContentLoaded', () => {
-        loadTemplates();
-        loadSystemSettings().then((serverTime) => {
-            // 使用服务器时间计算默认日期范围，避免客户端时钟偏差
-            const refDate = serverTime ? new Date(serverTime) : new Date();
-            function localDate(d) {
-                return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-            }
-            const today = localDate(refDate);
-            const thirtyDaysAgo = localDate(new Date(refDate.getTime() - 30 * 24 * 60 * 60 * 1000));
-            document.getElementById('startDate').value = thirtyDaysAgo;
-            document.getElementById('endDate').value = today;
-            searchPurchaseLogs(1);
-        });
-    });
-
-    document.getElementById('searchKeyword').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            searchPurchaseLogs(1);
-        }
-    });
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Delete' && document.getElementById('editorModal').classList.contains('show')) {
-            deleteFabricSelected();
-        }
-    });
-
-    document.getElementById('labelTemplate').addEventListener('change', function() {
-        currentTemplateIndex = this.value;
-        if (this.value !== '') {
-            localStorage.setItem('ppmart_last_template', this.value);
-            loadTemplateToEditor(this.value);
-        } else {
-            localStorage.removeItem('ppmart_last_template');
-        }
-    });
-    </script>
+// ---------- init ----------
+psHost=localStorage.getItem('ppmart_print_host')||'';
+psPrinter=localStorage.getItem('ppmart_print_printer')||'';
+window.addEventListener('resize',()=>{if(curTpl)renderPreview();});
+setRange(30); // 默认近30天
+loadSettings();
+</script>
