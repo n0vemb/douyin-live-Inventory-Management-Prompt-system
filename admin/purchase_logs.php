@@ -39,6 +39,7 @@ $isOperator = ($currentUser['role'] === 'operator');
 .lp-name i{font-style:normal;font-size:11.5px;color:var(--text-tertiary);margin-left:4px;font-weight:500}
 .lp-meta{font-size:11.5px;color:var(--text-tertiary);display:inline-flex;gap:10px;align-items:center;flex-wrap:wrap}
 .lp-meta code{font-size:11px;background:var(--bg-hover);padding:1px 5px;border-radius:4px;color:var(--text-secondary)}
+.condition-badge{margin-left:auto;flex-shrink:0}
 .lp-row-bottom{display:flex;align-items:center;gap:8px;margin-top:8px}
 .lp-stock{font-size:12px;color:var(--text-secondary)}
 .lp-price{font-size:13px;font-weight:700;color:var(--danger)}
