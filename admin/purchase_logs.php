@@ -34,14 +34,19 @@ $isOperator = ($currentUser['role'] === 'operator');
 .lp-sortbar select{padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text);background:var(--bg-body)}
 .lp-row{border:1px solid var(--border);border-radius:9px;margin-bottom:8px;padding:9px 10px;background:var(--bg-surface);transition:border-color .15s}
 .lp-row.on{border-color:var(--primary);background:var(--primary-light)}
-.lp-row-top{display:flex;align-items:center;gap:8px}
-.lp-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;font-size:13px}
+.lp-row-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lp-name{flex:0 1 auto;min-width:0;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;font-size:13px}
 .lp-name i{font-style:normal;font-size:11.5px;color:var(--text-tertiary);margin-left:4px;font-weight:500}
-.lp-meta{font-size:11.5px;color:var(--text-tertiary);margin-top:5px;display:flex;gap:10px;flex-wrap:wrap}
+.lp-meta{font-size:11.5px;color:var(--text-tertiary);display:inline-flex;gap:10px;align-items:center;flex-wrap:wrap}
 .lp-meta code{font-size:11px;background:var(--bg-hover);padding:1px 5px;border-radius:4px;color:var(--text-secondary)}
 .lp-row-bottom{display:flex;align-items:center;gap:8px;margin-top:8px}
 .lp-stock{font-size:12px;color:var(--text-secondary)}
 .lp-price{font-size:13px;font-weight:700;color:var(--danger)}
+/* SKU 状态徽章颜色（conditionClassMap 生成 condition-<key>） */
+.condition-sealed{background:#5e5ce6;color:#fff}
+.condition-opened{background:#059669;color:#fff}
+.condition-boxless{background:#d97706;color:#fff}
+.condition-flawed{background:#dc2626;color:#fff}
 .lp-acts{margin-left:auto;display:flex;align-items:center;gap:6px}
 .lp-stepper{display:flex;align-items:center;border:1px solid var(--border);border-radius:7px;overflow:hidden}
 .lp-stepper button{width:26px;height:28px;border:none;background:var(--bg-hover);color:var(--text-secondary);font-size:15px;cursor:pointer;line-height:1}
@@ -360,12 +365,12 @@ function renderProducts(){
     return `<div class="lp-row ${c?'on':''}">
       <div class="lp-row-top">
         <span class="lp-name">${name}${common?` <i>${common}</i>`:''}</span>
+        <span class="lp-meta">
+          <code>${esc(r.barcode||'-')}</code>
+          <span>批次 ${esc(r.batch_no||'-')}</span>
+          <span>入库 ${fmtDate(r.purchased_at)}</span>
+        </span>
         <span class="condition-badge ${getCondClass(r.condition_type)}">${esc(getCondName(r.condition_type))}</span>
-      </div>
-      <div class="lp-meta">
-        <code>${esc(r.barcode||'-')}</code>
-        <span>批次 ${esc(r.batch_no||'-')}</span>
-        <span>入库 ${fmtDate(r.purchased_at)}</span>
       </div>
       <div class="lp-row-bottom">
         <span class="lp-stock">库存 ${r.qty}</span>
