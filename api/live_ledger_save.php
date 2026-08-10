@@ -69,10 +69,10 @@ try {
             $seenCustomerIds[] = $custId;
         }
 
-        // 同步客户库（vip_customers）：有VIP编号且有昵称时，在场次内改名同步更新客户管理库
+        // 同步客户库（vip_customers）：有VIP编号且有昵称时，在场次内改名同步更新客户管理库（按本店隔离）
         if ($vipNo !== '' && $nickname !== '') {
-            $stmt = $pdo->prepare("SELECT id, nickname FROM vip_customers WHERE vip_no = ?");
-            $stmt->execute([$vipNo]);
+            $stmt = $pdo->prepare("SELECT id, nickname FROM vip_customers WHERE store_id = ? AND vip_no = ?");
+            $stmt->execute([$storeId, $vipNo]);
             $vipRow = $stmt->fetch();
             if ($vipRow) {
                 // 已存在：昵称不同则更新（场次内改名 → 同步客户库）
@@ -81,9 +81,9 @@ try {
                     $stmt->execute([$nickname, $vipRow['id']]);
                 }
             } else {
-                // 不存在：新客户入库（客户管理页可见）
-                $stmt = $pdo->prepare("INSERT INTO vip_customers (vip_no, nickname) VALUES (?, ?)");
-                $stmt->execute([$vipNo, $nickname]);
+                // 不存在：新客户入库（客户管理页可见，归属本店）
+                $stmt = $pdo->prepare("INSERT INTO vip_customers (store_id, vip_no, nickname) VALUES (?, ?, ?)");
+                $stmt->execute([$storeId, $vipNo, $nickname]);
             }
         }
 

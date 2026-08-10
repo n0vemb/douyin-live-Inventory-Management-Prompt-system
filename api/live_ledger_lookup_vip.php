@@ -33,10 +33,16 @@ $row = $stmt->fetch();
 
 $nickname = $row ? $row['nickname'] : null;
 
-// 直播场次无记录时，查客户管理表（vip_customers）
+// 直播场次无记录时，查客户管理表（vip_customers，本店）
 if ($nickname === null) {
-    $stmt = $pdo->prepare("SELECT nickname FROM vip_customers WHERE vip_no = ? LIMIT 1");
-    $stmt->execute([$vipNo]);
+    if (!empty($storeId)) {
+        $stmt = $pdo->prepare("SELECT nickname FROM vip_customers WHERE store_id = ? AND vip_no = ? LIMIT 1");
+        $stmt->execute([$storeId, $vipNo]);
+    } else {
+        // 超管全平台：vip_no 现在按店隔离，同号可能多店——取任一条（本店优先不可行，取最新）
+        $stmt = $pdo->prepare("SELECT nickname FROM vip_customers WHERE vip_no = ? ORDER BY id DESC LIMIT 1");
+        $stmt->execute([$vipNo]);
+    }
     $nickname = $stmt->fetchColumn() ?: null;
 }
 

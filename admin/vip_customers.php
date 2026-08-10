@@ -1,5 +1,19 @@
 <?php $pageTitle = '客户管理'; $currentPage = 'vip_customers'; ?>
-<?php require_once __DIR__ . '/layout.php'; ?>
+<?php require_once __DIR__ . '/layout.php';
+$isSuper = ($currentUser['role'] === 'super_admin');
+$currentStoreId = (int)($currentViewStoreId ?? 0);
+$currentStoreName = '';
+if ($currentStoreId > 0) {
+    foreach ($allStores as $s) {
+        if ((int)$s['id'] === $currentStoreId) { $currentStoreName = $s['name']; break; }
+    }
+}
+?>
+<script>
+const IS_SUPER = <?= $isSuper ? 'true' : 'false' ?>;
+const CURRENT_STORE_ID = <?= json_encode($currentStoreId) ?>;
+const CURRENT_STORE_NAME = <?= json_encode($currentStoreName) ?>;
+</script>
 
 <style>
 .customer-avatar { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600; color:#fff; flex-shrink:0; background:linear-gradient(135deg, #667eea, #764ba2); }
@@ -18,10 +32,21 @@
         <div class="customer-toolbar" style="margin-bottom:0; flex:1;">
             <input type="text" class="form-input customer-search" id="searchInput" placeholder="搜索昵称、VIP编号..." oninput="debouncedLoad()">
         </div>
-        <div style="font-size:13px; color:var(--text-tertiary);">共 <span id="customerCount">0</span> 个客户</div>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <div class="vip-token-tag" id="vipTokenTag" style="display:none; font-size:12px; color:var(--text-secondary); background:var(--bg-hover); padding:6px 12px; border-radius:6px; border:1px solid var(--border);">
+                <span style="color:var(--text-tertiary); margin-right:6px;">外部同步 Token（<span id="vipTokenStoreName"></span>）</span>
+                <code id="vipTokenValue" style="user-select:all; font-size:12px;"></code>
+                <button class="action-btn" style="margin-left:8px; padding:2px 8px;" onclick="copyVipToken()">复制</button>
+            </div>
+            <div style="font-size:13px; color:var(--text-tertiary);">共 <span id="customerCount">0</span> 个客户</div>
+        </div>
     </div>
 
-    <table>
+    <div id="vipNeedStore" style="display:none; text-align:center; color:var(--text-tertiary); padding:48px 20px; font-size:14px;">
+        请先在右上角切换店铺，再查看客户列表
+    </div>
+
+    <table id="vipTable">
         <thead>
             <tr>
                 <th>客户</th>
@@ -107,6 +132,52 @@ async function loadCustomers() {
             '<tr><td colspan="7" style="text-align:center;color:var(--danger);padding:40px;">加载失败</td></tr>';
     }
 }
+
+// 页面初始化：全平台视角隐藏列表 + 显示 token（店铺视角/全平台都显示当前店铺 token）
+async function initVipPage() {
+    const table = document.getElementById('vipTable');
+    const needStore = document.getElementById('vipNeedStore');
+    const tokenTag = document.getElementById('vipTokenTag');
+
+    // 店铺视角才显示客户列表；全平台提示先选店铺
+    if (IS_SUPER && !CURRENT_STORE_ID) {
+        table.style.display = 'none';
+        needStore.style.display = 'block';
+        loadCustomers(); // 后端返回空，用于统一计数
+        return;
+    }
+    table.style.display = '';
+    needStore.style.display = 'none';
+
+    // 显示当前店铺的外部同步 token（超管/店管/运营都可见）
+    try {
+        const res = await fetch('../api/get_vip_token.php');
+        const data = await res.json();
+        if (data.success && data.data && data.data.token) {
+            document.getElementById('vipTokenStoreName').textContent = data.data.store_name || '';
+            document.getElementById('vipTokenValue').textContent = data.data.token;
+            tokenTag.style.display = '';
+        }
+    } catch (e) { /* token 加载失败不阻塞列表 */ }
+    loadCustomers();
+}
+
+function copyVipToken() {
+    const v = document.getElementById('vipTokenValue').textContent;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(v).then(() => showToast('Token 已复制')).catch(() => fallbackCopy(v));
+    } else {
+        fallbackCopy(v);
+    }
+}
+function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); showToast('Token 已复制'); } catch(e) {}
+    document.body.removeChild(ta);
+}
+
+initVipPage();
 
 let sortField = 'vip_no';    // 当前排序字段
 let sortDir = 1;             // 1升序 -1降序
@@ -292,5 +363,4 @@ function showToast(msg, type) {
     toastTimer = setTimeout(() => { t.style.opacity = '0'; }, 2500);
 }
 
-loadCustomers();
 </script>

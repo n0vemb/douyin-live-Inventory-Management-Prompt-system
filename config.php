@@ -23,6 +23,10 @@ define('DB_NAME', envOrDefault('PPMART_DB_NAME', 'ppmart2'));
 // 格式：http://192.168.x.x:9188
 define('WINDOWS_PRINT_PROXY_URL', envOrDefault('PPMART_PRINT_PROXY', ''));
 
+// 外部系统 VIP 同步接口 Token（vip_sync.php 用，Header X-API-Key）
+// 生产/测试通过 php-fpm env 注入，不落 git
+define('VIP_SYNC_TOKEN', envOrDefault('PPMART_VIP_SYNC_TOKEN', ''));
+
 define('CONDITION_TYPES', [
     'sealed' => '原盒未拆',
     'opened' => '拆盒无瑕',

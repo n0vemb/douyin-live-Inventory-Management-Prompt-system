@@ -771,14 +771,15 @@ async function renderDrawer() {
         }
     } else if (currentTab === 'in') {
         try {
-            const res = await fetch('../api/get_product.php', {
+            // 入库记录：复用流水接口（含"当前库存"倒推值），只取入库事件
+            const res = await fetch('../api/get_product_log.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ product_id: currentId })
+                body: JSON.stringify({ product_id: currentId, limit: 200 })
             });
             const data = await res.json();
-            const batches = data.success ? getAllBatches(data.data) : [];
-            const it = batches.map(b => `<div class="pm-log-item"><span class="pm-lt in"></span><div><div>入库 · <b>${escapeHtml(getCN(b.condition_type))}</b> ×${parseInt(b.total_qty) || 0}　<span class="pm-tag">${escapeHtml(b.supplier || '-')}</span></div><div class="pm-lc">${escapeHtml(b.purchased_at || b.created_at || '')} · 批次#${escapeHtml(b.batch_no || b.id || '')} · ${escapeHtml(b.remark || '无备注')}</div></div></div>`).join('') || '<div class="pm-pcommon">暂无入库记录</div>';
+            const inLogs = (data.success ? data.data.logs : []).filter(l => l.source === 'batch');
+            const it = inLogs.map(l => `<div class="pm-log-item"><span class="pm-lt in"></span><div style="flex:1;"><div>入库 · <b>${escapeHtml(l.condition_name)}</b> ×${Math.abs(l.qty_change) || 0}　<span class="pm-tag">${escapeHtml(l.supplier || '-')}</span></div><div class="pm-lc">${escapeHtml(l.created_at || '')} · ${escapeHtml(l.remark || '')}</div></div><span class="pm-tag" style="align-self:center; flex-shrink:0;">当前库存 ${l.current_stock ?? 0} 件</span></div>`).join('') || '<div class="pm-pcommon">暂无入库记录</div>';
             body.innerHTML = `<div class="pm-sec-title">入库记录</div>${it}`;
         } catch (err) {
             body.innerHTML = '<div class="pm-pcommon">加载失败</div>';
@@ -796,10 +797,11 @@ async function renderDrawer() {
             const colorMap = { purchase: 'in', sale: 'out', outbound: 'out', convert_out: 'conv', convert_in: 'conv', adjust: 'adjust', return: 'ret' };
             const items = logs.map(l => `<div class="pm-log-item">
                 <span class="pm-lt ${colorMap[l.change_type] || 'adjust'}"></span>
-                <div>
+                <div style="flex:1;">
                     <div>${escapeHtml(l.change_type_name)} · <b>${escapeHtml(l.condition_name)}</b> ×${l.qty_change > 0 ? '+' : ''}${l.qty_change}${l.session_name ? ` <span class="pm-tag">🎬 ${escapeHtml(l.session_name)}</span>` : ''}</div>
                     <div class="pm-lc">${escapeHtml(l.created_at || '')}${l.price && CAN_SEE_PROFIT ? ' · ¥' + parseFloat(l.price).toFixed(2) : ''}${l.remark ? ' · ' + escapeHtml(l.remark) : ''}</div>
                 </div>
+                <span class="pm-tag" style="align-self:center; flex-shrink:0;">当前库存 ${l.current_stock ?? 0} 件</span>
             </div>`).join('') || '<div class="pm-pcommon">暂无流水记录</div>';
             body.innerHTML = `<div class="pm-sec-title">出入库流水</div>${items}`;
         } catch (err) {

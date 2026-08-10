@@ -12,6 +12,11 @@ $keyword = trim($_GET['keyword'] ?? '');
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
 
+// 超管全平台（store_id=null）不显示客户列表（用户 2026-08-10 确认：切换店铺后才可见）
+if (empty($storeId)) {
+    success(['data' => ['customers' => []]]);
+}
+
 $sql = "
     SELECT
         vc.vip_no,
@@ -50,11 +55,12 @@ $sql = "
             WHERE c7.vip_no = vc.vip_no AND s7.store_id = ?
         ) AS last_used_at
     FROM vip_customers vc
+    WHERE vc.store_id = ?
 ";
-$params = [$storeId, $storeId, $storeId, $storeId, $storeId];
+$params = [$storeId, $storeId, $storeId, $storeId, $storeId, $storeId];
 
 if ($keyword !== '') {
-    $sql .= " WHERE vc.vip_no LIKE ? OR vc.nickname LIKE ?";
+    $sql .= " AND (vc.vip_no LIKE ? OR vc.nickname LIKE ?)";
     $params[] = "%{$keyword}%";
     $params[] = "%{$keyword}%";
 }

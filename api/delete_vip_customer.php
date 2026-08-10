@@ -17,9 +17,9 @@ if ($vipNo === '') {
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
 
-// 确认存在（客户库或历史记录）
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM vip_customers WHERE vip_no = ?");
-$stmt->execute([$vipNo]);
+// 确认存在（本店客户库或历史记录）
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM vip_customers WHERE store_id = ? AND vip_no = ?");
+$stmt->execute([$storeId, $vipNo]);
 $inLib = (int)$stmt->fetchColumn() > 0;
 
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM live_ledger_customer c JOIN live_ledger_session s ON c.session_id = s.id WHERE c.vip_no = ? AND s.store_id = ?");
@@ -30,10 +30,10 @@ if (!$inLib && !$inHistory) {
     error('未找到该VIP编号的客户');
 }
 
-// 删除客户库记录
+// 删除本店客户库记录
 if ($inLib) {
-    $stmt = $pdo->prepare("DELETE FROM vip_customers WHERE vip_no = ?");
-    $stmt->execute([$vipNo]);
+    $stmt = $pdo->prepare("DELETE FROM vip_customers WHERE store_id = ? AND vip_no = ?");
+    $stmt->execute([$storeId, $vipNo]);
 }
 
 // 删除该VIP在本店的全部客户记录
