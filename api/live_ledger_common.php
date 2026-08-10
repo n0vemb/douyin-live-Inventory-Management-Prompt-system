@@ -70,23 +70,9 @@ function ledgerGetSettings($pdo, $sessionId) {
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) return null;
 
-    // 赠品预设 + 已送数量（按 name+price 聚合 live_ledger_gift）
+    // 赠品预设（名称+价格，仅用于快速添加赠品计算毛利）
     $presets = !empty($row['gift_presets_json']) ? json_decode($row['gift_presets_json'], true) : [];
     if (!is_array($presets)) $presets = [];
-    $sentStmt = $pdo->prepare(
-        "SELECT name, cost, SUM(qty) AS sent FROM live_ledger_gift WHERE session_id = ? AND name <> '' GROUP BY name, cost"
-    );
-    $sentStmt->execute([$sessionId]);
-    $sentMap = [];
-    foreach ($sentStmt->fetchAll(PDO::FETCH_ASSOC) as $s) {
-        $sentMap[$s['name'] . '|' . number_format((float)$s['cost'], 2, '.', '')] = (int)$s['sent'];
-    }
-    foreach ($presets as &$p) {
-        $key = ($p['name'] ?? '') . '|' . number_format((float)($p['price'] ?? 0), 2, '.', '');
-        $p['sent'] = $sentMap[$key] ?? 0;
-        $p['remaining'] = max(0, (int)($p['qty'] ?? 1) - $p['sent']);
-    }
-    unset($p);
 
     return [
         'session_name' => $row['session_name'],

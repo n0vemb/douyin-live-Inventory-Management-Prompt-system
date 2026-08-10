@@ -519,7 +519,7 @@ function fillSettings() {
 // ===== 赠品预设 =====
 let giftPresetDraft = []; // 场次设置弹窗内的草稿行
 function renderGiftPresetRows(presets) {
-    giftPresetDraft = (presets || []).map(p => ({ name: p.name || '', price: p.price ?? '', qty: p.qty || 1 }));
+    giftPresetDraft = (presets || []).map(p => ({ name: p.name || '', price: p.price ?? '' }));
     const box = document.getElementById('giftPresetRows');
     if (!box) return;
     box.innerHTML = '';
@@ -534,14 +534,13 @@ function giftPresetRowEl(p, i) {
     row.innerHTML = `
         <input type="text" class="form-input" placeholder="赠品名称（如 小挂件）" value="${esc(p.name)}" style="flex:2; min-width:120px;" data-f="name">
         <input type="number" class="form-input" step="0.01" min="0" placeholder="价格(成本元)" value="${p.price}" style="flex:1; min-width:70px;" data-f="price">
-        <input type="number" class="form-input" min="1" placeholder="数量" value="${p.qty}" style="flex:0.6; min-width:55px;" data-f="qty">
         <button class="btn btn-sm btn-danger" type="button" onclick="removeGiftPresetRow(this)">删除</button>`;
     return row;
 }
 function addGiftPresetRow() {
     const box = document.getElementById('giftPresetRows');
     if (!box) return;
-    giftPresetDraft.push({ name: '', price: '', qty: 1 });
+    giftPresetDraft.push({ name: '', price: '' });
     box.appendChild(giftPresetRowEl(giftPresetDraft[giftPresetDraft.length - 1], giftPresetDraft.length - 1));
 }
 function removeGiftPresetRow(btn) {
@@ -560,8 +559,7 @@ function collectGiftPresets() {
     Array.prototype.forEach.call(box.children, (row) => {
         const name = (row.querySelector('[data-f="name"]')?.value || '').trim();
         const price = parseFloat(row.querySelector('[data-f="price"]')?.value);
-        const qty = parseInt(row.querySelector('[data-f="qty"]')?.value) || 1;
-        if (name && !isNaN(price) && price >= 0) presets.push({ name, price, qty });
+        if (name && !isNaN(price) && price >= 0) presets.push({ name, price });
     });
     return presets;
 }
@@ -1146,11 +1144,9 @@ function addGift(cid) {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'btn btn-outline';
-            const remaining = parseInt(p.remaining ?? (p.qty || 1));
-            const disabled = remaining <= 0;
-            btn.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:10px 12px; font-size:14px;' + (disabled ? ' opacity:0.45; cursor:not-allowed;' : '');
-            btn.innerHTML = `<span>${esc(p.name)}</span><span style="color:var(--text-secondary); font-size:12px;">¥${(parseFloat(p.price)||0).toFixed(2)}${disabled ? ' · 已送完' : ' · 剩余' + remaining}</span>`;
-            btn.onclick = disabled ? null : () => addGiftFromPreset(p);
+            btn.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:10px 12px; font-size:14px;';
+            btn.innerHTML = `<span>${esc(p.name)}</span><span style="color:var(--text-secondary); font-size:12px;">¥${(parseFloat(p.price)||0).toFixed(2)}</span>`;
+            btn.onclick = () => addGiftFromPreset(p);
             listBox.appendChild(btn);
         });
     }
@@ -1160,17 +1156,10 @@ function addGiftFromPreset(p) {
     if (giftingCustomerId == null) return;
     const c = (sessionData.customers || []).find(x => x.id === giftingCustomerId);
     if (!c) return;
-    // 剩余校验：该预设已送数 >= 配置数量则不可再送
-    const presets = (sessionData.settings && sessionData.settings.gift_presets) || [];
-    const cur = presets.find(x => x.name === p.name && (parseFloat(x.price)||0) === (parseFloat(p.price)||0));
-    const remaining = cur ? parseInt(cur.remaining ?? ((cur.qty||1) - (cur.sent||0))) : (parseInt(p.qty) || 1);
-    if (cur && remaining <= 0) { toast('该赠品已送完'); return; }
-    // 点击一次固定送 1 个（预设 qty 是库存上限，不是单次赠送量）
+    // 点击一次固定送 1 个（可无限送，仅用于毛利计算）
     const qty = 1;
     const unitCost = parseFloat(p.price) || 0;
     c.gifts.push({ id: nextLocalId--, name: p.name, qty, cost: unitCost * qty, unit_cost: unitCost, description: p.name });
-    // 本地立即扣减剩余，避免重复点
-    if (cur) { cur.remaining = remaining - qty; cur.sent = (cur.sent||0) + qty; }
     closeGiftModal();
     render();
     toast('赠品已添加（记得保存）');

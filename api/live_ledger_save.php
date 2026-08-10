@@ -142,44 +142,6 @@ try {
             $giftName = trim($gift['name'] ?? '');
             $giftQty = max(1, (int)($gift['qty'] ?? 1));
 
-            // 预设赠品超额校验：name+price 匹配预设时，累计已送不能超过配置 qty
-            if ($giftName !== '') {
-                $presetRow = $pdo->prepare(
-                    "SELECT gift_presets_json FROM live_ledger_session WHERE id = ? AND store_id = ?"
-                );
-                $presetRow->execute([$sessionId, $storeId]);
-                $presetsJson = $presetRow->fetchColumn();
-                $presets = $presetsJson ? json_decode($presetsJson, true) : [];
-                if (is_array($presets)) {
-                    foreach ($presets as $pp) {
-                        if (trim($pp['name'] ?? '') === $giftName
-                            && abs((float)($pp['price'] ?? 0) - $cost) < 0.005) {
-                            // 已送(不含本次) + 本次 <= 配置 qty 才允许
-                            // 注意：INSERT(giftId=0) 时不能排除任何(同请求前面 INSERT 的同名也算)；
-                            //       UPDATE(giftId>0) 时排除自己
-                            if ($giftId > 0) {
-                                $sentStmt = $pdo->prepare(
-                                    "SELECT COALESCE(SUM(qty),0) FROM live_ledger_gift WHERE session_id = ? AND name = ? AND id <> ?"
-                                );
-                                $sentStmt->execute([$sessionId, $giftName, $giftId]);
-                            } else {
-                                $sentStmt = $pdo->prepare(
-                                    "SELECT COALESCE(SUM(qty),0) FROM live_ledger_gift WHERE session_id = ? AND name = ?"
-                                );
-                                $sentStmt->execute([$sessionId, $giftName]);
-                            }
-                            $sentBefore = (int)$sentStmt->fetchColumn();
-                            $presetQty = (int)($pp['qty'] ?? 1);
-                            if ($sentBefore + $giftQty > $presetQty) {
-                                $giftQty = max(0, $presetQty - $sentBefore);
-                                if ($giftQty <= 0) continue 2; // 已送完，跳过这条赠品（continue 2 = 跳出 presets 循环到 gifts 层）
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-
             if ($giftId > 0) {
                 $stmt = $pdo->prepare("UPDATE live_ledger_gift SET cost = ?, description = ?, name = ?, qty = ? WHERE id = ? AND customer_id = ?");
                 $stmt->execute([$cost, $desc, $giftName, $giftQty, $giftId, $custId]);

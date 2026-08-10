@@ -31,15 +31,14 @@ $platformFeeRate = isset($input['platform_fee_rate']) ? floatval($input['platfor
 $packingCost = isset($input['packing_cost']) ? floatval($input['packing_cost']) : 1;
 $shippingFee8 = isset($input['shipping_fee_8']) ? floatval($input['shipping_fee_8']) : 3;
 $shippingFee9 = isset($input['shipping_fee_9']) ? floatval($input['shipping_fee_9']) : 4;
-// 赠品预设：[{name, price, qty}]，校验后存 JSON
+// 赠品预设：[{name, price}]，校验后存 JSON（数量不再配置，点一次送1个仅算毛利）
 $giftPresets = [];
 if (isset($input['gift_presets']) && is_array($input['gift_presets'])) {
     foreach ($input['gift_presets'] as $gp) {
         $name = trim($gp['name'] ?? '');
         $price = floatval($gp['price'] ?? 0);
-        $qty = max(1, (int)($gp['qty'] ?? 1));
         if ($name !== '' && $price >= 0) {
-            $giftPresets[] = ['name' => $name, 'price' => $price, 'qty' => $qty];
+            $giftPresets[] = ['name' => $name, 'price' => $price];
         }
     }
 }
