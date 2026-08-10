@@ -1149,7 +1149,7 @@ function addGift(cid) {
             const remaining = parseInt(p.remaining ?? (p.qty || 1));
             const disabled = remaining <= 0;
             btn.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:10px 12px; font-size:14px;' + (disabled ? ' opacity:0.45; cursor:not-allowed;' : '');
-            btn.innerHTML = `<span>${esc(p.name)}</span><span style="color:var(--text-secondary); font-size:12px;">¥${(parseFloat(p.price)||0).toFixed(2)} × ${p.qty || 1}${disabled ? ' · 已送完' : ' · 剩余' + remaining}</span>`;
+            btn.innerHTML = `<span>${esc(p.name)}</span><span style="color:var(--text-secondary); font-size:12px;">¥${(parseFloat(p.price)||0).toFixed(2)}${disabled ? ' · 已送完' : ' · 剩余' + remaining}</span>`;
             btn.onclick = disabled ? null : () => addGiftFromPreset(p);
             listBox.appendChild(btn);
         });
@@ -1165,7 +1165,8 @@ function addGiftFromPreset(p) {
     const cur = presets.find(x => x.name === p.name && (parseFloat(x.price)||0) === (parseFloat(p.price)||0));
     const remaining = cur ? parseInt(cur.remaining ?? ((cur.qty||1) - (cur.sent||0))) : (parseInt(p.qty) || 1);
     if (cur && remaining <= 0) { toast('该赠品已送完'); return; }
-    const qty = Math.max(1, parseInt(p.qty) || 1);
+    // 点击一次固定送 1 个（预设 qty 是库存上限，不是单次赠送量）
+    const qty = 1;
     const unitCost = parseFloat(p.price) || 0;
     c.gifts.push({ id: nextLocalId--, name: p.name, qty, cost: unitCost * qty, unit_cost: unitCost, description: p.name });
     // 本地立即扣减剩余，避免重复点
