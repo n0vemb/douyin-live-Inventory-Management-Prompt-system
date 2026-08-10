@@ -31,6 +31,19 @@ $platformFeeRate = isset($input['platform_fee_rate']) ? floatval($input['platfor
 $packingCost = isset($input['packing_cost']) ? floatval($input['packing_cost']) : 1;
 $shippingFee8 = isset($input['shipping_fee_8']) ? floatval($input['shipping_fee_8']) : 3;
 $shippingFee9 = isset($input['shipping_fee_9']) ? floatval($input['shipping_fee_9']) : 4;
+// 赠品预设：[{name, price, qty}]，校验后存 JSON
+$giftPresets = [];
+if (isset($input['gift_presets']) && is_array($input['gift_presets'])) {
+    foreach ($input['gift_presets'] as $gp) {
+        $name = trim($gp['name'] ?? '');
+        $price = floatval($gp['price'] ?? 0);
+        $qty = max(1, (int)($gp['qty'] ?? 1));
+        if ($name !== '' && $price >= 0) {
+            $giftPresets[] = ['name' => $name, 'price' => $price, 'qty' => $qty];
+        }
+    }
+}
+$giftPresetsJson = json_encode($giftPresets, JSON_UNESCAPED_UNICODE);
 
 if (empty($sessionName)) {
     error('请输入场次名称');
@@ -55,19 +68,19 @@ if ($sessionId > 0) {
     $stmt = $pdo->prepare("UPDATE live_ledger_session SET
         session_name = ?, anchor = ?, operator = ?, account = ?, activity_type = ?, gift_every_n = ?, reduce_threshold = ?,
         reduce_amount = ?, platform_fee_rate = ?, packing_cost = ?,
-        shipping_fee_8 = ?, shipping_fee_9 = ?
+        shipping_fee_8 = ?, shipping_fee_9 = ?, gift_presets_json = ?
         WHERE id = ? AND store_id = ?");
     $stmt->execute([$sessionName, $anchor, $operator, $account, $activityType, $giftEveryN, $reduceThreshold, $reduceAmount,
-        $platformFeeRate, $packingCost, $shippingFee8, $shippingFee9, $sessionId, $storeId]);
+        $platformFeeRate, $packingCost, $shippingFee8, $shippingFee9, $giftPresetsJson, $sessionId, $storeId]);
     success(['data' => ['session_id' => $sessionId]]);
 } else {
     // 创建新场次
     $stmt = $pdo->prepare("INSERT INTO live_ledger_session
         (store_id, session_name, anchor, operator, account, activity_type, gift_every_n, reduce_threshold, reduce_amount,
-         platform_fee_rate, packing_cost, shipping_fee_8, shipping_fee_9, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')");
+         platform_fee_rate, packing_cost, shipping_fee_8, shipping_fee_9, gift_presets_json, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')");
     $stmt->execute([$storeId, $sessionName, $anchor, $operator, $account, $activityType, $giftEveryN, $reduceThreshold, $reduceAmount,
-        $platformFeeRate, $packingCost, $shippingFee8, $shippingFee9]);
+        $platformFeeRate, $packingCost, $shippingFee8, $shippingFee9, $giftPresetsJson]);
     $newId = (int)$pdo->lastInsertId();
     success(['data' => ['session_id' => $newId]]);
 }

@@ -15,7 +15,7 @@ $isOperator = $user['role'] === 'operator';
   <div class="stat-card"><div class="label">总件数</div><div class="value" id="statTotalQty">0</div></div>
   <div class="stat-card"><div class="label">总消费</div><div class="value" id="statTotalGmv">¥0</div></div>
   <div class="stat-card"><div class="label">总成本</div><div class="value" id="statTotalCost">¥0</div></div>
-  <div class="stat-card"><div class="label">毛利-无活动</div><div class="value" id="statTotalProfit">¥0</div></div>
+  <div class="stat-card"><div class="label" id="statProfitLabel">毛利-无活动</div><div class="value" id="statTotalProfit">¥0</div></div>
 </div>
 
 <!-- 场次选择/新建（未进入时显示） -->
@@ -109,6 +109,15 @@ $isOperator = $user['role'] === 'operator';
       </div>
     </div>
   </div>
+  <!-- 赠品预设配置区 -->
+  <div style="margin-top:18px; padding-top:14px; border-top:1px solid var(--border, #e5e7eb);">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+      <label style="font-size:13px; font-weight:600; color:var(--text-primary);">赠品预设</label>
+      <button class="btn btn-sm btn-outline" type="button" onclick="addGiftPresetRow()">+ 添加赠品</button>
+    </div>
+    <div style="font-size:12px; color:var(--text-tertiary, #9ca3af); margin-bottom:8px;">配置后，给客户添加赠品时可直接选择，不用每次手填。名称、价格（成本元）、数量。</div>
+    <div id="giftPresetRows" style="display:flex; flex-direction:column; gap:6px;"></div>
+  </div>
     <div style="display:flex; justify-content:flex-end; gap:15px; margin-top:20px;">
       <button class="btn btn-outline" onclick="closeSettingsModal()">取消</button>
       <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
@@ -200,10 +209,14 @@ $isOperator = $user['role'] === 'operator';
 
 <!-- 赠品弹窗 -->
 <div class="modal" id="giftModal">
-  <div class="modal-content">
+  <div class="modal-content" style="width:480px;">
     <div class="modal-header">
       <h3 class="modal-title">添加赠品</h3>
       <button class="modal-close" onclick="closeGiftModal()">&times;</button>
+    </div>
+    <div id="giftPresetList" style="margin-bottom:14px; display:flex; flex-direction:column; gap:8px;"></div>
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; color:var(--text-tertiary, #9ca3af); font-size:12px;">
+      <span style="flex:1; height:1px; background:var(--border, #e5e7eb);"></span>或手动添加<span style="flex:1; height:1px; background:var(--border, #e5e7eb);"></span>
     </div>
     <div style="margin-bottom:12px;">
       <label>赠品成本(元)</label>
@@ -499,7 +512,58 @@ function fillSettings() {
     document.getElementById('packingCost').value = s.packing_cost || 1;
     document.getElementById('shippingFee8').value = s.shipping_fee_8 || 3;
     document.getElementById('shippingFee9').value = s.shipping_fee_9 || 4;
+    renderGiftPresetRows(s.gift_presets || []);
     activityChange();
+}
+
+// ===== 赠品预设 =====
+let giftPresetDraft = []; // 场次设置弹窗内的草稿行
+function renderGiftPresetRows(presets) {
+    giftPresetDraft = (presets || []).map(p => ({ name: p.name || '', price: p.price ?? '', qty: p.qty || 1 }));
+    const box = document.getElementById('giftPresetRows');
+    if (!box) return;
+    box.innerHTML = '';
+    giftPresetDraft.forEach((p, i) => {
+        box.appendChild(giftPresetRowEl(p, i));
+    });
+    if (giftPresetDraft.length === 0) addGiftPresetRow();
+}
+function giftPresetRowEl(p, i) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; align-items:center; gap:8px;';
+    row.innerHTML = `
+        <input type="text" class="form-input" placeholder="赠品名称（如 小挂件）" value="${esc(p.name)}" style="flex:2; min-width:120px;" data-f="name">
+        <input type="number" class="form-input" step="0.01" min="0" placeholder="价格(成本元)" value="${p.price}" style="flex:1; min-width:70px;" data-f="price">
+        <input type="number" class="form-input" min="1" placeholder="数量" value="${p.qty}" style="flex:0.6; min-width:55px;" data-f="qty">
+        <button class="btn btn-sm btn-danger" type="button" onclick="removeGiftPresetRow(this)">删除</button>`;
+    return row;
+}
+function addGiftPresetRow() {
+    const box = document.getElementById('giftPresetRows');
+    if (!box) return;
+    giftPresetDraft.push({ name: '', price: '', qty: 1 });
+    box.appendChild(giftPresetRowEl(giftPresetDraft[giftPresetDraft.length - 1], giftPresetDraft.length - 1));
+}
+function removeGiftPresetRow(btn) {
+    const box = document.getElementById('giftPresetRows');
+    const idx = Array.prototype.indexOf.call(box.children, btn.closest('div'));
+    if (idx >= 0) {
+        giftPresetDraft.splice(idx, 1);
+        btn.closest('div').remove();
+    }
+    if (giftPresetDraft.length === 0) addGiftPresetRow();
+}
+function collectGiftPresets() {
+    const box = document.getElementById('giftPresetRows');
+    if (!box) return [];
+    const presets = [];
+    Array.prototype.forEach.call(box.children, (row) => {
+        const name = (row.querySelector('[data-f="name"]')?.value || '').trim();
+        const price = parseFloat(row.querySelector('[data-f="price"]')?.value);
+        const qty = parseInt(row.querySelector('[data-f="qty"]')?.value) || 1;
+        if (name && !isNaN(price) && price >= 0) presets.push({ name, price, qty });
+    });
+    return presets;
 }
 
 function activityChange() {
@@ -532,6 +596,7 @@ async function saveSettings() {
                 packing_cost: parseFloat(document.getElementById('packingCost').value) || 1,
                 shipping_fee_8: parseFloat(document.getElementById('shippingFee8').value) || 3,
                 shipping_fee_9: parseFloat(document.getElementById('shippingFee9').value) || 4,
+                gift_presets: collectGiftPresets(),
             })
         });
         const data = await res.json();
@@ -637,7 +702,7 @@ function render() {
 
         let giftHtml = (c.gifts || []).map((g, gi) => `
             <tr class="gift-row">
-                <td>赠品${g.description ? ' - ' + esc(g.description) : ''}</td>
+                <td>${g.name ? esc(g.name) + (g.qty > 1 ? ' ×' + g.qty : '') : '赠品' + (g.description ? ' - ' + esc(g.description) : '')}</td>
                 ${CAN_SEE_PROFIT ? `<td>${fmt(g.cost)}</td>` : ''}
                 <td colspan="${CAN_SEE_PROFIT ? 4 : 3}" style="color:var(--text-tertiary);">不入库，仅计成本</td>
                 ${isReadOnly ? '' : `<td><button class="del-btn" onclick="deleteGift(${c.id}, ${gi})">✕</button></td>`}
@@ -699,7 +764,13 @@ function render() {
     });
 
     let tq = 0, tg = 0, tc = 0, tp = 0;
-    customers.forEach(c => { const m = calcCustomer(c); tq += m.totalQty; tg += m.gmv; tc += m.cost; tp += m.profitBase; });
+    // 根据场次活动类型决定顶部毛利口径：none→无活动 / full_gift→满赠 / full_reduce→满减 / both→满减+满赠
+    const at = (sessionData.settings && sessionData.settings.activity_type) || 'none';
+    const profitKeyMap = { none: 'profitBase', full_gift: 'profitWithGift', full_reduce: 'profitWithReduce', both: 'profitBoth' };
+    const profitLabelMap = { none: '毛利-无活动', full_gift: '毛利-满赠', full_reduce: '毛利-满减', both: '毛利-满减+满赠' };
+    const profitKey = profitKeyMap[at] || 'profitBase';
+    document.getElementById('statProfitLabel').textContent = profitLabelMap[at] || '毛利-无活动';
+    customers.forEach(c => { const m = calcCustomer(c); tq += m.totalQty; tg += m.gmv; tc += m.cost; tp += m[profitKey]; });
     document.getElementById('statCustomers').textContent = customers.length;
     document.getElementById('statTotalQty').textContent = tq;
     document.getElementById('statTotalGmv').textContent = '¥' + Math.round(tg);
@@ -1063,7 +1134,48 @@ function addGift(cid) {
     giftingCustomerId = cid;
     document.getElementById('giftCostInput').value = '';
     document.getElementById('giftDescInput').value = '';
+    // 渲染预设列表
+    const listBox = document.getElementById('giftPresetList');
+    const presets = (sessionData.settings && sessionData.settings.gift_presets) || [];
+    listBox.innerHTML = '';
+    if (presets.length === 0) {
+        listBox.style.display = 'none';
+    } else {
+        listBox.style.display = 'flex';
+        presets.forEach((p, idx) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-outline';
+            const remaining = parseInt(p.remaining ?? (p.qty || 1));
+            const disabled = remaining <= 0;
+            btn.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:10px 12px; font-size:14px;' + (disabled ? ' opacity:0.45; cursor:not-allowed;' : '');
+            btn.innerHTML = `<span>${esc(p.name)}</span><span style="color:var(--text-secondary); font-size:12px;">¥${(parseFloat(p.price)||0).toFixed(2)} × ${p.qty || 1}${disabled ? ' · 已送完' : ' · 剩余' + remaining}</span>`;
+            btn.onclick = disabled ? null : () => addGiftFromPreset(p);
+            listBox.appendChild(btn);
+        });
+    }
     document.getElementById('giftModal').classList.add('show');
+}
+function addGiftFromPreset(p) {
+    if (giftingCustomerId == null) return;
+    const c = (sessionData.customers || []).find(x => x.id === giftingCustomerId);
+    if (!c) return;
+    // 剩余校验：该预设已送数 >= 配置数量则不可再送
+    const presets = (sessionData.settings && sessionData.settings.gift_presets) || [];
+    const cur = presets.find(x => x.name === p.name && (parseFloat(x.price)||0) === (parseFloat(p.price)||0));
+    if (cur) {
+        const remaining = parseInt(cur.remaining ?? ((cur.qty||1) - (cur.sent||0)));
+        if (remaining <= 0) { toast('该赠品已送完'); return; }
+    }
+    const qty = Math.max(1, parseInt(p.qty) || 1);
+    const unitCost = parseFloat(p.price) || 0;
+    c.gifts.push({ id: nextLocalId--, name: p.name, qty, cost: unitCost * qty, unit_cost: unitCost, description: p.name });
+    // 本地立即扣减剩余，避免重复点
+    if (cur) { cur.remaining = remaining - qty; cur.sent = (cur.sent||0) + qty; }
+    closeGiftModal();
+    render();
+    toast('赠品已添加（记得保存）');
+    scheduleAutoSave();
 }
 function closeGiftModal() { document.getElementById('giftModal').classList.remove('show'); }
 function confirmGift() {
@@ -1098,6 +1210,8 @@ function buildPayload() {
             })),
             gifts: (c.gifts || []).map(g => ({
                 id: g.id > 0 ? g.id : 0,
+                name: g.name || '',
+                qty: g.qty || 1,
                 cost: g.cost,
                 description: g.description,
             })),
