@@ -1163,10 +1163,8 @@ function addGiftFromPreset(p) {
     // 剩余校验：该预设已送数 >= 配置数量则不可再送
     const presets = (sessionData.settings && sessionData.settings.gift_presets) || [];
     const cur = presets.find(x => x.name === p.name && (parseFloat(x.price)||0) === (parseFloat(p.price)||0));
-    if (cur) {
-        const remaining = parseInt(cur.remaining ?? ((cur.qty||1) - (cur.sent||0)));
-        if (remaining <= 0) { toast('该赠品已送完'); return; }
-    }
+    const remaining = cur ? parseInt(cur.remaining ?? ((cur.qty||1) - (cur.sent||0))) : (parseInt(p.qty) || 1);
+    if (cur && remaining <= 0) { toast('该赠品已送完'); return; }
     const qty = Math.max(1, parseInt(p.qty) || 1);
     const unitCost = parseFloat(p.price) || 0;
     c.gifts.push({ id: nextLocalId--, name: p.name, qty, cost: unitCost * qty, unit_cost: unitCost, description: p.name });
