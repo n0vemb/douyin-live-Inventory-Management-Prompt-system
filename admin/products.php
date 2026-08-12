@@ -949,6 +949,7 @@ async function saveProduct(event) {
     const name = $('productName').value.trim();
     if (!name) { showErrorToast('请填写商品名称'); return; }
     const payload = {
+        id: id ? parseInt(id) : null,
         name: name,
         common_name: $('productCommonName').value || null,
         series: $('productSeries').value || null,
