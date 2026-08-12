@@ -830,14 +830,20 @@ async function loadSessionData() {
 }
 
 // 轻量重载（autoSave 后同步真实id）：只重载场次数据+渲染，不刷新列表/VIP映射
+// 保留各客户折叠状态（不强制收起，避免打断用户操作）
 async function reloadSessionData() {
     if (!currentSessionId) return;
     try {
         const res = await fetch('../api/live_ledger_get_session.php?session_id=' + currentSessionId);
         const data = await res.json();
         if (!data.success) { toast(data.error || '加载失败'); return; }
+        const collapsedMap = {};
+        (sessionData.customers || []).forEach(c => { collapsedMap[c.id] = !!c._collapsed; });
         sessionData = data.data;
-        (sessionData.customers || []).forEach(c => { c._collapsed = true; });
+        (sessionData.customers || []).forEach(c => {
+            // 新数据里同 id 客户保留原折叠状态；新出现的客户默认收起
+            c._collapsed = collapsedMap[c.id] !== undefined ? collapsedMap[c.id] : true;
+        });
         render();
     } catch (e) { toast('加载失败: ' + e.message); }
 }
@@ -974,16 +980,20 @@ function confirmDeleteCustomer(id) {
 }
 
 // ===== 商品搜索（复用出库页交互） =====
+let editingCustomerRef = null; // 客户对象引用（autoSave 重载后依然有效）
+let modalOpen = false; // 添加商品弹窗打开标志（期间不 autoSave 重载，避免 id 失效）
 function openProductModal(cid) {
+    editingCustomerRef = (sessionData.customers || []).find(x => x.id === cid) || null;
     editingCustomerId = cid;
+    modalOpen = true;
     document.getElementById('productSearchInput').value = '';
     document.getElementById('obSearchDropdown').classList.remove('show');
     document.getElementById('addProductModal').classList.add('show');
     setTimeout(() => document.getElementById('productSearchInput').focus(), 100);
 }
 function closeProductModal() {
+    modalOpen = false;
     document.getElementById('addProductModal').classList.remove('show');
-    document.getElementById('obSearchDropdown').classList.remove('show');
 }
 
 function debounceSearchProduct() {
@@ -1115,7 +1125,15 @@ function getReservedBySku(productId, conditionType) {
 }
 
 function pickSku(sku) {
-    const c = (sessionData.customers || []).find(x => x.id === editingCustomerId);
+    // 优先按当前 id 找；找不到（autoSave 重载后 id 变化）时用弹窗打开时保存的对象引用
+    let c = (sessionData.customers || []).find(x => x.id === editingCustomerId);
+    if (!c && editingCustomerRef) {
+        // 引用对象可能已被替换，按 VIP 编号或昵称在最新数据里重新定位
+        c = (sessionData.customers || []).find(x =>
+            editingCustomerRef.vip_no && x.vip_no === editingCustomerRef.vip_no
+        ) || (sessionData.customers || []).find(x => x.nickname === editingCustomerRef.nickname);
+        if (c) editingCustomerId = c.id;
+    }
     if (!c) return;
     // 再次校验库存（防止超占）
     const reserved = getReservedBySku(sku.product_id, sku.condition_type);
@@ -1257,9 +1275,9 @@ function scheduleAutoSave() {
         try {
             const ok = await doSave();
             if (ok) {
-                // 存在前端临时负id（新建客户/商品/赠品还没拿到真实id）时，
-                // 静默重载一次，把负id全部换成数据库真实id，避免下次保存重复插入/误删
-                const hasTempId = (sessionData.customers || []).some(c =>
+                // 添加商品弹窗打开期间不重载（避免客户 id 变化导致正在进行的添加失败），
+                // 下次 autoSave 或手动保存时再同步真实 id
+                const hasTempId = !modalOpen && (sessionData.customers || []).some(c =>
                     c.id <= 0 || (c.items || []).some(i => i.id <= 0) || (c.gifts || []).some(g => g.id <= 0)
                 );
                 if (hasTempId) {
