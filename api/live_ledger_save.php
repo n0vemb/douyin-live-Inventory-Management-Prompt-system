@@ -63,10 +63,26 @@ try {
             $stmt->execute([$nickname, $vipNo, $sortOrder, $custId]);
             $seenCustomerIds[] = $custId;
         } else {
-            $stmt = $pdo->prepare("INSERT INTO live_ledger_customer (session_id, nickname, vip_no, sort_order) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$sessionId, $nickname, $vipNo, $sortOrder]);
-            $custId = (int)$pdo->lastInsertId();
-            $seenCustomerIds[] = $custId;
+            // id<=0（前端临时负id转0，或新客户）：有 VIP 编号时先按 (session_id, vip_no) 查重，
+            // 已存在则 UPDATE（避免前端未同步真实id时重复 INSERT），否则 INSERT
+            // 无 VIP 编号：无法可靠查重，直接 INSERT（前端 autoSave 后重载即可拿到真实id）
+            $existId = false;
+            if ($vipNo !== '') {
+                $existStmt = $pdo->prepare("SELECT id FROM live_ledger_customer WHERE session_id = ? AND vip_no = ? LIMIT 1");
+                $existStmt->execute([$sessionId, $vipNo]);
+                $existId = $existStmt->fetchColumn();
+            }
+            if ($existId) {
+                $custId = (int)$existId;
+                $stmt = $pdo->prepare("UPDATE live_ledger_customer SET nickname = ?, vip_no = ?, sort_order = ? WHERE id = ?");
+                $stmt->execute([$nickname, $vipNo, $sortOrder, $custId]);
+                $seenCustomerIds[] = $custId;
+            } else {
+                $stmt = $pdo->prepare("INSERT INTO live_ledger_customer (session_id, nickname, vip_no, sort_order) VALUES (?, ?, ?, ?)");
+                $stmt->execute([$sessionId, $nickname, $vipNo, $sortOrder]);
+                $custId = (int)$pdo->lastInsertId();
+                $seenCustomerIds[] = $custId;
+            }
         }
 
         // 同步客户库（vip_customers）：有VIP编号且有昵称时，在场次内改名同步更新客户管理库（按本店隔离）
@@ -161,7 +177,17 @@ try {
     }
 
     // 删除前端未提交的客户（含其 items/gifts）
-    $toDeleteCust = array_diff($existingCustomerIds, $seenCustomerIds);
+    // 保护：本次提交中存在"疑似新建"客户（id=0，即前端临时负id转0）时跳过删除，
+    //       避免把已存在但前端尚未同步真实id的客户误删。前端 autoSave 后重载拿到真实id，
+    //       下次保存时 id 全为正，删除逻辑再正常执行。
+    $hasNewCustomer = false;
+    foreach ($customers as $customer) {
+        if ((int)($customer['id'] ?? 0) <= 0) { $hasNewCustomer = true; break; }
+    }
+    $toDeleteCust = [];
+    if (!$hasNewCustomer) {
+        $toDeleteCust = array_diff($existingCustomerIds, $seenCustomerIds);
+    }
     if (!empty($toDeleteCust)) {
         $ph = implode(',', array_fill(0, count($toDeleteCust), '?'));
         $stmt = $pdo->prepare("DELETE FROM live_ledger_item WHERE customer_id IN ($ph)");

@@ -829,6 +829,19 @@ async function loadSessionData() {
     } catch (e) { toast('加载失败: ' + e.message); }
 }
 
+// 轻量重载（autoSave 后同步真实id）：只重载场次数据+渲染，不刷新列表/VIP映射
+async function reloadSessionData() {
+    if (!currentSessionId) return;
+    try {
+        const res = await fetch('../api/live_ledger_get_session.php?session_id=' + currentSessionId);
+        const data = await res.json();
+        if (!data.success) { toast(data.error || '加载失败'); return; }
+        sessionData = data.data;
+        (sessionData.customers || []).forEach(c => { c._collapsed = true; });
+        render();
+    } catch (e) { toast('加载失败: ' + e.message); }
+}
+
 function toggleCustomer(id) {
     const c = (sessionData.customers || []).find(x => x.id === id);
     if (c) { c._collapsed = !c._collapsed; render(); }
@@ -1211,14 +1224,25 @@ function buildPayload() {
 async function doSave() {
     if (!currentSessionId) return false;
     try {
-        const res = await fetch('../api/live_ledger_save.php', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(buildPayload())
-        });
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 15000); // 15s 超时，避免卡死 autoSaving
+        let res;
+        try {
+            res = await fetch('../api/live_ledger_save.php', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(buildPayload()),
+                signal: ctrl.signal
+            });
+        } finally {
+            clearTimeout(timer);
+        }
         const data = await res.json();
         if (!data.success) { console.error('保存失败:', data.error); return false; }
         return true;
-    } catch (e) { console.error('保存异常:', e.message); return false; }
+    } catch (e) {
+        console.error('保存异常:', e.name === 'AbortError' ? '超时' : e.message);
+        return false;
+    }
 }
 
 // 自动保存（防抖1.5s）：每步操作后静默保存，失败才提示
@@ -1230,9 +1254,23 @@ function scheduleAutoSave() {
     autoSaveTimer = setTimeout(async () => {
         if (autoSaving) { scheduleAutoSave(); return; } // 上轮未完成则顺延
         autoSaving = true;
-        const ok = await doSave();
-        autoSaving = false;
-        if (!ok) toast('⚠️ 自动保存失败，请手动保存');
+        try {
+            const ok = await doSave();
+            if (ok) {
+                // 存在前端临时负id（新建客户/商品/赠品还没拿到真实id）时，
+                // 静默重载一次，把负id全部换成数据库真实id，避免下次保存重复插入/误删
+                const hasTempId = (sessionData.customers || []).some(c =>
+                    c.id <= 0 || (c.items || []).some(i => i.id <= 0) || (c.gifts || []).some(g => g.id <= 0)
+                );
+                if (hasTempId) {
+                    await loadSessionData();
+                }
+            } else {
+                toast('⚠️ 自动保存失败，请手动保存');
+            }
+        } finally {
+            autoSaving = false;
+        }
     }, 1500);
 }
 
