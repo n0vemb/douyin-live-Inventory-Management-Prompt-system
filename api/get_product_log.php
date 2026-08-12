@@ -142,11 +142,13 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $s) {
 }
 
 // 3. 出库记录（普通出库 - outbound_log，含直播出库 + 出库退货）
+// 直播出库关联 live_ledger_session（场次），remark 带 场次名+运营+账号
 $stmt = $pdo->prepare("
     SELECT ob.id, ob.condition_type, ob.qty, ob.returned_qty, ob.live_session_id, ob.remark, ob.outbound_at,
-           ob.outbound_price, ls.session_name
+           ob.outbound_price, ob.account AS ob_account,
+           ls.session_name, ls.operator, ls.account AS ls_account
     FROM outbound_log ob
-    LEFT JOIN live_sessions ls ON ob.live_session_id = ls.id
+    LEFT JOIN live_ledger_session ls ON ob.live_session_id = ls.id
     WHERE ob.product_id = ?{$storeCondOb}
     ORDER BY ob.outbound_at DESC
 ");
@@ -163,7 +165,9 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $o) {
         'price' => $o['outbound_price'],
         'session_name' => $o['session_name'] ?? null,
         'live_session_id' => $o['live_session_id'] ?? null,
-        'remark' => ($o['session_name'] ? '场次：' . $o['session_name'] : '') . ($o['remark'] ? $o['remark'] : '') . ($returned > 0 ? ' · 已退 ' . $returned . ' 件' : ''),
+        'remark' => ($o['session_name'] ? '场次：' . $o['session_name'] : '') . ($o['remark'] ? ($o['session_name'] ? ' · ' : '') . $o['remark'] : '') . ($returned > 0 ? ' · 已退 ' . $returned . ' 件' : ''),
+        'operator' => $o['operator'] ?? null,
+        'account' => $o['ls_account'] ?? ($o['ob_account'] ?? null),
         'created_at' => $o['outbound_at'],
     ];
 }

@@ -798,7 +798,7 @@ async function renderDrawer() {
             const items = logs.map(l => `<div class="pm-log-item">
                 <span class="pm-lt ${colorMap[l.change_type] || 'adjust'}"></span>
                 <div style="flex:1;">
-                    <div>${escapeHtml(l.change_type_name)} · <b>${escapeHtml(l.condition_name)}</b> ×${l.qty_change > 0 ? '+' : ''}${l.qty_change}${l.session_name ? ` <span class="pm-tag">🎬 ${escapeHtml(l.session_name)}</span>` : ''}</div>
+                    <div>${escapeHtml(l.change_type_name)} · <b>${escapeHtml(l.condition_name)}</b> ×${l.qty_change > 0 ? '+' : ''}${l.qty_change}${l.session_name ? ` <span class="pm-tag">🎬 ${escapeHtml(l.session_name)}</span>` : ''}${l.operator ? ` <span class="pm-tag">运营 ${escapeHtml(l.operator)}</span>` : ''}${l.account ? ` <span class="pm-tag">账号 ${escapeHtml(l.account)}</span>` : ''}</div>
                     <div class="pm-lc">${escapeHtml(l.created_at || '')}${l.price && CAN_SEE_PROFIT ? ' · ¥' + parseFloat(l.price).toFixed(2) : ''}${l.remark ? ' · ' + escapeHtml(l.remark) : ''}</div>
                 </div>
                 <span class="pm-tag" style="align-self:center; flex-shrink:0;">当前库存 ${l.current_stock ?? 0} 件</span>

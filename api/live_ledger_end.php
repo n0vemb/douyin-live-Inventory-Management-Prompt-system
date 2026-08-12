@@ -100,9 +100,9 @@ try {
                 if ($storeId) $upParams[] = $storeId;
                 $stmt->execute($upParams);
 
-                // 写 outbound_log
-                $stmt = $pdo->prepare("INSERT INTO outbound_log (batch_id, product_id, condition_type, qty, outbound_price, order_no, outbound_batch_no, remark, platform, account, store_id, shipping_fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$batch['id'], $pid, $batch['condition_type'], $take, $price, null, $outboundBatchNo, '直播出库(' . $session['session_name'] . ')', 'live', '', $storeId, null]);
+                // 写 outbound_log（带场次 id + 场次账号，便于商品流水追溯"哪场直播/哪个运营"）
+                $stmt = $pdo->prepare("INSERT INTO outbound_log (batch_id, product_id, condition_type, qty, outbound_price, order_no, outbound_batch_no, remark, platform, account, live_session_id, store_id, shipping_fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$batch['id'], $pid, $batch['condition_type'], $take, $price, null, $outboundBatchNo, '直播出库(' . $session['session_name'] . ')', 'live', $session['account'] ?? '', (int)$session['id'], $storeId, null]);
 
                 // 写 live_ledger_outbound 关联（带 customer_id + item_id）
                 $outboundLogId = (int)$pdo->lastInsertId();
