@@ -847,25 +847,50 @@ async function loadPriceTrend(detail) {
     const wrap = $('priceTrendWrap');
     if (!wrap) return;
     if (!CAN_SEE_PROFIT) { wrap.innerHTML = '<div class="pm-pcommon">运营不可见进价走势</div>'; return; }
-    const batches = getAllBatches(detail);
+    const batches = getAllBatches(detail).filter(b => (b.remark || '') !== 'SKU转换'); // 转换产生的不记录进价走势
     if (!batches.length) { wrap.innerHTML = '<div class="pm-pcommon">暂无批次，入库后可查看进价走势</div>'; return; }
-    const bs = [...batches].sort((a, b) => (a.purchased_at || '').localeCompare(b.purchased_at || ''));
-    const costs = bs.map(b => parseFloat(b.purchase_price) || 0);
+
+    // 按 SKU(condition_type) 分组
+    const groups = {};
+    batches.forEach(b => {
+        const key = b.condition_type || 'opened';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(b);
+    });
+    const keys = Object.keys(groups);
+    // 颜色：按 SKU 顺序取不同色
+    const palette = ['#2e90fa', '#f43f5e', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'];
+
+    const allBs = keys.flatMap(k => groups[k]).sort((a, b) => (a.purchased_at || '').localeCompare(b.purchased_at || ''));
+    const costs = allBs.map(b => parseFloat(b.purchase_price) || 0);
     const min = Math.min(...costs), max = Math.max(...costs), span = (max - min) || 1;
-    const W = 540, H = 130, padL = 40, padR = 10, padT = 12, padB = 24;
-    const x = i => padL + (W - padL - padR) * (bs.length === 1 ? 0.5 : i / (bs.length - 1));
+    const W = 540, H = 150, padL = 40, padR = 10, padT = 12, padB = 24;
+    // x 按全局时间线（所有批次合并排序）
+    const xOf = (b) => {
+        const idx = allBs.indexOf(b);
+        return padL + (W - padL - padR) * (allBs.length === 1 ? 0.5 : idx / (allBs.length - 1));
+    };
     const y = v => H - padB - (H - padT - padB) * ((v - min) / span);
-    const path = bs.map((b, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(costs[i]).toFixed(1)}`).join(' ');
-    const dots = bs.map((b, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(costs[i]).toFixed(1)}" r="3.5" fill="#2e90fa"/>`).join('');
-    const xlab = bs.map((b, i) => `<text x="${x(i).toFixed(1)}" y="${H - 6}" font-size="9" fill="#6b7280" text-anchor="middle">${(b.purchased_at || '').slice(5, 10)}</text>`).join('');
+
+    let lines = '', dots = '', legend = '';
+    keys.forEach((k, gi) => {
+        const color = palette[gi % palette.length];
+        const bs = [...groups[k]].sort((a, b) => (a.purchased_at || '').localeCompare(b.purchased_at || ''));
+        const c = bs.map(b => parseFloat(b.purchase_price) || 0);
+        const path = bs.map((b, i) => `${i ? 'L' : 'M'}${xOf(b).toFixed(1)},${y(c[i]).toFixed(1)}`).join(' ');
+        lines += `<path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>`;
+        dots += bs.map(b => `<circle cx="${xOf(b).toFixed(1)}" cy="${y(parseFloat(b.purchase_price) || 0).toFixed(1)}" r="3.5" fill="${color}"/>`).join('');
+        legend += `<span style="display:inline-flex;align-items:center;margin-right:12px;"><span style="display:inline-block;width:14px;height:3px;background:${color};vertical-align:middle;margin-right:5px;"></span>${escapeHtml(getCN(k))}</span>`;
+    });
+
+    const xlab = allBs.map((b, i) => `<text x="${xOf(b).toFixed(1)}" y="${H - 6}" font-size="9" fill="#6b7280" text-anchor="middle">${(b.purchased_at || '').slice(5, 10)}</text>`).join('');
     const ylab = [min, Math.round((min + max) / 2), max].map(v => `<text x="2" y="${(y(v) + 3).toFixed(1)}" font-size="9" fill="#6b7280">¥${v}</text>`).join('');
     wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">
         <line x1="${padL}" y1="${H - padB}" x2="${W - padR}" y2="${H - padB}" stroke="var(--border)"/>
         <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H - padB}" stroke="var(--border)"/>
-        <path d="${path}" fill="none" stroke="#2e90fa" stroke-width="2"/>
-        ${dots}${xlab}${ylab}
+        ${lines}${dots}${xlab}${ylab}
     </svg>
-    <div style="font-size:11.5px;color:var(--text-tertiary);margin-top:6px;"><span style="display:inline-block;width:14px;height:3px;background:#2e90fa;vertical-align:middle;margin-right:5px;"></span>进价（每批到货成本）</div>`;
+    <div style="font-size:11.5px;color:var(--text-tertiary);margin-top:6px;">${legend}<span style="display:inline-flex;align-items:center;"><span style="display:inline-block;width:14px;height:3px;background:#9ca3af;vertical-align:middle;margin-right:5px;"></span>每批进价（SKU转换不记录）</span></div>`;
 }
 
 /* ---------- 新建/编辑商品 ---------- */
