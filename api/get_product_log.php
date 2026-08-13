@@ -145,7 +145,7 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $s) {
 // 直播出库关联 live_ledger_session（场次），remark 带 场次名+运营+账号
 $stmt = $pdo->prepare("
     SELECT ob.id, ob.condition_type, ob.qty, ob.returned_qty, ob.live_session_id, ob.remark, ob.outbound_at,
-           ob.outbound_price, ob.account AS ob_account,
+           ob.outbound_price, ob.account AS ob_account, ob.operator_username,
            ls.session_name, ls.operator, ls.account AS ls_account
     FROM outbound_log ob
     LEFT JOIN live_ledger_session ls ON ob.live_session_id = ls.id
@@ -168,6 +168,7 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $o) {
         'remark' => ($o['session_name'] ? '场次：' . $o['session_name'] : '') . ($o['remark'] ? ($o['session_name'] ? ' · ' : '') . $o['remark'] : '') . ($returned > 0 ? ' · 已退 ' . $returned . ' 件' : ''),
         'operator' => $o['operator'] ?? null,
         'account' => $o['ls_account'] ?? ($o['ob_account'] ?? null),
+        'operator_username' => $o['operator_username'] ?? null,
         'created_at' => $o['outbound_at'],
     ];
 }
