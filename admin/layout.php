@@ -155,7 +155,7 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
                 <?php endif; ?>
                 <a href="sessions.php" class="nav-item <?= ($currentPage ?? '') === 'sessions' ? 'active' : '' ?>">
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
-                    <span class="nav-label">直播场次</span>
+                    <span class="nav-label">直播返送</span>
                 </a>
                 <a href="live_ledger.php" class="nav-item <?= ($currentPage ?? '') === 'live_ledger' ? 'active' : '' ?>">
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span>

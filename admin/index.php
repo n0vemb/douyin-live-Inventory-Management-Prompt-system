@@ -66,7 +66,7 @@ $canSeeProfit = $currentUser['can_see_profit'] ?? true;
                     <div style="display:flex; flex-wrap:wrap; gap:10px;">
                         <a href="products.php" style="flex:1; min-width:140px; background:linear-gradient(135deg, #667eea, #764ba2); color:white; text-align:center; padding:14px; border-radius:8px; text-decoration:none; font-weight:600;">🏪 商品管理</a>
                         <a href="outbound.php" style="flex:1; min-width:140px; background:linear-gradient(135deg, #10b981, #059669); color:white; text-align:center; padding:14px; border-radius:8px; text-decoration:none; font-weight:600;">📦 扫码出库</a>
-                        <a href="sessions.php" style="flex:1; min-width:140px; background:linear-gradient(135deg, #f59e0b, #d97706); color:white; text-align:center; padding:14px; border-radius:8px; text-decoration:none; font-weight:600;">📺 直播场次</a>
+                        <a href="sessions.php" style="flex:1; min-width:140px; background:linear-gradient(135deg, #f59e0b, #d97706); color:white; text-align:center; padding:14px; border-radius:8px; text-decoration:none; font-weight:600;">📺 直播返送</a>
                         <a href="sales.php" style="flex:1; min-width:140px; background:linear-gradient(135deg, #06b6d4, #0891b2); color:white; text-align:center; padding:14px; border-radius:8px; text-decoration:none; font-weight:600;">💰 销售记录</a>
                     </div>
                 </div>

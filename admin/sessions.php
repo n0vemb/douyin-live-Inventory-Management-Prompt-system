@@ -1,9 +1,9 @@
 <?php
-$pageTitle = '直播场次';
+$pageTitle = '直播返送';
 $currentPage = 'sessions';
 require_once __DIR__ . '/layout.php';
 ?>
-        <div class="page-title">📺 直播场次管理</div>
+        <div class="page-title">📺 直播返送管理</div>
 
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
