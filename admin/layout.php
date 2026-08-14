@@ -171,6 +171,10 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
                     <span class="nav-label">客户管理</span>
                 </a>
+                <a href="todos.php" class="nav-item <?= ($currentPage ?? '') === 'todos' ? 'active' : '' ?>">
+                    <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+                    <span class="nav-label">待办事项</span>
+                </a>
             </div>
         </nav>
         <?php if ($isSuperAdmin || $isStoreAdmin): ?>
