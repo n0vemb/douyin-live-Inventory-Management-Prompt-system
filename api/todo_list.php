@@ -74,7 +74,7 @@ $ids = array_column($items, 'id');
 $updatesMap = [];
 if (count($ids) > 0) {
     $ph = implode(',', array_fill(0, count($ids), '?'));
-    $uStmt = $pdo->prepare("SELECT u.todo_id, u.content, u.assignees, u.updated_by, u.created_at, us.display_name AS updater_name
+    $uStmt = $pdo->prepare("SELECT u.id, u.todo_id, u.content, u.assignees, u.updated_by, u.created_at, us.display_name AS updater_name
                             FROM todo_updates u
                             LEFT JOIN users us ON us.id = u.updated_by
                             WHERE u.todo_id IN ($ph)
@@ -83,6 +83,7 @@ if (count($ids) > 0) {
     foreach ($uStmt->fetchAll(PDO::FETCH_ASSOC) as $u) {
         $updAssignees = json_decode($u['assignees'] ?? 'null', true);
         $updatesMap[$u['todo_id']][] = [
+            'id'           => (int)$u['id'],
             'content'      => $u['content'],
             'assignees'    => is_array($updAssignees) ? array_map('intval', $updAssignees) : [],
             'updated_by'   => (int)$u['updated_by'],
@@ -121,4 +122,17 @@ if ($storeId !== null) {
     }
 }
 
-success(['items' => $items, 'members' => $members, 'current_store' => $current]);
+// 当前登录用户（前端据此判断可编辑项）
+$cuId = (int)($_SESSION['user_id'] ?? 0);
+$cuName = '';
+if ($cuId > 0) {
+    $cuStmt = $pdo->prepare("SELECT display_name, username FROM users WHERE id = ?");
+    $cuStmt->execute([$cuId]);
+    $cu = $cuStmt->fetch();
+    if ($cu) {
+        $cuName = ($cu['display_name'] ?: $cu['username']) ?: ('用户' . $cuId);
+    }
+}
+$currentUser = ['id' => $cuId, 'name' => $cuName];
+
+success(['items' => $items, 'members' => $members, 'current_store' => $current, 'current_user' => $currentUser]);

@@ -68,6 +68,8 @@ require_once __DIR__ . '/layout.php';
     .todo-update-item .u-time { color:var(--text-tertiary); white-space:nowrap; flex-shrink:0; font-size:11.5px; padding-top:1px; }
     .todo-update-item .u-body { flex:1; min-width:0; color:var(--text); word-break:break-word; }
     .todo-update-item .u-body .u-who { color:var(--primary-hover); font-weight:600; margin-right:4px; }
+    .todo-update-item .u-edit { font-size:11.5px; color:var(--primary-hover); cursor:pointer; flex-shrink:0; align-self:center; padding:0 2px; }
+    .todo-update-item .u-edit:hover { text-decoration:underline; }
     .todo-update-edit { margin-top:10px; background:var(--bg-elevated); border:1px dashed var(--border); border-radius:8px; padding:12px; }
     .todo-update-edit label { font-size:12px; color:var(--text-tertiary); display:block; margin-bottom:6px; }
     .todo-update-edit .er { display:flex; gap:15px; margin-top:9px; justify-content:flex-end; }
@@ -83,10 +85,12 @@ require_once __DIR__ . '/layout.php';
     </style>
 
     <script>
-    let items = [], members = [], currentStore = null;
+    let items = [], members = [], currentStore = null, currentUser = null;
     let filter = 'pending', q = '', adding = false, completeId = null;
     let updateId = null, openUpdates = new Set();
+    let editTodoId = null, editUpdateId = null;
     let addAssigneeSet = new Set(), updateAssigneeSet = new Set();
+    let editTodoAssigneeSet = new Set(), editUpdateAssigneeSet = new Set();
     let mentionStart = -1, mentionList = [], mentionIdx = 0;
 
     function esc(s) {
@@ -108,6 +112,7 @@ require_once __DIR__ . '/layout.php';
             items = data.items || [];
             members = data.members || [];
             currentStore = data.current_store || null;
+            currentUser = data.current_user || null;
             // 全平台视角提示（超管未选店）
             const hint = $('storeHint');
             if (currentStore) {
@@ -129,7 +134,7 @@ require_once __DIR__ . '/layout.php';
 
     function toggleAdd() {
         if (!currentStore) { toast('请先切换到具体店铺'); return; }
-        adding = !adding; completeId = null; updateId = null; render();
+        adding = !adding; completeId = null; updateId = null; editTodoId = null; editUpdateId = null; render();
     }
 
     function visible() {
@@ -211,7 +216,9 @@ require_once __DIR__ . '/layout.php';
             }
             let acts = '';
             if (it.status === 'pending') {
-                acts = `<div class="todo-acts"><button class="btn btn-outline btn-sm" onclick="startUpdate(${it.id})">更新进展</button><button class="btn btn-primary btn-sm" onclick="startComplete(${it.id})">完成</button><button class="btn btn-danger btn-sm" onclick="del(${it.id})">删除</button></div>`;
+                const canEditTodo = currentUser && it.creator_id === currentUser.id;
+                const editBtn = canEditTodo ? `<button class="btn btn-outline btn-sm" onclick="startEditTodo(${it.id})">编辑</button>` : '';
+                acts = `<div class="todo-acts">${editBtn}<button class="btn btn-outline btn-sm" onclick="startUpdate(${it.id})">更新进展</button><button class="btn btn-primary btn-sm" onclick="startComplete(${it.id})">完成</button><button class="btn btn-danger btn-sm" onclick="del(${it.id})">删除</button></div>`;
             } else {
                 acts = `<div class="todo-acts"><button class="btn btn-secondary btn-sm" onclick="reopen(${it.id})">重新打开</button><button class="btn btn-danger btn-sm" onclick="del(${it.id})">删除</button></div>`;
             }
@@ -234,6 +241,21 @@ require_once __DIR__ . '/layout.php';
                         <button class="btn btn-primary btn-sm" onclick="confirmUpdate()">提交</button>
                     </div>
                 </div>` : '';
+            // 编辑待办框（发起人本人）
+            const todoEdit = (editTodoId === it.id) ? `
+                <div class="todo-update-edit">
+                    <label>编辑待办（发起人可修改）</label>
+                    <textarea class="form-input" id="editTodoContent" rows="2" placeholder="事项内容，输入 @ 指定执行人..." style="resize:vertical;"></textarea>
+                    <div style="display:flex; align-items:center; gap:15px; margin-top:10px;">
+                        <select class="form-input" id="editTodoPriority" style="width:auto;">
+                            <option value="normal">优先级：普通</option>
+                            <option value="urgent">优先级：紧急</option>
+                        </select>
+                        <div style="flex:1;"></div>
+                        <button class="btn btn-secondary btn-sm" onclick="editTodoId=null;render()">取消</button>
+                        <button class="btn btn-primary btn-sm" onclick="confirmEditTodo()">保存</button>
+                    </div>
+                </div>` : '';
             // 更新记录时间线（折叠）
             const ups = it.updates || [];
             const upsHtml = ups.length ? `
@@ -242,14 +264,27 @@ require_once __DIR__ . '/layout.php';
                         <span class="arrow"></span>更新记录（${ups.length}）
                     </button>
                     ${openUpdates.has(it.id) ? `<div class="todo-updates-list">${ups.map(u => {
+                        if (editUpdateId === u.id) {
+                            return `
+                            <div class="todo-update-item" style="flex-direction:column; gap:8px;">
+                                <textarea class="form-input" id="editUpdateContent" rows="2" placeholder="更新说明，输入 @ 指定执行人..." style="resize:vertical;"></textarea>
+                                <div style="display:flex; justify-content:flex-end; gap:15px;">
+                                    <button class="btn btn-secondary btn-sm" onclick="editUpdateId=null;render()">取消</button>
+                                    <button class="btn btn-primary btn-sm" onclick="confirmEditUpdate()">保存</button>
+                                </div>
+                            </div>`;
+                        }
                         const updAsgNames = assigneeNames(u.assignees);
                         const updAsgHtml = updAsgNames.length
                             ? `<span class="todo-atag" style="margin-left:6px;">@${esc(updAsgNames.join(', @'))}</span>`
                             : '';
+                        const canEditUpd = it.status === 'pending' && currentUser && u.updated_by === currentUser.id;
+                        const editLink = canEditUpd ? `<span class="u-edit" onclick="startEditUpdate(${u.id})">编辑</span>` : '';
                         return `
                         <div class="todo-update-item">
                             <span class="u-time">${esc(u.created_at)}</span>
                             <span class="u-body"><span class="u-who">${esc(u.updater_name || '')}</span>${renderContent(u.content)}${updAsgHtml}</span>
+                            ${editLink}
                         </div>`;
                     }).join('')}</div>` : ''}
                 </div>` : '';
@@ -263,7 +298,7 @@ require_once __DIR__ . '/layout.php';
                     <div class="todo-info">${asgHtml}${meta}</div>
                     <div class="todo-acts">${acts}</div>
                 </div>
-                ${upsHtml}${detail}${edit}${updEdit}
+                ${upsHtml}${detail}${edit}${updEdit}${todoEdit}
             </div>`;
         }).join('');
 
@@ -271,6 +306,31 @@ require_once __DIR__ . '/layout.php';
         if (updateId !== null) {
             const ta = $('udetail');
             if (ta) {
+                ta.addEventListener('input', onMentionInput);
+                ta.addEventListener('keydown', onMentionKey);
+            }
+        }
+        // 编辑待办框绑定 @ 监听 + 预填
+        if (editTodoId !== null) {
+            const ta = $('editTodoContent');
+            if (ta) {
+                const it = items.find(x => x.id === editTodoId);
+                if (it) {
+                    ta.value = it.content;
+                    const sel = $('editTodoPriority');
+                    if (sel) sel.value = it.priority;
+                }
+                ta.addEventListener('input', onMentionInput);
+                ta.addEventListener('keydown', onMentionKey);
+            }
+        }
+        // 编辑更新记录框绑定 @ 监听 + 预填
+        if (editUpdateId !== null) {
+            const ta = $('editUpdateContent');
+            if (ta) {
+                let target = null;
+                items.forEach(it => (it.updates || []).forEach(u => { if (u.id === editUpdateId) target = u; }));
+                if (target) ta.value = target.content;
                 ta.addEventListener('input', onMentionInput);
                 ta.addEventListener('keydown', onMentionKey);
             }
@@ -297,7 +357,7 @@ require_once __DIR__ . '/layout.php';
     }
 
     // ===== 更新进展 =====
-    function startUpdate(id) { updateId = id; completeId = null; updateAssigneeSet.clear(); render(); }
+    function startUpdate(id) { updateId = id; completeId = null; editTodoId = null; editUpdateId = null; updateAssigneeSet.clear(); render(); }
     async function confirmUpdate() {
         const detail = $('udetail').value.trim();
         if (!detail) { toast('请填写更新说明'); return; }
@@ -320,7 +380,7 @@ require_once __DIR__ . '/layout.php';
     }
 
     // ===== 完成 =====
-    function startComplete(id) { completeId = id; render(); }
+    function startComplete(id) { completeId = id; updateId = null; editTodoId = null; editUpdateId = null; render(); }
     async function confirmComplete() {
         const detail = $('cdetail').value.trim();
         if (!detail) { toast('请填写完成详情'); return; }
@@ -367,10 +427,60 @@ require_once __DIR__ . '/layout.php';
         } catch (err) { toast('操作失败'); }
     }
 
-    // ===== @ 指定执行人（支持新增框 addContent 和更新框 udetail） =====
+    // ===== 编辑待办（发起人本人） =====
+    function startEditTodo(id) {
+        const it = items.find(x => x.id === id);
+        if (!it) return;
+        editTodoId = id; editUpdateId = null; updateId = null; completeId = null;
+        editTodoAssigneeSet = new Set(it.assignees || []);
+        render();
+    }
+    async function confirmEditTodo() {
+        const content = $('editTodoContent').value.trim();
+        const priority = $('editTodoPriority').value;
+        if (!content) { toast('请填写事项内容'); return; }
+        try {
+            const res = await fetch('../api/todo_edit.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: editTodoId, content, priority, assignee_ids: Array.from(editTodoAssigneeSet) })
+            });
+            const data = await res.json();
+            if (!data.success) { toast(data.error || '操作失败'); return; }
+            editTodoId = null;
+            await load(); toast('已保存');
+        } catch (err) { toast('操作失败'); }
+    }
+
+    // ===== 编辑更新记录（更新人本人） =====
+    function startEditUpdate(uid) {
+        let target = null;
+        items.forEach(it => (it.updates || []).forEach(u => { if (u.id === uid) target = u; }));
+        if (!target) return;
+        editUpdateId = uid; editTodoId = null; updateId = null; completeId = null;
+        editUpdateAssigneeSet = new Set(target.assignees || []);
+        render();
+    }
+    async function confirmEditUpdate() {
+        const content = $('editUpdateContent').value.trim();
+        if (!content) { toast('请填写更新说明'); return; }
+        try {
+            const res = await fetch('../api/todo_update_edit.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: editUpdateId, content, assignee_ids: Array.from(editUpdateAssigneeSet) })
+            });
+            const data = await res.json();
+            if (!data.success) { toast(data.error || '操作失败'); return; }
+            editUpdateId = null;
+            await load(); toast('已保存');
+        } catch (err) { toast('操作失败'); }
+    }
+
+    // ===== @ 指定执行人（支持 新增/更新/编辑待办/编辑更新记录 输入框） =====
     function mentionTa() {
         const el = document.activeElement;
-        if (el && (el.id === 'addContent' || el.id === 'udetail')) return el;
+        if (el && ['addContent', 'udetail', 'editTodoContent', 'editUpdateContent'].includes(el.id)) return el;
         return null;
     }
     function onMentionInput() {
@@ -407,7 +517,10 @@ require_once __DIR__ . '/layout.php';
         const m = members.find(x => x.id === id); if (!m) return;
         const pos = ta.selectionStart, before = ta.value.slice(0, mentionStart), after = ta.value.slice(pos);
         ta.value = before + '@' + m.name + ' ' + after;
-        if (ta.id === 'udetail') updateAssigneeSet.add(id); else addAssigneeSet.add(id);
+        if (ta.id === 'udetail') updateAssigneeSet.add(id);
+        else if (ta.id === 'editTodoContent') editTodoAssigneeSet.add(id);
+        else if (ta.id === 'editUpdateContent') editUpdateAssigneeSet.add(id);
+        else addAssigneeSet.add(id);
         const np = before.length + m.name.length + 2;
         ta.setSelectionRange(np, np); ta.focus(); hideMention();
     }
