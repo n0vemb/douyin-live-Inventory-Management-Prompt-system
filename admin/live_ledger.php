@@ -336,12 +336,11 @@ tr.tr-active td:first-child { border-left: 3px solid var(--primary, #6366f1); }
 
 /* ===== 右侧快捷查询面板（适配平台暗黑主题） ===== */
 .ps-tab { position: fixed; right: 0; top: 45%; transform: translateY(-50%); z-index: 300;
-    background: var(--bg-active); color: var(--text); border-radius: 8px 0 0 8px;
-    border: 1px solid var(--border); border-right: none;
-    padding: 12px 6px; cursor: pointer; box-shadow: -2px 2px 10px rgba(0,0,0,.3);
-    writing-mode: vertical-rl; font-size: 13px; font-weight: 600; letter-spacing: 2px; user-select: none;
-    transition: opacity .2s; }
-.ps-tab:hover { opacity: .85; }
+    background: var(--primary); color: #fff; border-radius: 8px 0 0 8px;
+    padding: 12px 6px; cursor: pointer; box-shadow: -2px 2px 10px rgba(0,0,0,.4);
+    writing-mode: vertical-rl; font-size: 13px; font-weight: 700; letter-spacing: 2px; user-select: none;
+    transition: background .2s, opacity .2s; }
+.ps-tab:hover { background: var(--primary-hover); }
 .ps-panel { position: fixed; right: 0; top: 0; bottom: 0; width: 320px; z-index: 301;
     background: var(--bg-surface); border-left: 1px solid var(--border);
     box-shadow: -4px 0 24px rgba(0,0,0,.5); display: flex; flex-direction: column;
@@ -1399,6 +1398,13 @@ function closePriceStockPanel() {
     document.getElementById('psSearchInput').value = '';
     document.getElementById('psBody').innerHTML = '<div class="ps-empty">输入关键词搜索商品，查看各SKU价格与库存</div>';
 }
+// 点击面板外空白处收起
+document.addEventListener('click', function (e) {
+    const panel = document.getElementById('psPanel');
+    if (!panel.classList.contains('open')) return;
+    if (panel.contains(e.target) || e.target.closest('.ps-tab')) return;
+    closePriceStockPanel();
+});
 function psSearch() {
     clearTimeout(psTimer);
     const q = document.getElementById('psSearchInput').value.trim();
