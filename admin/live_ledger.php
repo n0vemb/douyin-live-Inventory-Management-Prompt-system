@@ -333,6 +333,35 @@ tr.tr-active td:first-child { border-left: 3px solid var(--primary, #6366f1); }
 .sdi-add-btn { padding: 4px 14px; border-radius: 6px; border: none; background: var(--primary, #6366f1); color: #fff; font-size: 12px; cursor: pointer; font-weight: 600; }
 .sdi-add-btn:hover { opacity: .85; }
 .sdi-add-btn:disabled { background: var(--text-tertiary, #9ca3af); cursor: not-allowed; opacity: .5; }
+
+/* ===== 右侧快捷查询面板 ===== */
+.ps-tab { position: fixed; right: 0; top: 45%; transform: translateY(-50%); z-index: 300;
+    background: var(--primary, #6366f1); color: #fff; border-radius: 8px 0 0 8px;
+    padding: 12px 6px; cursor: pointer; box-shadow: -2px 2px 10px rgba(0,0,0,.2);
+    writing-mode: vertical-rl; font-size: 13px; font-weight: 600; letter-spacing: 2px; user-select: none;
+    transition: opacity .2s; }
+.ps-tab:hover { opacity: .85; }
+.ps-panel { position: fixed; right: 0; top: 0; bottom: 0; width: 320px; z-index: 301;
+    background: var(--bg, #fff); border-left: 1px solid var(--border, #e5e7eb);
+    box-shadow: -4px 0 24px rgba(0,0,0,.15); display: flex; flex-direction: column;
+    transform: translateX(100%); transition: transform .25s ease; }
+.ps-panel.open { transform: translateX(0); }
+.ps-head { padding: 14px 16px; border-bottom: 1px solid var(--border, #e5e7eb); display: flex; align-items: center; justify-content: space-between; }
+.ps-head .title { font-weight: 700; font-size: 15px; }
+.ps-close { border: none; background: none; font-size: 18px; cursor: pointer; color: var(--text-tertiary, #9ca3af); line-height: 1; }
+.ps-search { padding: 12px 16px; border-bottom: 1px solid var(--border, #e5e7eb); }
+.ps-search input { width: 100%; padding: 9px 12px; border: 1px solid var(--border, #e5e7eb); border-radius: 8px; font-size: 14px; outline: none; }
+.ps-search input:focus { border-color: var(--primary, #6366f1); }
+.ps-body { flex: 1; overflow-y: auto; padding: 10px 12px; }
+.ps-empty { color: var(--text-tertiary, #9ca3af); font-size: 13px; text-align: center; padding: 30px 10px; }
+.ps-product { border: 1px solid var(--border, #e5e7eb); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
+.ps-product .ps-pname { padding: 9px 12px; font-weight: 600; font-size: 13.5px; background: var(--bg-hover, #f3f4f6); }
+.ps-product .ps-pmeta { padding: 0 12px 4px; font-size: 11px; color: var(--text-tertiary, #9ca3af); }
+.ps-sku { display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; border-top: 1px dashed var(--border, #e5e7eb); font-size: 13px; }
+.ps-sku .sname { color: var(--text-secondary, #6b7280); }
+.ps-sku .sval { font-weight: 600; }
+.ps-sku .sval .stock { color: var(--success, #10b981); }
+.ps-sku .sval .price { color: var(--text, #111827); margin-left: 10px; }
 </style>
 
 <script>
@@ -1354,4 +1383,61 @@ document.getElementById('productSearchInput').addEventListener('keydown', e => {
 
 loadVipSpentMap();
 loadSessions();
+
+/* ===== 右侧快捷查询：价格/库存 ===== */
+let psTimer = null;
+function openPriceStockPanel() {
+    document.getElementById('psPanel').classList.add('open');
+    setTimeout(() => document.getElementById('psSearchInput').focus(), 250);
+}
+function closePriceStockPanel() {
+    document.getElementById('psPanel').classList.remove('open');
+    document.getElementById('psSearchInput').value = '';
+    document.getElementById('psBody').innerHTML = '<div class="ps-empty">输入关键词搜索商品，查看各SKU价格与库存</div>';
+}
+function psSearch() {
+    clearTimeout(psTimer);
+    const q = document.getElementById('psSearchInput').value.trim();
+    const body = document.getElementById('psBody');
+    if (!q) { body.innerHTML = '<div class="ps-empty">输入关键词搜索商品，查看各SKU价格与库存</div>'; return; }
+    body.innerHTML = '<div class="ps-empty">查询中...</div>';
+    psTimer = setTimeout(async () => {
+        try {
+            const res = await fetch('../api/live_ledger_price_stock.php?q=' + encodeURIComponent(q));
+            const data = await res.json();
+            if (!data.success) { body.innerHTML = '<div class="ps-empty">' + esc(data.error || '查询失败') + '</div>'; return; }
+            const products = data.data.products || [];
+            if (!products.length) { body.innerHTML = '<div class="ps-empty">未找到匹配商品</div>'; return; }
+            body.innerHTML = products.map(p => {
+                const skus = (p.skus || []).map(s => `
+                    <div class="ps-sku">
+                        <span class="sname">${esc(s.condition_name)}</span>
+                        <span class="sval"><span class="stock">库存 ${s.stock}</span><span class="price">¥${s.price ? s.price.toFixed(2) : '-'}${s.cost && CAN_SEE_PROFIT ? ` <span style="color:var(--text-tertiary,#9ca3af);font-weight:400;">进¥${s.cost.toFixed(2)}</span>` : ''}</span></span>
+                    </div>`).join('');
+                return `<div class="ps-product">
+                    <div class="ps-pname">${esc(p.name)}</div>
+                    <div class="ps-pmeta">${esc(p.barcode || '')}${p.series ? ' · ' + esc(p.series) : ''}</div>
+                    ${skus}
+                </div>`;
+            }).join('');
+        } catch (e) {
+            body.innerHTML = '<div class="ps-empty">查询失败: ' + esc(e.message) + '</div>';
+        }
+    }, 300);
+}
 </script>
+
+<!-- 右侧快捷查询：价格/库存 -->
+<div class="ps-tab" id="psTab" onclick="openPriceStockPanel()">价格库存查询</div>
+<div class="ps-panel" id="psPanel">
+    <div class="ps-head">
+        <span class="title">🔍 价格/库存查询</span>
+        <button class="ps-close" onclick="closePriceStockPanel()">&times;</button>
+    </div>
+    <div class="ps-search">
+        <input type="text" id="psSearchInput" placeholder="输入商品名称/拼音搜索..." oninput="psSearch()">
+    </div>
+    <div class="ps-body" id="psBody">
+        <div class="ps-empty">输入关键词搜索商品，查看各SKU价格与库存</div>
+    </div>
+</div>
