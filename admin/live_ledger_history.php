@@ -201,7 +201,7 @@ function renderCustomers(customers) {
 
 function renderProducts(products) {
     let sums = { q: 0, g: 0, cost: 0, p: 0 };
-    let html = '<table><thead><tr><th>商品</th><th>销量</th><th>销售额</th>' + (CAN_SEE_PROFIT ? '<th>成本</th><th>毛利</th><th>毛利率</th>' : '') + '</tr></thead><tbody>';
+    let html = '<table><thead><tr><th>商品</th><th>销量</th><th>库存</th><th>销售额</th>' + (CAN_SEE_PROFIT ? '<th>成本</th><th>毛利</th><th>毛利率</th>' : '') + '</tr></thead><tbody>';
     products.forEach(p => {
         sums.q += (p.qty || 0);
         sums.g += (p.gmv || 0);
@@ -210,6 +210,7 @@ function renderProducts(products) {
         html += `<tr>
             <td>${esc(p.product_name)}</td>
             <td>${p.qty || 0}</td>
+            <td>${p.stock ?? 0}</td>
             <td>¥${fmt(p.gmv)}</td>
             ${CAN_SEE_PROFIT ? `<td>¥${fmt(p.cost)}</td><td>¥${fmt(p.profit)}</td><td>${fmtPct(p.profit_rate)}</td>` : ''}
         </tr>`;

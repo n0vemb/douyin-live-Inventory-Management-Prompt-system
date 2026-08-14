@@ -174,6 +174,11 @@ if ($view === 'product') {
             $a['cost'] = round($a['cost'], 2);
             $a['profit'] = round($a['profit'], 2);
             $a['profit_rate'] = $a['gmv'] > 0 ? round($a['profit'] / $a['gmv'], 4) : 0;
+            // 当前库存：该商品所有 SKU 批次 remaining_qty 之和（按店铺过滤）
+            $st = $pdo->prepare("SELECT COALESCE(SUM(ib.remaining_qty), 0) FROM inventory_batches ib WHERE ib.product_id = ?" . ($storeId ? " AND ib.store_id = ?" : ""));
+            $stParams = $storeId ? [$a['product_id'], $storeId] : [$a['product_id']];
+            $st->execute($stParams);
+            $a['stock'] = (int)$st->fetchColumn();
         }
         if (shouldMaskProfit()) {
             foreach ($agg as &$aa) { $aa['cost'] = null; $aa['profit'] = null; $aa['profit_rate'] = null; }
