@@ -46,4 +46,8 @@ if ($userId <= 0) {
 $stmt = $pdo->prepare("UPDATE todo_items SET status = 'done', completed_by = ?, completion_detail = ?, completed_at = NOW() WHERE id = ? AND store_id = ?");
 $stmt->execute([$userId, $detail, $id, $storeId]);
 
+// 完成时写入一条更新记录（系统记录）
+$stmt = $pdo->prepare("INSERT INTO todo_updates (todo_id, content, updated_by) VALUES (?, ?, ?)");
+$stmt->execute([$id, '完成：' . $detail, $userId]);
+
 success(['message' => '已完成']);

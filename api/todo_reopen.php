@@ -32,7 +32,16 @@ if ($todo['status'] !== 'done') {
     error('仅已完成项可重新打开');
 }
 
+$userId = (int)($_SESSION['user_id'] ?? 0);
+if ($userId <= 0) {
+    error('登录状态异常');
+}
+
 $stmt = $pdo->prepare("UPDATE todo_items SET status = 'pending', completed_by = NULL, completion_detail = NULL, completed_at = NULL WHERE id = ? AND store_id = ?");
 $stmt->execute([$id, $storeId]);
+
+// 重新打开时写入一条更新记录（系统记录）
+$stmt = $pdo->prepare("INSERT INTO todo_updates (todo_id, content, updated_by) VALUES (?, ?, ?)");
+$stmt->execute([$id, '重新打开', $userId]);
 
 success(['message' => '已重新打开']);

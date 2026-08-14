@@ -69,6 +69,33 @@ $items = array_map(function ($r) {
     ];
 }, $rows);
 
+// 批量查所有待办的更新记录（避免 N+1），按时间正序
+$ids = array_column($items, 'id');
+$updatesMap = [];
+if (count($ids) > 0) {
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $uStmt = $pdo->prepare("SELECT u.todo_id, u.content, u.assignees, u.updated_by, u.created_at, us.display_name AS updater_name
+                            FROM todo_updates u
+                            LEFT JOIN users us ON us.id = u.updated_by
+                            WHERE u.todo_id IN ($ph)
+                            ORDER BY u.created_at ASC, u.id ASC");
+    $uStmt->execute($ids);
+    foreach ($uStmt->fetchAll(PDO::FETCH_ASSOC) as $u) {
+        $updAssignees = json_decode($u['assignees'] ?? 'null', true);
+        $updatesMap[$u['todo_id']][] = [
+            'content'      => $u['content'],
+            'assignees'    => is_array($updAssignees) ? array_map('intval', $updAssignees) : [],
+            'updated_by'   => (int)$u['updated_by'],
+            'updater_name' => $u['updater_name'] ?: '',
+            'created_at'   => $u['created_at'],
+        ];
+    }
+}
+foreach ($items as &$it) {
+    $it['updates'] = $updatesMap[$it['id']] ?? [];
+}
+unset($it);
+
 // 本店成员（用于 @ 指定执行人 / 渲染姓名）
 if ($storeId !== null) {
     $mStmt = $pdo->prepare("SELECT id, username, display_name FROM users WHERE store_id = ? AND is_active = 1 ORDER BY display_name, username");
