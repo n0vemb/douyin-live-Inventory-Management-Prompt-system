@@ -334,34 +334,38 @@ tr.tr-active td:first-child { border-left: 3px solid var(--primary, #6366f1); }
 .sdi-add-btn:hover { opacity: .85; }
 .sdi-add-btn:disabled { background: var(--text-tertiary, #9ca3af); cursor: not-allowed; opacity: .5; }
 
-/* ===== 右侧快捷查询面板 ===== */
+/* ===== 右侧快捷查询面板（适配平台暗黑主题） ===== */
 .ps-tab { position: fixed; right: 0; top: 45%; transform: translateY(-50%); z-index: 300;
-    background: var(--primary, #6366f1); color: #fff; border-radius: 8px 0 0 8px;
-    padding: 12px 6px; cursor: pointer; box-shadow: -2px 2px 10px rgba(0,0,0,.2);
+    background: var(--bg-active); color: var(--text); border-radius: 8px 0 0 8px;
+    border: 1px solid var(--border); border-right: none;
+    padding: 12px 6px; cursor: pointer; box-shadow: -2px 2px 10px rgba(0,0,0,.3);
     writing-mode: vertical-rl; font-size: 13px; font-weight: 600; letter-spacing: 2px; user-select: none;
     transition: opacity .2s; }
 .ps-tab:hover { opacity: .85; }
 .ps-panel { position: fixed; right: 0; top: 0; bottom: 0; width: 320px; z-index: 301;
-    background: var(--bg, #fff); border-left: 1px solid var(--border, #e5e7eb);
-    box-shadow: -4px 0 24px rgba(0,0,0,.15); display: flex; flex-direction: column;
+    background: var(--bg-surface); border-left: 1px solid var(--border);
+    box-shadow: -4px 0 24px rgba(0,0,0,.5); display: flex; flex-direction: column;
     transform: translateX(100%); transition: transform .25s ease; }
 .ps-panel.open { transform: translateX(0); }
-.ps-head { padding: 14px 16px; border-bottom: 1px solid var(--border, #e5e7eb); display: flex; align-items: center; justify-content: space-between; }
-.ps-head .title { font-weight: 700; font-size: 15px; }
-.ps-close { border: none; background: none; font-size: 18px; cursor: pointer; color: var(--text-tertiary, #9ca3af); line-height: 1; }
-.ps-search { padding: 12px 16px; border-bottom: 1px solid var(--border, #e5e7eb); }
-.ps-search input { width: 100%; padding: 9px 12px; border: 1px solid var(--border, #e5e7eb); border-radius: 8px; font-size: 14px; outline: none; }
-.ps-search input:focus { border-color: var(--primary, #6366f1); }
+.ps-head { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.ps-head .title { font-weight: 700; font-size: 15px; color: var(--text); }
+.ps-close { border: none; background: none; font-size: 18px; cursor: pointer; color: var(--text-tertiary); line-height: 1; }
+.ps-close:hover { color: var(--text); }
+.ps-search { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.ps-search input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; outline: none; background: var(--bg-elevated); color: var(--text); }
+.ps-search input::placeholder { color: var(--text-tertiary); }
+.ps-search input:focus { border-color: var(--border-focus); }
 .ps-body { flex: 1; overflow-y: auto; padding: 10px 12px; }
-.ps-empty { color: var(--text-tertiary, #9ca3af); font-size: 13px; text-align: center; padding: 30px 10px; }
-.ps-product { border: 1px solid var(--border, #e5e7eb); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
-.ps-product .ps-pname { padding: 9px 12px; font-weight: 600; font-size: 13.5px; background: var(--bg-hover, #f3f4f6); }
-.ps-product .ps-pmeta { padding: 0 12px 4px; font-size: 11px; color: var(--text-tertiary, #9ca3af); }
-.ps-sku { display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; border-top: 1px dashed var(--border, #e5e7eb); font-size: 13px; }
-.ps-sku .sname { color: var(--text-secondary, #6b7280); }
+.ps-empty { color: var(--text-tertiary); font-size: 13px; text-align: center; padding: 30px 10px; }
+.ps-product { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; overflow: hidden; background: var(--bg-elevated); }
+.ps-product .ps-pname { padding: 9px 12px; font-weight: 600; font-size: 13.5px; background: var(--bg-hover); color: var(--text); }
+.ps-product .ps-pmeta { padding: 0 12px 4px; font-size: 11px; color: var(--text-tertiary); }
+.ps-sku { display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; border-top: 1px dashed var(--border); font-size: 13px; }
+.ps-sku .sname { color: var(--text-secondary); }
 .ps-sku .sval { font-weight: 600; }
-.ps-sku .sval .stock { color: var(--success, #10b981); }
-.ps-sku .sval .price { color: var(--text, #111827); margin-left: 10px; }
+.ps-sku .sval .stock { color: #34d399; }
+.ps-sku .sval .price { color: var(--text); margin-left: 10px; }
 </style>
 
 <script>
@@ -1412,7 +1416,7 @@ function psSearch() {
                 const skus = (p.skus || []).map(s => `
                     <div class="ps-sku">
                         <span class="sname">${esc(s.condition_name)}</span>
-                        <span class="sval"><span class="stock">库存 ${s.stock}</span><span class="price">¥${s.price ? s.price.toFixed(2) : '-'}${s.cost && CAN_SEE_PROFIT ? ` <span style="color:var(--text-tertiary,#9ca3af);font-weight:400;">进¥${s.cost.toFixed(2)}</span>` : ''}</span></span>
+                        <span class="sval"><span class="stock">库存 ${s.stock}</span><span class="price">¥${s.price ? s.price.toFixed(2) : '-'}</span></span>
                     </div>`).join('');
                 return `<div class="ps-product">
                     <div class="ps-pname">${esc(p.name)}</div>
