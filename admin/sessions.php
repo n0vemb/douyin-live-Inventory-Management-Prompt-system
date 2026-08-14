@@ -3,16 +3,16 @@ $pageTitle = '直播返送';
 $currentPage = 'sessions';
 require_once __DIR__ . '/layout.php';
 ?>
-        <div class="page-title">📺 直播返送管理</div>
+        <div class="page-title">直播返送管理</div>
 
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
                 <h3 style="font-size:16px; color:var(--text);">创建新场次</h3>
-                <button class="btn btn-success" onclick="createSession()">🆕 创建新场次</button>
+                <button class="btn btn-success" onclick="createSession()">创建新场次</button>
             </div>
 
             <div style="padding:15px; background:var(--info-light); border-radius:8px; margin-bottom:20px; border:1px solid rgba(96,165,250,0.2);">
-                <strong>💡 说明：</strong>创建场次时会自动复制当前主库存作为直播库存快照，直播期间销售不影响主库存。
+                <strong>说明：</strong>创建场次时会自动复制当前主库存作为直播库存快照，直播期间销售不影响主库存。
             </div>
         </div>
 
@@ -65,7 +65,7 @@ require_once __DIR__ . '/layout.php';
                         <textarea class="form-input" id="broadcastMessage" rows="6" placeholder="输入要显示给主播的提示信息..." style="font-size:16px; padding:12px; resize:vertical;"></textarea>
                     </div>
                     <div style="font-size:13px; color:var(--text-secondary); margin-top:8px;">
-                        💡 提示：消息会在直播屏幕上显示5秒后自动消失
+                        提示：消息会在直播屏幕上显示5秒后自动消失
                     </div>
                 </div>
                 <div style="display:flex; gap:10px;">
@@ -153,7 +153,7 @@ require_once __DIR__ . '/layout.php';
             if (result.success) {
                 const items = result.data.inventory_items || 0;
                 const sessionId = result.data.session_id || (result.data.session && result.data.session.id);
-                alert(`✅ ${result.message}！共 ${items} 个库存项已复制\n\n即将打开直播界面...`);
+                alert(`${result.message}！共 ${items} 个库存项已复制\n\n即将打开直播界面...`);
                 closeCreateModal();
                 loadSessions();
                 const liveUrl = sessionId ? `../live.php?session_id=${sessionId}` : '../live.php';

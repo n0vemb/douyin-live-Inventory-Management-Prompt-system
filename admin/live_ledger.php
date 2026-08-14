@@ -821,7 +821,7 @@ function cancelOrder(cid, nickname) {
             });
             const data = await res.json();
             if (data.success) {
-                toast('✅ 撤单成功');
+                toast('撤单成功');
                 await loadSessionData();
             } else toast(data.error || '撤单失败');
         } catch (e) { toast('撤单失败: ' + e.message); }
@@ -838,7 +838,7 @@ function returnItem(cid, iid) {
             });
             const data = await res.json();
             if (data.success) {
-                toast('✅ 退货成功');
+                toast('退货成功');
                 await loadSessionData();
             } else toast(data.error || '退货失败');
         } catch (e) { toast('退货失败: ' + e.message); }
@@ -1317,7 +1317,7 @@ function scheduleAutoSave() {
                     await loadSessionData();
                 }
             } else {
-                toast('⚠️ 自动保存失败，请手动保存');
+                toast('自动保存失败，请手动保存');
             }
         } finally {
             autoSaving = false;
@@ -1340,7 +1340,7 @@ async function saveAll() {
                 if (collapsedMap[c.id] !== undefined) c._collapsed = collapsedMap[c.id];
             });
             render();
-            toast('✅ 保存成功');
+            toast('保存成功');
         } else toast('保存失败');
     } catch (e) { toast('保存失败: ' + e.message); }
 }
@@ -1435,7 +1435,7 @@ function psSearch() {
 <div class="ps-tab" id="psTab" onclick="openPriceStockPanel()">价格库存查询</div>
 <div class="ps-panel" id="psPanel">
     <div class="ps-head">
-        <span class="title">🔍 价格/库存查询</span>
+        <span class="title">价格/库存查询</span>
         <button class="ps-close" onclick="closePriceStockPanel()">&times;</button>
     </div>
     <div class="ps-search">

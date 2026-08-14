@@ -635,7 +635,7 @@ function renderProducts(products) {
         const sc = t === 0 ? 'out' : t <= 5 ? 'low' : 'ok';
         const imageHtml = p.image_url
             ? `<img src="../${p.image_url}" class="pm-thumb" style="object-fit:cover;">`
-            : `<div class="pm-thumb">📦</div>`;
+            : `<div class="pm-thumb"></div>`;
         const nameHtml = p.common_name
             ? `<div class="pm-pname">${escapeHtml(p.common_name)}</div><div class="pm-pcommon">${escapeHtml(p.name)}</div>`
             : `<div class="pm-pname">${escapeHtml(p.name)}</div>`;
@@ -798,7 +798,7 @@ async function renderDrawer() {
             const items = logs.map(l => `<div class="pm-log-item">
                 <span class="pm-lt ${colorMap[l.change_type] || 'adjust'}"></span>
                 <div style="flex:1;">
-                    <div>${escapeHtml(l.change_type_name)} · <b>${escapeHtml(l.condition_name)}</b> ×${l.qty_change > 0 ? '+' : ''}${l.qty_change}${l.session_name ? ` <span class="pm-tag">🎬 ${escapeHtml(l.session_name)}</span>` : ''}${l.operator ? ` <span class="pm-tag">运营 ${escapeHtml(l.operator)}</span>` : ''}${l.account ? ` <span class="pm-tag">账号 ${escapeHtml(l.account)}</span>` : ''}</div>
+                    <div>${escapeHtml(l.change_type_name)} · <b>${escapeHtml(l.condition_name)}</b> ×${l.qty_change > 0 ? '+' : ''}${l.qty_change}${l.session_name ? ` <span class="pm-tag">${escapeHtml(l.session_name)}</span>` : ''}${l.operator ? ` <span class="pm-tag">运营 ${escapeHtml(l.operator)}</span>` : ''}${l.account ? ` <span class="pm-tag">账号 ${escapeHtml(l.account)}</span>` : ''}</div>
                     <div class="pm-lc">${escapeHtml(l.created_at || '')}${l.price && CAN_SEE_PROFIT ? ' · ¥' + parseFloat(l.price).toFixed(2) : ''}${l.operator_username ? ` · 操作人：${escapeHtml(l.operator_username)}` : ''}${l.remark ? ' · ' + (l.operator_username ? escapeHtml(l.remark).replace(/^场次：[^·]*/, '') : escapeHtml(l.remark)) : ''}</div>
                 </div>
                 <span class="pm-tag" style="align-self:center; flex-shrink:0;">当前库存 ${l.current_stock ?? 0} 件</span>
@@ -1407,7 +1407,7 @@ async function handleImportFile(input) {
         if (result.success) {
             const { success_count, total_count, errors } = result.data || {};
             let html = `<div style="padding:16px;">
-                <div style="color:var(--success); font-size:15px; margin-bottom:12px;">✅ 导入完成：成功 ${success_count} 个商品 / 共处理 ${total_count} 个</div>`;
+                <div style="color:var(--success); font-size:15px; margin-bottom:12px;">导入完成：成功 ${success_count} 个商品 / 共处理 ${total_count} 个</div>`;
             if (errors && errors.length) {
                 html += `<div style="color:var(--danger); margin-bottom:10px;"><strong>部分行有错误：</strong><ul style="margin:8px 0; padding-left:20px; max-height:180px; overflow:auto;">` +
                     errors.map(e => `<li>${escapeHtml(e)}</li>`).join('') + `</ul></div>`;
@@ -1417,10 +1417,10 @@ async function handleImportFile(input) {
             showToast(`导入完成：成功 ${success_count} / ${total_count}`);
             await loadProducts();
         } else {
-            $('importResult').innerHTML = `<div style="padding:16px; color:var(--danger);">❌ 导入失败：${escapeHtml(result.message || '未知错误')}</div>`;
+            $('importResult').innerHTML = `<div style="padding:16px; color:var(--danger);">导入失败：${escapeHtml(result.message || '未知错误')}</div>`;
         }
     } catch (err) {
-        $('importResult').innerHTML = `<div style="padding:16px; color:var(--danger);">❌ 导入失败：${escapeHtml(err.message)}</div>`;
+        $('importResult').innerHTML = `<div style="padding:16px; color:var(--danger);">导入失败：${escapeHtml(err.message)}</div>`;
     }
 }
 
