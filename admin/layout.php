@@ -171,9 +171,10 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
                     <span class="nav-label">客户管理</span>
                 </a>
-                <a href="todos.php" class="nav-item <?= ($currentPage ?? '') === 'todos' ? 'active' : '' ?>">
+                <a href="todos.php" class="nav-item <?= ($currentPage ?? '') === 'todos' ? 'active' : '' ?>" style="position:relative;">
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
                     <span class="nav-label">待办事项</span>
+                    <span class="todo-badge" id="todoBadge" style="display:none;">0</span>
                 </a>
             </div>
         </nav>
@@ -211,6 +212,10 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
 
     <style>
     .nav-icon svg { width:20px; height:20px; display:block; }
+    /* 待办未完成红点徽章 */
+    .todo-badge { position:absolute; top:6px; right:8px; min-width:16px; height:16px; padding:0 4px;
+        border-radius:8px; background:#ef4444; color:#fff; font-size:10px; font-weight:700;
+        line-height:16px; text-align:center; box-sizing:border-box; }
     </style>
 
     <!-- 点击遮罩关闭侧边栏（移动端） -->
@@ -304,4 +309,24 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
             }
         });
     })();
+
+    // 待办未完成数红点徽章
+    async function refreshTodoBadge() {
+        try {
+            var badge = document.getElementById('todoBadge');
+            if (!badge) return;
+            var res = await fetch('../api/todo_count.php', { cache: 'no-store' });
+            var data = await res.json();
+            var count = (data && data.success && data.data && data.data.count) ? parseInt(data.data.count) : 0;
+            if (count > 0) {
+                badge.textContent = count > 99 ? '99+' : count;
+                badge.style.display = '';
+            } else {
+                badge.style.display = 'none';
+            }
+        } catch (e) { /* 静默失败，不打扰用户 */ }
+    }
+    refreshTodoBadge();
+    // 每 60 秒刷新一次，保证跨页签/多端操作后数字仍准确
+    setInterval(refreshTodoBadge, 60000);
     </script>
