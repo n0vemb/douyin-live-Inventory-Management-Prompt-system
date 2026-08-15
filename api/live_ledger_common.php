@@ -153,5 +153,14 @@ function ledgerLoadSession($pdo, $sessionId) {
         $c['metrics'] = ledgerCalcCustomer($c, $settings);
     }
 
-    return ['settings' => $settings, 'customers' => $customers];
+// 福袋记录（场次级）
+$stmt = $pdo->prepare("SELECT * FROM live_ledger_lucky_draw WHERE session_id = ? ORDER BY id");
+$stmt->execute([$sessionId]);
+$luckyDraws = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$luckyDrawTotalCost = 0.0;
+foreach ($luckyDraws as $ld) {
+    $luckyDrawTotalCost += floatval($ld['cost'] ?? 0);
+}
+
+return ['settings' => $settings, 'customers' => $customers, 'lucky_draws' => $luckyDraws, 'lucky_draw_cost' => round($luckyDrawTotalCost, 2)];
 }

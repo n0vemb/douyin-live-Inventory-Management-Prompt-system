@@ -154,15 +154,18 @@ $isOperator = $user['role'] === 'operator';
     </div>
     <div style="margin-bottom:14px;">
       <label>主播 <span style="color:var(--danger);">*</span></label>
-      <input type="text" id="newSessionAnchor" class="form-input" placeholder="如：张三" style="margin-top:6px;">
+      <input type="text" id="newSessionAnchor" class="form-input" list="anchorList" placeholder="如：张三" style="margin-top:6px;">
+      <datalist id="anchorList"></datalist>
     </div>
     <div style="margin-bottom:14px;">
       <label>运营 <span style="color:var(--danger);">*</span></label>
-      <input type="text" id="newSessionOperator" class="form-input" placeholder="如：李四" style="margin-top:6px;">
+      <input type="text" id="newSessionOperator" class="form-input" list="operatorList" placeholder="如：李四" style="margin-top:6px;">
+      <datalist id="operatorList"></datalist>
     </div>
     <div style="margin-bottom:14px;">
       <label>直播平台账号</label>
-      <input type="text" id="newSessionAccount" class="form-input" placeholder="如：@xxx 或 抖音号" style="margin-top:6px;">
+      <input type="text" id="newSessionAccount" class="form-input" list="accountList" placeholder="如：@xxx 或 抖音号" style="margin-top:6px;">
+      <datalist id="accountList"></datalist>
     </div>
     <div class="flex" style="justify-content:flex-end; gap:15px;">
       <button class="btn btn-outline" onclick="closeNewSessionModal()">取消</button>
@@ -341,11 +344,21 @@ tr.tr-active td:first-child { border-left: 3px solid var(--primary, #6366f1); }
     writing-mode: vertical-rl; font-size: 13px; font-weight: 700; letter-spacing: 2px; user-select: none;
     transition: background .2s, opacity .2s; }
 .ps-tab:hover { background: var(--primary-hover); }
+/* 右侧快捷面板 tab 容器：纵向排布，间距 15px */
+#sideTabs { position: fixed; right: 0; top: 45%; transform: translateY(-50%); z-index: 300;
+    display: flex; flex-direction: column; gap: 15px; }
+#sideTabs .ps-tab { position: static; transform: none; }
+/* 福袋记录 tab：独立配色（橙色），与价格库存查询区分 */
+#ldTab { background: var(--warning, #f59e0b); }
+#ldTab:hover { background: #d97706; }
 .ps-panel { position: fixed; right: 0; top: 0; bottom: 0; width: 320px; z-index: 301;
     background: var(--bg-surface); border-left: 1px solid var(--border);
     box-shadow: -4px 0 24px rgba(0,0,0,.5); display: flex; flex-direction: column;
     transform: translateX(100%); transition: transform .25s ease; }
 .ps-panel.open { transform: translateX(0); }
+/* 福袋面板独立加宽，避免行内元素被裁切 */
+#ldPanel { width: 440px; }
+#ldPanel .ld-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
 .ps-head { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
 .ps-head .title { font-weight: 700; font-size: 15px; color: var(--text); }
 .ps-close { border: none; background: none; font-size: 18px; cursor: pointer; color: var(--text-tertiary); line-height: 1; }
@@ -404,6 +417,7 @@ async function loadSessions() {
         const data = await res.json();
         const tbody = document.getElementById('sessionList');
         const sessions = data.data.sessions || [];
+        window._ledgerSessions = sessions;
         if (!sessions.length) {
             tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary);padding:40px;">暂无场次，点击「新建场次」开始</td></tr>';
             return;
@@ -436,11 +450,37 @@ function openNewSessionModal() {
     const pad = n => String(n).padStart(2, '0');
     const name = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     document.getElementById('newSessionName').value = name;
-    document.getElementById('newSessionAnchor').value = '';
-    document.getElementById('newSessionOperator').value = '';
-    document.getElementById('newSessionAccount').value = '';
+
+    // 历史高频下拉（从已加载 sessions 统计频次，自动维护无需手工名单）
+    fillStaffDatalists();
+
+    // localStorage 记忆上次（若有则优先填入，否则留空待选）
+    let anchor = localStorage.getItem('ledger_last_anchor') || '';
+    let operator = localStorage.getItem('ledger_last_operator') || '';
+    let account = localStorage.getItem('ledger_last_account') || '';
+    document.getElementById('newSessionAnchor').value = anchor;
+    document.getElementById('newSessionOperator').value = operator;
+    document.getElementById('newSessionAccount').value = account;
+
     document.getElementById('newSessionModal').classList.add('show');
     setTimeout(() => document.getElementById('newSessionAnchor').focus(), 100);
+}
+
+// 从场次列表统计高频主播/运营/账号，填充 datalist（频次降序，去空）
+function fillStaffDatalists() {
+    const sessions = window._ledgerSessions || [];
+    const countBy = (key) => {
+        const m = {};
+        sessions.forEach(s => { const v = (s[key] || '').trim(); if (v) m[v] = (m[v] || 0) + 1; });
+        return Object.entries(m).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+    };
+    const setList = (id, arr) => {
+        const dl = document.getElementById(id);
+        if (dl) dl.innerHTML = arr.map(v => `<option value="${esc(v)}"></option>`).join('');
+    };
+    setList('anchorList', countBy('anchor'));
+    setList('operatorList', countBy('operator'));
+    setList('accountList', countBy('account'));
 }
 function closeNewSessionModal() { document.getElementById('newSessionModal').classList.remove('show'); }
 
@@ -455,10 +495,14 @@ async function createSession() {
     try {
         const res = await fetch('../api/live_ledger_save_session.php', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ session_name: name, anchor: anchor, operator: operator, account: account, activity_type: 'both' })
+            body: JSON.stringify({ session_name: name, anchor: anchor, operator: operator, account: account, activity_type: 'none' })
         });
         const data = await res.json();
         if (data.success) {
+            // 记住本次填写值，下次新建自动带出
+            localStorage.setItem('ledger_last_anchor', anchor);
+            localStorage.setItem('ledger_last_operator', operator);
+            localStorage.setItem('ledger_last_account', account);
             closeNewSessionModal();
             await loadSessions();
             switchToSession(data.data.session_id);
@@ -485,6 +529,11 @@ function confirmDeleteSession(id, name) {
                     document.getElementById('sessionInfoCard').style.display = 'none';
                     document.getElementById('customerListCard').style.display = 'none';
                     document.getElementById('sessionListCard').style.display = 'block';
+                    // 回列表：隐藏右侧快捷面板 tab
+                    document.getElementById('psTab').style.display = 'none';
+                    document.getElementById('ldTab').style.display = 'none';
+                    closePriceStockPanel();
+                    closeLuckyPanel();
                 }
                 await loadSessions();
                 toast('场次已删除');
@@ -523,6 +572,12 @@ async function switchToSession(id) {
         // 进入场次：隐藏列表，显示信息+设置+操作+客户列表
         document.getElementById('sessionListCard').style.display = 'none';
         document.getElementById('sessionInfoCard').style.display = 'block';
+        // 进入场次：显示右侧快捷面板 tab（价格库存查询/福袋记录）
+        document.getElementById('psTab').style.display = '';
+        document.getElementById('ldTab').style.display = '';
+        // 关闭已打开的面板
+        closePriceStockPanel();
+        closeLuckyPanel();
         document.getElementById('sessionInfoName').textContent = sessionData.settings.session_name + ' · 主播' + (sessionData.settings.anchor || '-') + '，运营' + (sessionData.settings.operator || '-') + (sessionData.settings.account ? '，账号' + sessionData.settings.account : '');
         document.getElementById('settingsCard').classList.remove('show');
         // 已结束场次：隐藏 新增客户/保存/结束直播 操作栏
@@ -594,6 +649,84 @@ function collectGiftPresets() {
         if (name && !isNaN(price) && price >= 0) presets.push({ name, price });
     });
     return presets;
+}
+
+// ===== 福袋记录（右侧面板，一行一条，可多条） =====
+let luckyDrawDraft = []; // 面板内的草稿行
+function luckyDrawRowEl(d) {
+    const row = document.createElement('div');
+    row.className = 'ld-row';
+    row.innerHTML = `
+        <input type="text" class="form-input" placeholder="中奖人" value="${esc(d.winner || '')}" style="flex:1; min-width:90px;" data-f="winner">
+        <input type="text" class="form-input" placeholder="奖品" value="${esc(d.prize || '')}" style="flex:2; min-width:120px;" data-f="prize">
+        <input type="number" class="form-input" step="0.01" min="0" placeholder="成本(元)" value="${d.cost ?? ''}" style="flex:1; min-width:70px;" data-f="cost">
+        <button class="btn btn-sm btn-danger" type="button" onclick="removeLuckyDrawRow(this)">删除</button>`;
+    return row;
+}
+function addLuckyDrawRow() {
+    const box = document.getElementById('ldRows');
+    if (!box) return;
+    luckyDrawDraft.push({ winner: '', prize: '', cost: '' });
+    box.appendChild(luckyDrawRowEl(luckyDrawDraft[luckyDrawDraft.length - 1]));
+}
+function removeLuckyDrawRow(btn) {
+    const box = document.getElementById('ldRows');
+    const idx = Array.prototype.indexOf.call(box.children, btn.closest('div'));
+    if (idx >= 0) {
+        luckyDrawDraft.splice(idx, 1);
+        btn.closest('div').remove();
+    }
+}
+function renderLuckyDrawRows(draws) {
+    const box = document.getElementById('ldRows');
+    if (!box) return;
+    box.innerHTML = '';
+    luckyDrawDraft = (draws || []).map(d => ({ winner: d.winner || '', prize: d.prize || '', cost: d.cost ?? '' }));
+    if (luckyDrawDraft.length === 0) addLuckyDrawRow();
+    else luckyDrawDraft.forEach((d, i) => box.appendChild(luckyDrawRowEl(d)));
+}
+function collectLuckyDraws() {
+    const box = document.getElementById('ldRows');
+    if (!box) return [];
+    const draws = [];
+    Array.prototype.forEach.call(box.children, (row) => {
+        const winner = (row.querySelector('[data-f="winner"]')?.value || '').trim();
+        const prize = (row.querySelector('[data-f="prize"]')?.value || '').trim();
+        const cost = parseFloat(row.querySelector('[data-f="cost"]')?.value);
+        if (winner && prize && !isNaN(cost) && cost >= 0) draws.push({ winner, prize, cost });
+    });
+    return draws;
+}
+function openLuckyPanel() {
+    const panel = document.getElementById('ldPanel');
+    if (!panel) return;
+    const body = document.getElementById('ldBody');
+    body.innerHTML = `
+        <div style="font-size:12px; color:var(--text-tertiary); margin-bottom:10px;">一场可记录多个福袋，一行一条。成本计入本场次总成本。</div>
+        <div id="ldRows" style="display:flex; flex-direction:column;"></div>
+        <button class="btn btn-sm btn-outline" type="button" onclick="addLuckyDrawRow()" style="margin-top:2px;">+ 添加福袋</button>
+        <div style="display:flex; justify-content:flex-end; gap:15px; margin-top:16px;">
+            <button class="btn btn-primary btn-sm" onclick="saveLuckyDraws()">保存福袋</button>
+        </div>`;
+    // 加载当前场次福袋
+    renderLuckyDrawRows(sessionData.lucky_draws || []);
+    panel.classList.add('open');
+}
+function closeLuckyPanel() { document.getElementById('ldPanel').classList.remove('open'); }
+async function saveLuckyDraws() {
+    if (!currentSessionId) { toast('请先进入场次'); return; }
+    const draws = collectLuckyDraws();
+    try {
+        const res = await fetch('../api/live_ledger_lucky_draw_save.php', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ session_id: currentSessionId, draws })
+        });
+        const data = await res.json();
+        if (!data.success) { toast(data.error || '保存失败'); return; }
+        toast('福袋已保存');
+        await switchToSession(currentSessionId);
+        renderLuckyDrawRows(sessionData.lucky_draws || []);
+    } catch (e) { toast('保存失败: ' + e.message); }
 }
 
 function activityChange() {
@@ -801,6 +934,10 @@ function render() {
     const profitKey = profitKeyMap[at] || 'profitBase';
     document.getElementById('statProfitLabel').textContent = profitLabelMap[at] || '毛利-无活动';
     customers.forEach(c => { const m = calcCustomer(c); tq += m.totalQty; tg += m.gmv; tc += m.cost; tp += m[profitKey]; });
+    // 福袋成本计入本场次总成本与毛利
+    const luckyCost = parseFloat(sessionData.lucky_draw_cost || 0) || 0;
+    tc += luckyCost;
+    tp -= luckyCost;
     document.getElementById('statCustomers').textContent = customers.length;
     document.getElementById('statTotalQty').textContent = tq;
     document.getElementById('statTotalGmv').textContent = '¥' + Math.round(tg);
@@ -1405,6 +1542,13 @@ document.addEventListener('click', function (e) {
     if (panel.contains(e.target) || e.target.closest('.ps-tab')) return;
     closePriceStockPanel();
 });
+// 福袋面板：点击面板外空白处收起
+document.addEventListener('click', function (e) {
+    const panel = document.getElementById('ldPanel');
+    if (!panel.classList.contains('open')) return;
+    if (panel.contains(e.target) || e.target.closest('.ps-tab')) return;
+    closeLuckyPanel();
+});
 function psSearch() {
     clearTimeout(psTimer);
     const q = document.getElementById('psSearchInput').value.trim();
@@ -1437,8 +1581,11 @@ function psSearch() {
 }
 </script>
 
-<!-- 右侧快捷查询：价格/库存 -->
-<div class="ps-tab" id="psTab" onclick="openPriceStockPanel()">价格库存查询</div>
+<!-- 右侧快捷查询：价格/库存 + 福袋记录（仅场次内显示） -->
+<div id="sideTabs">
+  <div class="ps-tab" id="psTab" onclick="openPriceStockPanel()" style="display:none;">价格库存查询</div>
+  <div class="ps-tab" id="ldTab" onclick="openLuckyPanel()" style="display:none;">福袋记录</div>
+</div>
 <div class="ps-panel" id="psPanel">
     <div class="ps-head">
         <span class="title">价格/库存查询</span>
@@ -1449,5 +1596,16 @@ function psSearch() {
     </div>
     <div class="ps-body" id="psBody">
         <div class="ps-empty">输入关键词搜索商品，查看各SKU价格与库存</div>
+    </div>
+</div>
+
+<!-- 右侧快捷查询：福袋记录（仅场次内显示） -->
+<div class="ps-panel" id="ldPanel">
+    <div class="ps-head">
+        <span class="title">福袋记录</span>
+        <button class="ps-close" onclick="closeLuckyPanel()">&times;</button>
+    </div>
+    <div class="ps-body" id="ldBody">
+        <div class="ps-empty">本场暂无福袋记录</div>
     </div>
 </div>

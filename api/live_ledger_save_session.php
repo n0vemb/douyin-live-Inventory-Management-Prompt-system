@@ -73,7 +73,35 @@ if ($sessionId > 0) {
         $platformFeeRate, $packingCost, $shippingFee8, $shippingFee9, $giftPresetsJson, $sessionId, $storeId]);
     success(['data' => ['session_id' => $sessionId]]);
 } else {
-    // 创建新场次
+    // 创建新场次：未传的设置项从最近一场复制（省力化）
+    // 前端 createSession 只传 session_name/anchor/operator/account/activity_type，
+    // 赠品预设与费用参数自动带上一次的值，减少重复填写
+    $prev = null;
+    if (!isset($input['gift_presets']) || !isset($input['gift_every_n'])) {
+        $stmt = $pdo->prepare("SELECT activity_type, gift_every_n, reduce_threshold, reduce_amount,
+                                      platform_fee_rate, packing_cost, shipping_fee_8, shipping_fee_9, gift_presets_json
+                               FROM live_ledger_session
+                               WHERE store_id = ? AND id != ?
+                               ORDER BY id DESC LIMIT 1");
+        $stmt->execute([$storeId, $sessionId]);
+        $prev = $stmt->fetch();
+    }
+    if ($prev) {
+        if (!isset($input['activity_type']) || $input['activity_type'] === '') $activityType = $prev['activity_type'];
+        if (!isset($input['gift_every_n']))    $giftEveryN = (int)$prev['gift_every_n'];
+        if (!isset($input['reduce_threshold']))$reduceThreshold = floatval($prev['reduce_threshold']);
+        if (!isset($input['reduce_amount']))   $reduceAmount = floatval($prev['reduce_amount']);
+        if (!isset($input['platform_fee_rate']))$platformFeeRate = floatval($prev['platform_fee_rate']) * 100;
+        if (!isset($input['packing_cost']))    $packingCost = floatval($prev['packing_cost']);
+        if (!isset($input['shipping_fee_8']))  $shippingFee8 = floatval($prev['shipping_fee_8']);
+        if (!isset($input['shipping_fee_9']))  $shippingFee9 = floatval($prev['shipping_fee_9']);
+        if (!isset($input['gift_presets']) && !empty($prev['gift_presets_json'])) {
+            $giftPresets = json_decode($prev['gift_presets_json'], true);
+            if (!is_array($giftPresets)) $giftPresets = [];
+            $giftPresetsJson = json_encode($giftPresets, JSON_UNESCAPED_UNICODE);
+        }
+    }
+
     $stmt = $pdo->prepare("INSERT INTO live_ledger_session
         (store_id, session_name, anchor, operator, account, activity_type, gift_every_n, reduce_threshold, reduce_amount,
          platform_fee_rate, packing_cost, shipping_fee_8, shipping_fee_9, gift_presets_json, status)
