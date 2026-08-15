@@ -1444,13 +1444,16 @@ function scheduleAutoSave() {
         try {
             const ok = await doSave();
             if (ok) {
+                // 提示已自动保存（与手动保存一致的反馈）
+                toast('已自动保存');
                 // 添加商品弹窗打开期间不重载（避免客户 id 变化导致正在进行的添加失败），
                 // 下次 autoSave 或手动保存时再同步真实 id
                 const hasTempId = !modalOpen && (sessionData.customers || []).some(c =>
                     c.id <= 0 || (c.items || []).some(i => i.id <= 0) || (c.gifts || []).some(g => g.id <= 0)
                 );
                 if (hasTempId) {
-                    await loadSessionData();
+                    // 用轻量重载（保留各客户折叠状态），避免打断用户操作
+                    await reloadSessionData();
                 }
             } else {
                 toast('自动保存失败，请手动保存');
