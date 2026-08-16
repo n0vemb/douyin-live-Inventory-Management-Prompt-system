@@ -198,6 +198,7 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $l) {
         'condition_name' => $conditionNames[$l['condition_type']] ?? $l['condition_type'],
         'qty_change' => (int)$l['qty_change'],
         'price' => $l['price'],
+        'after_qty' => isset($l['after_qty']) ? (int)$l['after_qty'] : null,
         'session_name' => $l['session_name'] ?? null,
         'live_session_id' => $l['live_session_id'] ?? null,
         'remark' => ($l['session_name'] ? '场次：' . $l['session_name'] : '') . ($l['remark'] ? ($l['session_name'] ? ' · ' : '') . $l['remark'] : ''),
@@ -217,7 +218,7 @@ usort($logs, function ($a, $b) {
 //   —— 这样从有记录开始计算，不会出现负数
 // 2026-08-16 修正：批次入库行 qty_change = remaining + 累计出库（实际承载量，已含历史调整），
 //   因此 inventory_log 的 adjust 行若再累加会双算（编辑+1 → 批次行已含 +1，adjust 行再 +1 = 虚增）。
-//   adjust 行保留展示，但不参与「当前库存」累加；return/convert 仍正常累加。
+//   adjust 行保留展示，当前库存直接用其 after_qty（该次调整后的实际库存），不参与累加；return/convert 仍正常累加。
 $byCond = [];
 foreach ($logs as $i => $log) {
     $byCond[$log['condition_type']][] = $i;
@@ -226,7 +227,11 @@ foreach ($byCond as $cond => $idxList) {
     $evts = [];
     foreach ($idxList as $i) {
         $isAdjust = ($logs[$i]['source'] ?? '') === 'inventory_log' && ($logs[$i]['change_type'] ?? '') === 'adjust';
-        if ($isAdjust) continue; // 跳过 adjust 展示行，避免与批次入库行双算
+        if ($isAdjust) {
+            // adjust 行：当前库存 = after_qty（该次调整后的实际库存），不参与累加
+            $logs[$i]['current_stock'] = isset($logs[$i]['after_qty']) ? max((int)$logs[$i]['after_qty'], 0) : null;
+            continue;
+        }
         $evts[] = ['idx' => $i, 'time' => $logs[$i]['created_at'] ?? '', 'delta' => (int)$logs[$i]['qty_change']];
     }
     // 时间正序；同时刻按业务顺序：先负（出库/清零）后正（入库/调整）
