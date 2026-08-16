@@ -52,9 +52,14 @@ try {
         $updateRemark = $batch['remark'] ? $batch['remark'] . ' | ' . $updateRemark : $updateRemark;
     }
     
+    // 数量变化差值（新剩余 - 旧剩余）
+    // 同步 total_qty：手动编辑调整库存时，总数也应跟着变，否则会出现"出库流水 > 采购入库"的对账假象
+    $diff = $qty - (int)$batch['remaining_qty'];
+    
     $stmt = $pdo->prepare('
         UPDATE inventory_batches
         SET remaining_qty = ?,
+            total_qty = total_qty + ?,
             purchase_price = ?,
             suggested_price = ?,
             remark = ?
@@ -62,12 +67,26 @@ try {
     ');
     $stmt->execute([
         $qty,
+        $diff,
         $purchasePrice,
         $suggestedPrice,
         $updateRemark ?: $batch['remark'],
         $batchId,
         $storeId
     ]);
+    
+    // 数量有变化时写库存流水（adjust），保证商品流水"当时库存"可追溯
+    if ($diff !== 0) {
+        $stmt = $pdo->prepare('
+            INSERT INTO inventory_log (store_id, product_id, condition_type, change_type, qty_change, before_qty, after_qty, price, remark)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ');
+        $stmt->execute([
+            $storeId, $productId, $conditionType, 'adjust', $diff,
+            (int)$batch['remaining_qty'], $qty, $purchasePrice,
+            '批次编辑调整' . ($updateRemark !== '' ? '：' . $updateRemark : '')
+        ]);
+    }
     
     // 同时更新live_inventory（如果存在） - 通过 product_id 和 condition_type 匹配
     $stmt = $pdo->prepare('
