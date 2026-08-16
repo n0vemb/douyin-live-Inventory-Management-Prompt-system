@@ -42,7 +42,7 @@ try {
     // ===== 汇总购买（按 product_id 聚合，排除赠品）=====
     // 同时保留 客户→商品 明细，供出库时按客户逐一 FIFO（确保 outbound/sales_log 可关联客户，支持撤单/退货）
     $purchaseMap = [];   // product_id => { qty, sell_total }
-    $customerItems = []; // customer_id => [ {product_id, qty, price, item_id} ]
+    $customerItems = []; // customer_id => [ {product_id, qty, price, item_id, product_name} ]
     foreach ($customers as $c) {
         $cid = (int)$c['id'];
         foreach ($c['items'] as $item) {
@@ -55,7 +55,7 @@ try {
             }
             $purchaseMap[$pid]['qty'] += $qty;
             $purchaseMap[$pid]['sell_total'] += $price * $qty;
-            $customerItems[$cid][] = ['product_id' => $pid, 'qty' => $qty, 'price' => $price, 'item_id' => (int)$item['id']];
+            $customerItems[$cid][] = ['product_id' => $pid, 'qty' => $qty, 'price' => $price, 'item_id' => (int)$item['id'], 'product_name' => $item['product_name'] ?? ''];
         }
     }
 
@@ -80,6 +80,12 @@ try {
     }
 
     // 客户顺序：按 customer id（保持与明细添加顺序一致）
+    // 客户元数据映射（报错定位用）
+    $customerMeta = [];
+    foreach ($customers as $c) {
+        $customerMeta[(int)$c['id']] = $c;
+    }
+
     foreach ($customerItems as $cid => $items) {
         foreach ($items as $item) {
             $pid = $item['product_id'];
@@ -120,7 +126,11 @@ try {
             unset($batch);
 
             if ($remaining > 0) {
-                throw new Exception("商品 #$pid 库存不足，还差 $remaining 件");
+                $cMeta = $customerMeta[$cid] ?? [];
+                $nick = $cMeta['nickname'] ?? ('客户#' . $cid);
+                $vip = trim($cMeta['vip_no'] ?? '');
+                $pname = $item['product_name'] ?: ('商品#' . $pid);
+                throw new Exception("「{$pname}」#{$pid} 库存不足：客户「{$nick}」" . ($vip !== '' ? "(VIP {$vip})" : '') . " 需 {$needQty} 件，还差 {$remaining} 件，请检查其他进行中场次是否占用了该商品库存");
             }
         }
     }

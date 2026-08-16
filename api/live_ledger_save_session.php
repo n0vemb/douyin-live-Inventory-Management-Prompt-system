@@ -91,7 +91,7 @@ if ($sessionId > 0) {
         if (!isset($input['gift_every_n']))    $giftEveryN = (int)$prev['gift_every_n'];
         if (!isset($input['reduce_threshold']))$reduceThreshold = floatval($prev['reduce_threshold']);
         if (!isset($input['reduce_amount']))   $reduceAmount = floatval($prev['reduce_amount']);
-        if (!isset($input['platform_fee_rate']))$platformFeeRate = floatval($prev['platform_fee_rate']) * 100;
+        if (!isset($input['platform_fee_rate']))$platformFeeRate = floatval($prev['platform_fee_rate']);
         if (!isset($input['packing_cost']))    $packingCost = floatval($prev['packing_cost']);
         if (!isset($input['shipping_fee_8']))  $shippingFee8 = floatval($prev['shipping_fee_8']);
         if (!isset($input['shipping_fee_9']))  $shippingFee9 = floatval($prev['shipping_fee_9']);

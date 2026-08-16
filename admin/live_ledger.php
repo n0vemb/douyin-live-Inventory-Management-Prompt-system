@@ -383,6 +383,7 @@ tr.tr-active td:first-child { border-left: 3px solid var(--primary, #6366f1); }
 <script>
 let currentSessionId = null;
 let sessionData = null;
+let otherReserved = {};   // 跨场次占用："product_id|condition_type" => qty（其他 active 场次已记账数量，防超卖）
 let isReadOnly = false;   // 已结束场次：只读，隐藏全部编辑操作
 let vipSpentMap = {};   // vip_no => 累计消费（用于VIP分档配色）
 // VIP消费分档：0-300蓝 #3B82F6 / 301-1000紫 #8B5CF6 / 1001-3000玫红 #F43F5E / 3000+橙金 #F59E0B
@@ -437,7 +438,7 @@ async function loadSessions() {
                     ${IS_OPERATOR ? '' : `<button class="btn btn-sm btn-outline" onclick="confirmDeleteSession(${s.id}, '${esc(s.session_name)}')" style="color:var(--danger); border-color:var(--danger);">删除</button>`}
                 </td>
             </tr>`).join('');
-    } catch (e) { toast('加载场次失败: ' + e.message); }
+    } catch (e) { toast('加载场次失败: ' + e.message, true); }
 }
 
 function enterSession(id) {
@@ -507,8 +508,8 @@ async function createSession() {
             await loadSessions();
             switchToSession(data.data.session_id);
             toast('场次已创建');
-        } else toast(data.error || '创建失败');
-    } catch (e) { toast('创建失败: ' + e.message); }
+        } else toast(data.error || '创建失败', true);
+    } catch (e) { toast('创建失败: ' + e.message, true); }
 }
 
 function confirmDeleteSession(id, name) {
@@ -537,8 +538,8 @@ function confirmDeleteSession(id, name) {
                 }
                 await loadSessions();
                 toast('场次已删除');
-            } else toast(data.error || '删除失败');
-        } catch (e) { toast('删除失败: ' + e.message); }
+            } else toast(data.error || '删除失败', true);
+        } catch (e) { toast('删除失败: ' + e.message, true); }
     });
 }
 
@@ -563,7 +564,7 @@ async function switchToSession(id) {
     try {
         const res = await fetch('../api/live_ledger_get_session.php?session_id=' + currentSessionId);
         const data = await res.json();
-        if (!data.success) { toast(data.error || '加载失败'); return; }
+        if (!data.success) { toast(data.error || '加载失败', true); return; }
         sessionData = data.data;
         isReadOnly = (sessionData.settings && sessionData.settings.status === 'ended');
         // 进入场次：所有客户默认收起
@@ -585,7 +586,7 @@ async function switchToSession(id) {
         document.getElementById('statsBar').style.display = 'grid';
         document.getElementById('customerListCard').style.display = 'block';
         render();
-    } catch (e) { toast('加载失败: ' + e.message); }
+    } catch (e) { toast('加载失败: ' + e.message, true); }
 }
 
 function fillSettings() {
@@ -722,11 +723,11 @@ async function saveLuckyDraws() {
             body: JSON.stringify({ session_id: currentSessionId, draws })
         });
         const data = await res.json();
-        if (!data.success) { toast(data.error || '保存失败'); return; }
+        if (!data.success) { toast(data.error || '保存失败', true); return; }
         toast('福袋已保存');
         await switchToSession(currentSessionId);
         renderLuckyDrawRows(sessionData.lucky_draws || []);
-    } catch (e) { toast('保存失败: ' + e.message); }
+    } catch (e) { toast('保存失败: ' + e.message, true); }
 }
 
 function activityChange() {
@@ -768,8 +769,8 @@ async function saveSettings() {
             toast('设置已保存');
             await switchToSession(currentSessionId);
         }
-        else toast(data.error || '保存失败');
-    } catch (e) { toast('保存失败: ' + e.message); }
+        else toast(data.error || '保存失败', true);
+    } catch (e) { toast('保存失败: ' + e.message, true); }
 }
 
 // ===== 计算 =====
@@ -959,8 +960,8 @@ function cancelOrder(cid, nickname) {
             if (data.success) {
                 toast('撤单成功');
                 await loadSessionData();
-            } else toast(data.error || '撤单失败');
-        } catch (e) { toast('撤单失败: ' + e.message); }
+            } else toast(data.error || '撤单失败', true);
+        } catch (e) { toast('撤单失败: ' + e.message, true); }
     });
 }
 
@@ -976,8 +977,8 @@ function returnItem(cid, iid) {
             if (data.success) {
                 toast('退货成功');
                 await loadSessionData();
-            } else toast(data.error || '退货失败');
-        } catch (e) { toast('退货失败: ' + e.message); }
+            } else toast(data.error || '退货失败', true);
+        } catch (e) { toast('退货失败: ' + e.message, true); }
     });
 }
 
@@ -987,15 +988,16 @@ async function loadSessionData() {
     try {
         const res = await fetch('../api/live_ledger_get_session.php?session_id=' + currentSessionId);
         const data = await res.json();
-        if (!data.success) { toast(data.error || '加载失败'); return; }
+        if (!data.success) { toast(data.error || '加载失败', true); return; }
         sessionData = data.data;
+        otherReserved = data.data.other_reserved || {};
         (sessionData.customers || []).forEach(c => { c._collapsed = true; });
         render();
         // 顶部汇总也刷新（场次列表数据来自快照，需重新拉取）
         await loadSessions();
         // VIP 消费映射刷新（撤单/退货影响累计消费，VIP 分档配色需同步）
         await loadVipSpentMap();
-    } catch (e) { toast('加载失败: ' + e.message); }
+    } catch (e) { toast('加载失败: ' + e.message, true); }
 }
 
 // 轻量重载（autoSave 后同步真实id）：只重载场次数据+渲染，不刷新列表/VIP映射
@@ -1005,16 +1007,17 @@ async function reloadSessionData() {
     try {
         const res = await fetch('../api/live_ledger_get_session.php?session_id=' + currentSessionId);
         const data = await res.json();
-        if (!data.success) { toast(data.error || '加载失败'); return; }
+        if (!data.success) { toast(data.error || '加载失败', true); return; }
         const collapsedMap = {};
         (sessionData.customers || []).forEach(c => { collapsedMap[c.id] = !!c._collapsed; });
         sessionData = data.data;
+        otherReserved = data.data.other_reserved || {};
         (sessionData.customers || []).forEach(c => {
             // 新数据里同 id 客户保留原折叠状态；新出现的客户默认收起
             c._collapsed = collapsedMap[c.id] !== undefined ? collapsedMap[c.id] : true;
         });
         render();
-    } catch (e) { toast('加载失败: ' + e.message); }
+    } catch (e) { toast('加载失败: ' + e.message, true); }
 }
 
 function toggleCustomer(id) {
@@ -1192,7 +1195,21 @@ window.addEventListener('scroll', () => {
     if (dd && dd.classList.contains('show')) positionDropdown();
 }, true);
 
-function searchOutboundStock(keyword) {
+// 轻量刷新跨场次占用（只更新 otherReserved，不动 sessionData）
+// 多场次并发时，别的场次随时可能加购，搜索/添加前刷新保证显示和拦截基于最新占用
+async function refreshOtherReserved() {
+    if (!currentSessionId) return;
+    try {
+        const res = await fetch('../api/live_ledger_get_session.php?session_id=' + currentSessionId);
+        const data = await res.json();
+        if (data.success && data.data.other_reserved) {
+            otherReserved = data.data.other_reserved;
+        }
+    } catch (e) {}
+}
+
+async function searchOutboundStock(keyword) {
+    await refreshOtherReserved();
     fetch('../api/search_outbound_stock.php?keyword=' + encodeURIComponent(keyword))
         .then(r => r.json())
         .then(data => {
@@ -1252,13 +1269,16 @@ function showSearchDropdown() {
             ${mergedSKUs.map(sku => {
                 const id = 'add_' + (addId++);
                 addMap[id] = sku;
-                const reserved = getReservedBySku(sku.product_id, sku.condition_type);
-                const remain = Math.max(0, sku.total_stock - reserved);
+                const localRes = getLocalReserved(sku.product_id, sku.condition_type);
+                const otherRes = getOtherReserved(sku.product_id, sku.condition_type);
+                const totalRes = localRes + otherRes;
+                // 可加数量 = 总库存 - 本场占用 - 其他场次占用（跨场次占用直接体现在库存上）
+                const remain = Math.max(0, sku.total_stock - totalRes);
                 const dimmed = remain <= 0;
                 return `
                 <div class="search-dropdown-item" style="${dimmed ? 'opacity:0.5;' : ''}">
                     <span class="condition-badge">${esc(sku.condition_name)}</span>
-                    <span class="sdi-stock">库存 ${remain}${reserved > 0 ? `<span style="color:var(--text-tertiary);font-weight:normal;">(-${reserved})</span>` : ''}</span>
+                    <span class="sdi-stock">库存 ${remain}${totalRes > 0 ? `<span style="color:var(--text-tertiary);font-weight:normal;">(-${totalRes})</span>` : ''}${otherRes > 0 ? `<span style="color:var(--warning,#f59e0b);font-weight:normal;">⚠其他场次占${otherRes}</span>` : ''}</span>
                     <span class="sdi-price">¥${parseFloat(sku.suggested_price || 0).toFixed(2)}</span>
                     <button class="sdi-add-btn" data-add-id="${id}"${dimmed ? ' disabled' : ''}>${dimmed ? '已占完' : '添加'}</button>
                 </div>
@@ -1280,8 +1300,8 @@ function showSearchDropdown() {
     });
 }
 
-// 统计当前场次所有客户中，该商品+SKU 已添加的数量（排除赠品）
-function getReservedBySku(productId, conditionType) {
+// 统计当前场次所有客户中，该商品+SKU 已添加的数量（排除赠品）——本场次占用（硬拦依据）
+function getLocalReserved(productId, conditionType) {
     let reserved = 0;
     (sessionData.customers || []).forEach(c => {
         (c.items || []).forEach(i => {
@@ -1291,6 +1311,16 @@ function getReservedBySku(productId, conditionType) {
         });
     });
     return reserved;
+}
+
+// 其他 active 场次占用（跨场次防超卖提示；不硬拦——两边同时占最后1件时若硬拦则都加不了，谁先结束谁扣走，后到的结束时报错定位客户）
+function getOtherReserved(productId, conditionType) {
+    return parseInt(otherReserved[productId + '|' + (conditionType || '')] || 0, 10);
+}
+
+// 总占用（本场 + 其他场次，仅用于展示）
+function getReservedBySku(productId, conditionType) {
+    return getLocalReserved(productId, conditionType) + getOtherReserved(productId, conditionType);
 }
 
 function pickSku(sku) {
@@ -1304,10 +1334,11 @@ function pickSku(sku) {
         if (c) editingCustomerId = c.id;
     }
     if (!c) return;
-    // 再次校验库存（防止超占）
-    const reserved = getReservedBySku(sku.product_id, sku.condition_type);
-    if (reserved >= sku.total_stock) {
-        toast(`「${sku.product_name}」库存不足，无法添加`);
+    // 再次校验库存（防止超占）：按总占用（本场 + 其他 active 场次）硬拦
+    // 跨场次占用直接体现在库存上：A场次加了最后1件 → B场次这里库存0、加不进去
+    const totalRes = getReservedBySku(sku.product_id, sku.condition_type);
+    if (totalRes >= sku.total_stock) {
+        toast(`「${sku.product_name}」库存不足：已占用 ${totalRes}/${sku.total_stock} 件（含其他进行中场次），无法添加`, true);
         return;
     }
     c.items.push({
@@ -1456,7 +1487,7 @@ function scheduleAutoSave() {
                     await reloadSessionData();
                 }
             } else {
-                toast('自动保存失败，请手动保存');
+                toast('自动保存失败，请手动保存', true);
             }
         } finally {
             autoSaving = false;
@@ -1480,8 +1511,8 @@ async function saveAll() {
             });
             render();
             toast('保存成功');
-        } else toast('保存失败');
-    } catch (e) { toast('保存失败: ' + e.message); }
+        } else toast('保存失败', true);
+    } catch (e) { toast('保存失败: ' + e.message, true); }
 }
 
 // ===== 结束直播 =====
@@ -1498,8 +1529,8 @@ function endLive() {
                 toast('直播已结束，出库完成');
                 switchSession();
                 await loadSessions();
-            } else toast(data.error || '结束失败');
-        } catch (e) { toast('结束失败: ' + e.message); }
+            } else toast(data.error || '结束失败', true);
+        } catch (e) { toast('结束失败: ' + e.message, true); }
     });
 }
 
@@ -1511,12 +1542,13 @@ function showConfirm(text, okFn) {
 }
 function closeConfirmModal() { document.getElementById('confirmModal').classList.remove('show'); }
 
-function toast(msg) {
+function toast(msg, isError) {
     const t = document.getElementById('toast');
     t.textContent = msg;
     t.classList.add('show');
     clearTimeout(t._timer);
-    t._timer = setTimeout(() => t.classList.remove('show'), 2000);
+    // 失败提示停留 10s（默认 2s × 5），方便看清库存不足/结束失败等错误详情
+    t._timer = setTimeout(() => t.classList.remove('show'), isError ? 10000 : 2000);
 }
 
 document.getElementById('newCustomerNickname').addEventListener('keydown', e => { if (e.key === 'Enter') confirmAddCustomer(); });
