@@ -5,6 +5,9 @@ require_once __DIR__ . '/../auth.php';
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
 
+// 运营角色不可导出库存（导出含进价等成本数据）
+requireNonOperator();
+
 // 获取状态类型
 $conditionTypes = [
     ['name' => '原盒未拆', 'key' => 'sealed'],

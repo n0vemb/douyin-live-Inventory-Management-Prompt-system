@@ -35,7 +35,9 @@ $isOperator = ($currentUser['role'] === 'operator');
         </label>
     </div>
     <button class="btn btn-secondary" onclick="openImportModal()">批量导入</button>
+    <?php if (!$isOperator): ?>
     <button class="btn btn-secondary" onclick="exportInventory()">导出库存</button>
+    <?php endif; ?>
     <?php if ($isSuper): ?>
     <button class="btn btn-warning" onclick="openAuditModal()">库存盘点</button>
     <?php endif; ?>
