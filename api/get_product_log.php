@@ -215,6 +215,9 @@ usort($logs, function ($a, $b) {
 // 按时间正序逐条累加，每条事件后的库存 = 累计值（clamp ≥ 0）
 //   —— 入库/调整正：加；出库/清零负：减
 //   —— 这样从有记录开始计算，不会出现负数
+// 2026-08-16 修正：批次入库行 qty_change = remaining + 累计出库（实际承载量，已含历史调整），
+//   因此 inventory_log 的 adjust 行若再累加会双算（编辑+1 → 批次行已含 +1，adjust 行再 +1 = 虚增）。
+//   adjust 行保留展示，但不参与「当前库存」累加；return/convert 仍正常累加。
 $byCond = [];
 foreach ($logs as $i => $log) {
     $byCond[$log['condition_type']][] = $i;
@@ -222,6 +225,8 @@ foreach ($logs as $i => $log) {
 foreach ($byCond as $cond => $idxList) {
     $evts = [];
     foreach ($idxList as $i) {
+        $isAdjust = ($logs[$i]['source'] ?? '') === 'inventory_log' && ($logs[$i]['change_type'] ?? '') === 'adjust';
+        if ($isAdjust) continue; // 跳过 adjust 展示行，避免与批次入库行双算
         $evts[] = ['idx' => $i, 'time' => $logs[$i]['created_at'] ?? '', 'delta' => (int)$logs[$i]['qty_change']];
     }
     // 时间正序；同时刻按业务顺序：先负（出库/清零）后正（入库/调整）
