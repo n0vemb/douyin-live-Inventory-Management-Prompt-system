@@ -34,7 +34,6 @@ $isOperator = ($currentUser['role'] === 'operator');
             仅看有库存
         </label>
     </div>
-    <div class="pm-spacer"></div>
     <button class="btn btn-secondary" onclick="openImportModal()">批量导入</button>
     <button class="btn btn-secondary" onclick="exportInventory()">导出库存</button>
     <?php if ($isSuper): ?>
@@ -349,10 +348,9 @@ $isOperator = ($currentUser['role'] === 'operator');
 .pm-stat.g6{background:linear-gradient(135deg,#ef4444,#dc2626);border:none;color:#fff;}
 .pm-stat.g6 .pm-lbl,.pm-stat.g6 .pm-unit{color:rgba(255,255,255,.85);}
 
-.pm-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:14px 16px;margin-bottom:16px;}
-.pm-search{flex:1;min-width:260px;margin:0;}
+.pm-toolbar{display:flex;flex-wrap:nowrap;gap:10px;align-items:center;padding:14px 16px;margin-bottom:16px;}
+.pm-search{flex:1;min-width:200px;margin:0;}
 .pm-check{display:inline-flex;align-items:center;gap:4px;margin-left:8px;white-space:nowrap;cursor:pointer;font-size:13px;color:var(--text-secondary);}
-.pm-spacer{flex:1;}
 .pm-legend{display:flex;gap:12px;font-size:12px;color:var(--text-secondary);align-items:center;}
 .pm-legend .pm-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle;}
 .pm-seg{display:inline-flex;background:var(--bg-hover);border-radius:8px;padding:3px;}
