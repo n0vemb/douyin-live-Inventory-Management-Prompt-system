@@ -99,11 +99,16 @@ try {
                 "remark"         => null,
                 "purchased_at"   => null,
                 "latest_time"    => null,
+                "price_history"  => [],
             ];
         }
 
         // 累加数量
         $groups[$key]["qty"] += (int)$row["qty"];
+
+        // 收集该 SKU 所有批次的售价历史（按时间，用于 DOM 显示历史价格参考，不打印）
+        $ph = ["t" => $row["purchased_at"], "p" => (float)$row["suggested_price"]];
+        $groups[$key]["price_history"][] = $ph;
 
         // 取时间最新的批次的价格等信息
         $t = $row["purchased_at"];
@@ -151,6 +156,24 @@ try {
         return $sortDir === "asc" ? $cmp : -$cmp;
     };
     usort($groupedRecords, $sortCmp);
+
+    // 排序 price_history：时间倒序（最新在前），只保留价格不同的（去重连续相同价）
+    foreach ($groupedRecords as &$g) {
+        usort($g["price_history"], function ($a, $b) {
+            $ta = (string)($a["t"] ?? ""); $tb = (string)($b["t"] ?? "");
+            if ($ta !== $tb) return strcmp($tb, $ta); // 时间倒序
+            return ($b["p"] ?? 0) <=> ($a["p"] ?? 0);
+        });
+        $dedup = [];
+        foreach ($g["price_history"] as $ph) {
+            $last = end($dedup);
+            if ($last === false || abs(($last["p"] ?? -1) - $ph["p"]) > 0.001) {
+                $dedup[] = ["t" => $ph["t"], "p" => $ph["p"]];
+            }
+        }
+        $g["price_history"] = array_slice($dedup, 0, 5); // 最多保留 5 个历史价
+    }
+    unset($g);
 
     // 手动分页
     $total = count($groupedRecords);

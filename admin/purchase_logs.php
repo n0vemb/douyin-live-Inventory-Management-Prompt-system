@@ -42,6 +42,7 @@ $isOperator = ($currentUser['role'] === 'operator');
 .lp-row-bottom{display:flex;align-items:center;gap:8px;margin-top:8px}
 .lp-stock{font-size:12px;color:var(--text-secondary)}
 .lp-price{font-size:13px;font-weight:700;color:var(--danger)}
+.lp-hist{font-size:11px;color:var(--text-secondary);opacity:.75;white-space:nowrap;}
 /* SKU 状态徽章颜色（conditionClassMap 生成 condition-<key>） */
 .condition-sealed{background:#5e5ce6;color:#fff}
 .condition-opened{background:#059669;color:#fff}
@@ -362,6 +363,9 @@ function renderProducts(){
     const c=copies[r.batch_id]||0;
     const name=esc(r.product_name||r.common_name||'-');
     const common=r.common_name&&r.common_name!==r.product_name?esc(r.common_name):'';
+    // 历史价格：price_history 按时间倒序；去掉与当前行价格相同的项（那是当前/同价批次），显示更早的不同价
+    const curP = parseFloat(r.suggested_price||0);
+    const hist = (r.price_history||[]).filter(h=>Math.abs(parseFloat(h.p||0)-curP)>0.001).slice(0,4).map(h=>'¥'+parseFloat(h.p||0).toFixed(2)).join(' · ');
     return `<div class="lp-row ${c?'on':''}">
       <div class="lp-row-top">
         <span class="lp-name">${name}${common?` <i>${common}</i>`:''}</span>
@@ -375,6 +379,7 @@ function renderProducts(){
         <span class="condition-badge ${getCondClass(r.condition_type)}">${esc(getCondName(r.condition_type))}</span>
         <span class="lp-stock">库存 ${r.qty}</span>
         <span class="lp-price">¥${parseFloat(r.suggested_price||0).toFixed(2)}</span>
+        ${hist?`<span class="lp-hist" title="历史批次售价（不打印）">历史 ${hist}</span>`:''}
         <span class="lp-acts">
           <span class="lp-stepper">
             <button onclick="step('${r.batch_id}',-1)">−</button>
