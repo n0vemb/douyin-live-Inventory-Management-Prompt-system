@@ -34,9 +34,11 @@ if (isset($input['draws']) && is_array($input['draws'])) {
         $winner = trim($d['winner'] ?? '');
         $prize  = trim($d['prize'] ?? '');
         $cost   = floatval($d['cost'] ?? 0);
+        $shipped = !empty($d['shipped']) ? 1 : 0;
+        $shippedAt = $shipped ? date('Y-m-d H:i:s') : null;
         if ($winner === '' || $prize === '') continue;
         if ($cost < 0) $cost = 0;
-        $draws[] = ['winner' => $winner, 'prize' => $prize, 'cost' => round($cost, 2)];
+        $draws[] = ['winner' => $winner, 'prize' => $prize, 'cost' => round($cost, 2), 'shipped' => $shipped, 'shipped_at' => $shippedAt];
     }
 }
 
@@ -46,9 +48,9 @@ try {
     $stmt->execute([$sessionId]);
 
     if (count($draws) > 0) {
-        $stmt = $pdo->prepare("INSERT INTO live_ledger_lucky_draw (session_id, winner, prize, cost) VALUES (?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO live_ledger_lucky_draw (session_id, winner, prize, cost, shipped, shipped_at) VALUES (?, ?, ?, ?, ?, ?)");
         foreach ($draws as $d) {
-            $stmt->execute([$sessionId, $d['winner'], $d['prize'], $d['cost']]);
+            $stmt->execute([$sessionId, $d['winner'], $d['prize'], $d['cost'], $d['shipped'], $d['shipped_at']]);
         }
     }
 

@@ -359,6 +359,11 @@ tr.tr-active td:first-child { border-left: 3px solid var(--primary, #6366f1); }
 /* 福袋面板独立加宽，避免行内元素被裁切 */
 #ldPanel { width: 440px; }
 #ldPanel .ld-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.ld-ship{flex-shrink:0;font-size:12px;font-weight:600;padding:4px 10px;border-radius:6px;white-space:nowrap;}
+.ld-ship-btn{flex-shrink:0;}
+.ld-shipped{color:#059669;background:rgba(5,150,105,.12);}
+.ld-shipped-row{opacity:.75;}
+.ld-shipped-row input{color:var(--text-tertiary);}
 .ps-head { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
 .ps-head .title { font-weight: 700; font-size: 15px; color: var(--text); }
 .ps-close { border: none; background: none; font-size: 18px; cursor: pointer; color: var(--text-tertiary); line-height: 1; }
@@ -427,7 +432,7 @@ async function loadSessions() {
         const statusClasses = { active: 'badge-success', ended: 'badge-info' };
         tbody.innerHTML = sessions.map(s => `
             <tr class="${s.status === 'active' ? 'tr-active' : ''}">
-                <td><strong>${esc(s.session_name)}</strong></td>
+                <td><strong>${esc(s.session_name)}</strong>${(parseInt(s.unshipped_count)||0) > 0 ? ` <span class="badge" style="background:#dc2626;color:#fff;margin-left:6px;" title="有 ${s.unshipped_count} 个福袋未寄出">福袋未寄出 ${s.unshipped_count}</span>` : ''}</td>
                 <td>${esc(s.anchor || '-')}</td>
                 <td>${esc(s.operator || '-')}</td>
                 <td>${esc(s.account || '-')}</td>
@@ -656,12 +661,21 @@ function collectGiftPresets() {
 let luckyDrawDraft = []; // 面板内的草稿行
 function luckyDrawRowEl(d) {
     const row = document.createElement('div');
-    row.className = 'ld-row';
+    // d 可能是草稿（无 id）或已保存记录（有 id + shipped）
+    const saved = !!d.id;
+    const shipped = saved && d.shipped ? 1 : 0;
+    row.className = 'ld-row' + (saved && shipped ? ' ld-shipped-row' : '');
+    if (saved) row.dataset.ldId = d.id;
     row.innerHTML = `
-        <input type="text" class="form-input" placeholder="中奖人" value="${esc(d.winner || '')}" style="flex:1; min-width:90px;" data-f="winner">
-        <input type="text" class="form-input" placeholder="奖品" value="${esc(d.prize || '')}" style="flex:2; min-width:120px;" data-f="prize">
-        <input type="number" class="form-input" step="0.01" min="0" placeholder="成本(元)" value="${d.cost ?? ''}" style="flex:1; min-width:70px;" data-f="cost">
-        <button class="btn btn-sm btn-danger" type="button" onclick="removeLuckyDrawRow(this)">删除</button>`;
+        <input type="text" class="form-input" placeholder="中奖人" value="${esc(d.winner || '')}" style="flex:1; min-width:90px;" data-f="winner" ${shipped ? 'disabled' : ''}>
+        <input type="text" class="form-input" placeholder="奖品" value="${esc(d.prize || '')}" style="flex:2; min-width:120px;" data-f="prize" ${shipped ? 'disabled' : ''}>
+        <input type="number" class="form-input" step="0.01" min="0" placeholder="成本(元)" value="${d.cost ?? ''}" style="flex:1; min-width:70px;" data-f="cost" ${shipped ? 'disabled' : ''}>
+        ${saved
+            ? (shipped
+                ? `<span class="ld-ship ld-shipped" title="${esc(d.shipped_at || '')}">已寄出</span>`
+                : `<button class="btn btn-sm btn-outline ld-ship-btn" type="button" onclick="shipLuckyDraw(${d.id}, this)">寄出</button>`)
+            : `<button class="btn btn-sm btn-danger" type="button" onclick="removeLuckyDrawRow(this)">删除</button>`}
+        ${saved && !shipped ? `<button class="btn btn-sm btn-danger" type="button" onclick="removeLuckyDrawRow(this)">删除</button>` : ''}`;
     return row;
 }
 function addLuckyDrawRow() {
@@ -682,7 +696,7 @@ function renderLuckyDrawRows(draws) {
     const box = document.getElementById('ldRows');
     if (!box) return;
     box.innerHTML = '';
-    luckyDrawDraft = (draws || []).map(d => ({ winner: d.winner || '', prize: d.prize || '', cost: d.cost ?? '' }));
+    luckyDrawDraft = (draws || []).map(d => ({ id: d.id, winner: d.winner || '', prize: d.prize || '', cost: d.cost ?? '', shipped: d.shipped ? 1 : 0, shipped_at: d.shipped_at || '' }));
     if (luckyDrawDraft.length === 0) addLuckyDrawRow();
     else luckyDrawDraft.forEach((d, i) => box.appendChild(luckyDrawRowEl(d)));
 }
@@ -694,7 +708,14 @@ function collectLuckyDraws() {
         const winner = (row.querySelector('[data-f="winner"]')?.value || '').trim();
         const prize = (row.querySelector('[data-f="prize"]')?.value || '').trim();
         const cost = parseFloat(row.querySelector('[data-f="cost"]')?.value);
-        if (winner && prize && !isNaN(cost) && cost >= 0) draws.push({ winner, prize, cost });
+        if (winner && prize && !isNaN(cost) && cost >= 0) {
+            const saved = !!(row.dataset && row.dataset.ldId);
+            draws.push({
+                id: saved ? parseInt(row.dataset.ldId) : undefined,
+                winner, prize, cost,
+                shipped: saved && row.classList.contains('ld-shipped-row') ? 1 : 0
+            });
+        }
     });
     return draws;
 }
@@ -728,6 +749,24 @@ async function saveLuckyDraws() {
         await switchToSession(currentSessionId);
         renderLuckyDrawRows(sessionData.lucky_draws || []);
     } catch (e) { toast('保存失败: ' + e.message, true); }
+}
+
+async function shipLuckyDraw(id, btn) {
+    if (!id) return;
+    if (!confirm('确认该福袋已寄出？')) return;
+    try {
+        const res = await fetch('../api/live_ledger_lucky_draw_ship.php', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id })
+        });
+        const data = await res.json();
+        if (!data.success) { toast(data.error || '标记失败', true); return; }
+        toast('已标记寄出');
+        // 刷新面板行状态
+        await switchToSession(currentSessionId);
+        renderLuckyDrawRows(sessionData.lucky_draws || []);
+        loadSessions(); // 刷新场次列表红色标签
+    } catch (e) { toast('标记失败: ' + e.message, true); }
 }
 
 function activityChange() {
