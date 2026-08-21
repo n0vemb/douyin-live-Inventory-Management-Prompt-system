@@ -38,9 +38,7 @@ $isOperator = ($currentUser['role'] === 'operator');
     <?php if (!$isOperator): ?>
     <button class="btn btn-secondary" onclick="exportInventory()">导出库存</button>
     <?php endif; ?>
-    <?php if ($isSuper): ?>
     <button class="btn btn-warning" onclick="openAuditModal()">库存盘点</button>
-    <?php endif; ?>
     <button class="btn btn-danger pm-hidden" id="batchDeleteBtn" onclick="batchDelete()">批量删除 (<span id="selectedCount">0</span>)</button>
     <button class="btn btn-primary" onclick="openAddModal()">新建商品</button>
 </div>
@@ -1285,7 +1283,7 @@ function renderAuditTable() {
     html += '<thead><tr style="position:sticky; top:0; background:var(--bg-surface); z-index:2;">';
     html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:150px;">商品名称</th>';
     auditConditionTypes.forEach(ct => {
-        html += '<th style="text-align:center; padding:8px 4px; border-bottom:2px solid var(--border); color:var(--text-secondary); font-size:12px; min-width:55px;" colspan="3">';
+        html += '<th style="text-align:center; padding:8px 4px; border-bottom:2px solid var(--border); color:var(--text-secondary); font-size:12px; min-width:55px;" colspan="' + (IS_SUPER ? 3 : 1) + '">';
         html += '<span class="condition-badge condition-' + escapeHtml(ct.key) + '">' + escapeHtml(ct.name) + '</span>';
         html += '</th>';
     });
@@ -1294,8 +1292,10 @@ function renderAuditTable() {
     html += '<th style="text-align:left; padding:4px 10px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">条码 / 系列</th>';
     auditConditionTypes.forEach(() => {
         html += '<th style="text-align:center; padding:4px 2px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">数量</th>';
-        if (CAN_SEE_PROFIT) html += '<th style="text-align:center; padding:4px 2px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">进价</th>';
-        html += '<th style="text-align:center; padding:4px 2px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">售价</th>';
+        if (IS_SUPER) {
+            html += '<th style="text-align:center; padding:4px 2px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">进价</th>';
+            html += '<th style="text-align:center; padding:4px 2px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">售价</th>';
+        }
     });
     html += '</tr></thead><tbody id="auditTableBody">';
     auditProducts.forEach(p => {
@@ -1310,10 +1310,12 @@ function renderAuditTable() {
             html += '<td style="text-align:center; padding:6px 4px; border-bottom:1px solid var(--border);">';
             html += `<input type="number" class="audit-qty" data-pid="${p.product_id}" data-cond="${escapeHtml(ct.key)}" data-orig="${qty}" value="${qty}" min="0" style="width:58px; padding:5px 6px; border:1px solid var(--border); border-radius:6px; background:var(--bg-elevated); color:var(--text); text-align:center;" onchange="auditMarkDiff(this)">`;
             html += '</td>';
-            if (CAN_SEE_PROFIT) {
+            if (IS_SUPER) {
                 html += '<td style="text-align:center; padding:6px 4px; border-bottom:1px solid var(--border); color:var(--text-secondary); font-size:12px;">' + (c.purchase_price != null ? '¥' + parseFloat(c.purchase_price).toFixed(2) : '-') + '</td>';
             }
-            html += '<td style="text-align:center; padding:6px 4px; border-bottom:1px solid var(--border); color:var(--text-secondary); font-size:12px;">' + (c.suggested_price != null ? '¥' + parseFloat(c.suggested_price).toFixed(2) : '-') + '</td>';
+            if (IS_SUPER) {
+                html += '<td style="text-align:center; padding:6px 4px; border-bottom:1px solid var(--border); color:var(--text-secondary); font-size:12px;">' + (c.suggested_price != null ? '¥' + parseFloat(c.suggested_price).toFixed(2) : '-') + '</td>';
+            }
         });
         html += '</tr>';
     });
