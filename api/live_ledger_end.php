@@ -219,6 +219,11 @@ try {
         $sessionId
     ]);
 
+    // ===== 清理该场次的仓库出库台任务（场次结束 → 关联出库单全部结束生命周期）=====
+    // 未处理的 pending 作废、已处理 done 一并清理（已处理区不再堆积）
+    $stmt = $pdo->prepare("DELETE FROM warehouse_task WHERE session_id = ? AND store_id = ?");
+    $stmt->execute([$sessionId, $storeId]);
+
     $pdo->commit();
 
     success([
