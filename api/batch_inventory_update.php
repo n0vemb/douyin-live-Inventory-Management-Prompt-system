@@ -13,6 +13,7 @@ requireAuth(); $storeId = getStoreId();
 if (empty($storeId)) {
     error('请先选择店铺后再操作');
 }
+$operatorId = $_SESSION['user_id'] ?? null;
 $pdo->beginTransaction();
 
 try {
@@ -28,82 +29,62 @@ try {
 
         if ($productId <= 0 || empty($conditionType)) continue;
 
-        // 查找该商品该状态的最新批次
+        // 该商品该状态的全部批次（可能多个，盘点以「商品+状态」为粒度合并成一条流水）
         $stmt = $pdo->prepare("
             SELECT id, remaining_qty, purchase_price, suggested_price
             FROM inventory_batches
             WHERE product_id = ? AND condition_type = ? AND store_id = ?
-            ORDER BY purchased_at DESC
-            LIMIT 1
+            ORDER BY purchased_at DESC, id DESC
         ");
         $stmt->execute([$productId, $conditionType, $storeId]);
-        $batch = $stmt->fetch(PDO::FETCH_ASSOC);
+        $batches = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        if ($batch) {
-            $currentQty = intval($batch['remaining_qty']);
-            $diff = $qty - $currentQty;
+        if (!empty($batches)) {
+            $main = $batches[0]; // 最新批次
+            $currentTotalQty = 0;
+            foreach ($batches as $b) $currentTotalQty += (int)$b['remaining_qty'];
+            $diff = $qty - $currentTotalQty;
 
-            // 清零同商品同状态的其他批次，避免库存重复计算
-            // 必须放在 if($diff) 外面：即使 qty 恰好等于最新批次的库存，
-            // 其他批次也可能有剩余库存需要清零
-            $stmt = $pdo->prepare("SELECT id, remaining_qty FROM inventory_batches WHERE product_id = ? AND condition_type = ? AND store_id = ? AND id != ?");
-            $stmt->execute([$productId, $conditionType, $storeId, $batch['id']]);
-            $otherBatches = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            foreach ($otherBatches as $ob) {
-                if ((int)$ob['remaining_qty'] > 0) {
-                    $stmt = $pdo->prepare("UPDATE inventory_batches SET remaining_qty = 0 WHERE id = ? AND store_id = ?");
-                    $stmt->execute([(int)$ob['id'], $storeId]);
-                    // 清零也记录日志
-                    $stmt = $pdo->prepare("
-                        INSERT INTO inventory_log (product_id, condition_type, change_type, qty_change, before_qty, after_qty, remark, store_id)
-                        VALUES (?, ?, 'adjust', ?, ?, 0, '盘点清零', ?)
-                    ");
-                    $stmt->execute([$productId, $conditionType, -(int)$ob['remaining_qty'], (int)$ob['remaining_qty'], $storeId]);
-                } else {
-                    // 已为 0 的批次直接更新（无日志）
-                    $stmt = $pdo->prepare("UPDATE inventory_batches SET remaining_qty = 0 WHERE id = ? AND store_id = ?");
-                    $stmt->execute([(int)$ob['id'], $storeId]);
-                }
+            // 主批次设为盘点数量
+            $stmt = $pdo->prepare("UPDATE inventory_batches SET remaining_qty = ? WHERE id = ? AND store_id = ?");
+            $stmt->execute([$qty, $main['id'], $storeId]);
+
+            // 其余批次清零（不逐批写流水，合并进一条盘点流水，避免一次操作多条流水）
+            foreach (array_slice($batches, 1) as $ob) {
+                $stmt = $pdo->prepare("UPDATE inventory_batches SET remaining_qty = 0 WHERE id = ? AND store_id = ?");
+                $stmt->execute([(int)$ob['id'], $storeId]);
             }
 
-            // 更新数量
+            // 数量有变化 → 只写一条盘点调整流水（含操作人）
             if ($diff !== 0) {
-                $beforeQty = $currentQty;
-                $afterQty = $qty;
-
-                $stmt = $pdo->prepare("UPDATE inventory_batches SET remaining_qty = ? WHERE id = ? AND store_id = ?");
-                $stmt->execute([$qty, $batch['id'], $storeId]);
-
-                // 记录调整日志
                 $stmt = $pdo->prepare("
-                    INSERT INTO inventory_log (product_id, condition_type, change_type, qty_change, before_qty, after_qty, remark, store_id)
-                    VALUES (?, ?, 'adjust', ?, ?, ?, ?, ?)
+                    INSERT INTO inventory_log (store_id, user_id, product_id, condition_type, change_type, qty_change, before_qty, after_qty, price, remark)
+                    VALUES (?, ?, ?, ?, 'adjust', ?, ?, ?, ?, '盘点调整')
                 ");
-                $stmt->execute([$productId, $conditionType, $diff, $beforeQty, $afterQty, '盘点调整', $storeId]);
-
+                $stmt->execute([$storeId, $operatorId, $productId, $conditionType, $diff, $currentTotalQty, $qty, $purchasePrice ?? null]);
                 $updated++;
             }
 
-            // 更新价格
+            // 更新价格（仅超管界面才会传价格；前端盘点保存只传 qty，这里保留能力）
             $updateFields = [];
             $updateParams = [];
-            if ($purchasePrice !== null && $purchasePrice != $batch['purchase_price']) {
+            if ($purchasePrice !== null && $purchasePrice != $main['purchase_price']) {
                 $updateFields[] = 'purchase_price = ?';
                 $updateParams[] = $purchasePrice;
             }
-            if ($suggestedPrice !== null && $suggestedPrice != $batch['suggested_price']) {
+            if ($suggestedPrice !== null && $suggestedPrice != $main['suggested_price']) {
                 $updateFields[] = 'suggested_price = ?';
                 $updateParams[] = $suggestedPrice;
             }
             if (!empty($updateFields)) {
-                $updateParams[] = $batch['id'];
+                $updateParams[] = $main['id'];
                 $updateParams[] = $storeId;
                 $stmt = $pdo->prepare("UPDATE inventory_batches SET " . implode(', ', $updateFields) . " WHERE id = ? AND store_id = ?");
                 $stmt->execute($updateParams);
                 if ($diff === 0) $updated++;
             }
         } elseif ($qty > 0) {
-            // 不存在批次但 qty > 0 → 创建新批次
+            // 不存在批次但 qty > 0 → 创建新批次（一条入库流水 + 一条采购记录）
             $batchNo = 'PD' . date('Ymd') . strtoupper(substr(uniqid(), -6));
             $stmt = $pdo->prepare("
                 INSERT INTO inventory_batches (product_id, condition_type, batch_no, total_qty, remaining_qty, purchase_price, suggested_price, purchased_at, remark, store_id)
@@ -114,12 +95,11 @@ try {
                 $purchasePrice ?? 0, $suggestedPrice ?? 0, $storeId
             ]);
 
-            // 记录入库日志
             $stmt = $pdo->prepare("
-                INSERT INTO inventory_log (product_id, condition_type, change_type, qty_change, before_qty, after_qty, remark, store_id)
-                VALUES (?, ?, 'purchase', ?, 0, ?, ?, ?)
+                INSERT INTO inventory_log (store_id, user_id, product_id, condition_type, change_type, qty_change, before_qty, after_qty, price, remark)
+                VALUES (?, ?, ?, ?, 'purchase', ?, 0, ?, ?, '盘点新增')
             ");
-            $stmt->execute([$productId, $conditionType, $qty, $qty, '盘点新增', $storeId]);
+            $stmt->execute([$storeId, $operatorId, $productId, $conditionType, $qty, $qty, $purchasePrice ?? null]);
 
             $stmt = $pdo->prepare("
                 INSERT INTO purchase_log (product_id, condition_type, purchase_price, qty, supplier, remark, store_id)

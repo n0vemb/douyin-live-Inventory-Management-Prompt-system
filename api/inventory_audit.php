@@ -98,6 +98,8 @@ foreach ($allBatches as $b) {
 }
 
 $result = [];
+// 盘点界面价格（进价/售价）仅超管可见；店管/运营打开盘点不显示价格（2026-08-21 需求）
+$isSuperAdmin = ($_SESSION['role'] ?? '') === 'super_admin';
 foreach ($products as $p) {
     $conditions = [];
     foreach ($conditionTypes as $ct) {
@@ -106,8 +108,8 @@ foreach ($products as $p) {
             $latest = $latestBatchMap[$key] ?? null;
             $conditions[$ct['key']] = [
                 'qty' => (int)$invMap[$key]['total_qty'],
-                'purchase_price' => $latest ? floatval($latest['purchase_price']) : null,
-                'suggested_price' => $latest ? floatval($latest['suggested_price']) : null,
+                'purchase_price' => $isSuperAdmin && $latest ? floatval($latest['purchase_price']) : null,
+                'suggested_price' => $isSuperAdmin && $latest ? floatval($latest['suggested_price']) : null,
             ];
         } else {
             $conditions[$ct['key']] = [

@@ -175,9 +175,10 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $o) {
 
 // 4. 调整/转换/退货流水
 $stmt = $pdo->prepare("
-    SELECT il.*, ls.session_name
+    SELECT il.*, ls.session_name, u.display_name AS user_name
     FROM inventory_log il
     LEFT JOIN live_sessions ls ON il.live_session_id = ls.id
+    LEFT JOIN users u ON il.user_id = u.id
     WHERE il.product_id = ?{$storeCondIl}
     ORDER BY il.id DESC
 ");
@@ -201,7 +202,8 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $l) {
         'after_qty' => isset($l['after_qty']) ? (int)$l['after_qty'] : null,
         'session_name' => $l['session_name'] ?? null,
         'live_session_id' => $l['live_session_id'] ?? null,
-        'remark' => ($l['session_name'] ? '场次：' . $l['session_name'] : '') . ($l['remark'] ? ($l['session_name'] ? ' · ' : '') . $l['remark'] : ''),
+        'remark' => ($l['session_name'] ? '场次：' . $l['session_name'] : '') . ($l['remark'] ? ($l['session_name'] ? ' · ' : '') . $l['remark'] : '') . ($l['user_name'] ? ' · 操作人：' . $l['user_name'] : ''),
+        'user_name' => $l['user_name'] ?? null,
         'created_at' => $l['created_at'],
     ];
 }
