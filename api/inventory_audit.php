@@ -39,7 +39,7 @@ try {
 
 // 查询所有有库存的商品
 $productsSql = "
-    SELECT p.id, p.name, p.common_name, p.barcode, p.series
+    SELECT p.id, p.name, p.common_name, p.barcode, p.series, p.brand
     FROM products p
     WHERE EXISTS (SELECT 1 FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.remaining_qty > 0";
 if ($storeId) {
@@ -125,6 +125,7 @@ foreach ($products as $p) {
         'official_name' => $p['name'],
         'barcode' => $p['barcode'],
         'series' => $p['series'],
+        'brand' => $p['brand'],
         'conditions' => $conditions,
     ];
 }

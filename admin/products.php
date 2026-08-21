@@ -1272,16 +1272,23 @@ function closeAuditModal() {
     closeModal('auditModal');
     loadProducts();
 }
+let auditSortKey = 'name';
+let auditSortAsc = true;
+
 function renderAuditTable() {
     const content = $('auditContent');
     let html = '<div style="margin-bottom:12px;">';
     html += '<input type="text" id="auditSearch" placeholder="搜索商品..." style="padding:8px 14px; border-radius:8px; border:1px solid var(--border); background:var(--bg-elevated); color:var(--text); font-size:14px; width:250px;" oninput="filterAuditTable()">';
     html += ' <span style="font-size:13px; color:var(--text-secondary); margin-left:8px;">共 ' + auditProducts.length + ' 个商品</span>';
+    html += ' <span style="font-size:12px; color:var(--text-tertiary); margin-left:8px;">点击 商品/系列/品牌 表头排序</span>';
     html += '</div>';
     html += '<div style="overflow-x:auto;">';
     html += '<table style="font-size:13px; white-space:nowrap; min-width:100%; border-collapse:collapse;">';
     html += '<thead><tr style="position:sticky; top:0; background:var(--bg-surface); z-index:2;">';
-    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:150px;">商品名称</th>';
+    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:150px; cursor:pointer; user-select:none;" onclick="auditSort(\'name\')">商品名称 ' + (auditSortKey === 'name' ? (auditSortAsc ? '▲' : '▼') : '') + '</th>';
+    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:90px; cursor:pointer; user-select:none;" onclick="auditSort(\'series\')">系列 ' + (auditSortKey === 'series' ? (auditSortAsc ? '▲' : '▼') : '') + '</th>';
+    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:90px; cursor:pointer; user-select:none;" onclick="auditSort(\'brand\')">品牌 ' + (auditSortKey === 'brand' ? (auditSortAsc ? '▲' : '▼') : '') + '</th>';
+    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:80px;">条码</th>';
     auditConditionTypes.forEach(ct => {
         html += '<th style="text-align:center; padding:8px 4px; border-bottom:2px solid var(--border); color:var(--text-secondary); font-size:12px; min-width:55px;" colspan="' + (IS_SUPER ? 3 : 1) + '">';
         html += '<span class="condition-badge condition-' + escapeHtml(ct.key) + '">' + escapeHtml(ct.name) + '</span>';
@@ -1289,7 +1296,10 @@ function renderAuditTable() {
     });
     html += '</tr>';
     html += '<tr style="position:sticky; top:36px; background:var(--bg-hover); z-index:2;">';
-    html += '<th style="text-align:left; padding:4px 10px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">条码 / 系列</th>';
+    html += '<th style="text-align:left; padding:4px 10px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">-</th>';
+    html += '<th style="text-align:left; padding:4px 10px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">-</th>';
+    html += '<th style="text-align:left; padding:4px 10px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">-</th>';
+    html += '<th style="text-align:left; padding:4px 10px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">-</th>';
     auditConditionTypes.forEach(() => {
         html += '<th style="text-align:center; padding:4px 2px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">数量</th>';
         if (IS_SUPER) {
@@ -1298,12 +1308,26 @@ function renderAuditTable() {
         }
     });
     html += '</tr></thead><tbody id="auditTableBody">';
-    auditProducts.forEach(p => {
-        html += '<tr class="audit-row" data-pid="' + p.product_id + '" data-name="' + escapeHtml((p.product_name || p.official_name || '').toLowerCase()) + '" data-barcode="' + escapeHtml(p.barcode) + '">';
+
+    // 排序（点击表头切换，默认按商品名）
+    const sorted = [...auditProducts].sort((a, b) => {
+        let va, vb;
+        if (auditSortKey === 'series') { va = (a.series || ''); vb = (b.series || ''); }
+        else if (auditSortKey === 'brand') { va = (a.brand || ''); vb = (b.brand || ''); }
+        else { va = (a.product_name || a.official_name || ''); vb = (b.product_name || b.official_name || ''); }
+        const cmp = va.localeCompare(vb, 'zh-Hans-CN', { numeric: true });
+        return auditSortAsc ? cmp : -cmp;
+    });
+
+    sorted.forEach(p => {
+        html += '<tr class="audit-row" data-pid="' + p.product_id + '" data-name="' + escapeHtml((p.product_name || p.official_name || '').toLowerCase()) + '" data-barcode="' + escapeHtml(p.barcode) + '" data-series="' + escapeHtml((p.series || '').toLowerCase()) + '" data-brand="' + escapeHtml((p.brand || '').toLowerCase()) + '">';
         html += '<td style="padding:6px 10px; border-bottom:1px solid var(--border);">';
         html += '<div style="font-weight:600; font-size:13px;">' + escapeHtml(p.product_name) + '</div>';
-        html += '<div style="font-size:11px; color:var(--text-tertiary);">' + escapeHtml(p.barcode || '') + (p.series ? ' · ' + escapeHtml(p.series) : '') + '</div>';
+        html += '<div style="font-size:11px; color:var(--text-tertiary);">' + escapeHtml(p.official_name || '') + '</div>';
         html += '</td>';
+        html += '<td style="padding:6px 10px; border-bottom:1px solid var(--border); font-size:12px; color:var(--text-secondary);">' + escapeHtml(p.series || '-') + '</td>';
+        html += '<td style="padding:6px 10px; border-bottom:1px solid var(--border); font-size:12px; color:var(--text-secondary);">' + escapeHtml(p.brand || '-') + '</td>';
+        html += '<td style="padding:6px 10px; border-bottom:1px solid var(--border); font-size:12px; color:var(--text-secondary);">' + escapeHtml(p.barcode || '-') + '</td>';
         auditConditionTypes.forEach(ct => {
             const c = p.conditions[ct.key] || { qty: 0, purchase_price: null, suggested_price: null };
             const qty = c.qty || 0;
@@ -1322,6 +1346,16 @@ function renderAuditTable() {
     html += '</tbody></table></div>';
     content.innerHTML = html;
 }
+
+function auditSort(key) {
+    if (auditSortKey === key) {
+        auditSortAsc = !auditSortAsc;
+    } else {
+        auditSortKey = key;
+        auditSortAsc = true;
+    }
+    renderAuditTable();
+}
 function auditMarkDiff(input) {
     const orig = parseInt(input.dataset.orig);
     const val = parseInt(input.value);
@@ -1334,7 +1368,9 @@ function filterAuditTable() {
     document.querySelectorAll('.audit-row').forEach(tr => {
         const name = tr.dataset.name || '';
         const bc = tr.dataset.barcode || '';
-        tr.style.display = (!kw || name.includes(kw) || bc.includes(kw)) ? '' : 'none';
+        const series = tr.dataset.series || '';
+        const brand = tr.dataset.brand || '';
+        tr.style.display = (!kw || name.includes(kw) || bc.includes(kw) || series.includes(kw) || brand.includes(kw)) ? '' : 'none';
     });
 }
 async function saveAuditChanges() {
