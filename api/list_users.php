@@ -23,16 +23,16 @@ if ($isSuperAdmin) {
         ORDER BY u.id
     ');
 } else {
-    // 店铺管理员只能看自己店铺的运营账号
+    // 店铺管理员只能看自己店铺的运营/仓库账号
     $stmt = $pdo->prepare('
         SELECT u.id, u.username, u.display_name, u.role, u.store_id, u.is_active, u.last_login_at, u.created_at,
                s.name AS store_name
         FROM users u
         LEFT JOIN stores s ON u.store_id = s.id
-        WHERE u.role = ? AND u.store_id = ?
+        WHERE u.role IN (?, ?) AND u.store_id = ?
         ORDER BY u.id
     ');
-    $stmt->execute(['operator', $currentUser['store_id']]);
+    $stmt->execute(['operator', 'warehouse', $currentUser['store_id']]);
 }
 $users = $stmt->fetchAll();
 
