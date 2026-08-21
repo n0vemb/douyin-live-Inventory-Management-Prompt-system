@@ -13,6 +13,7 @@ if (session_status() === PHP_SESSION_NONE) {
  *   super_admin  — 超级管理员（全平台，可看成本利润）
  *   store_admin  — 店铺管理员（本店铺，可看成本利润）
  *   operator     — 运营（本店铺，可看销售额，但成本/毛利/毛利率全隐藏）
+ *   warehouse    — 仓库（2026-08-21 新增：本店铺，登录后只能进仓库出库台，看不到价格成本）
  */
 
 /**
@@ -37,7 +38,49 @@ function requireAuth(): ?int {
         exit;
     }
 
+    // 仓库角色：只能访问仓库出库台页面 + 仓库API，其余一律拦截
+    if (($_SESSION['role'] ?? '') === 'warehouse') {
+        $scriptPath = $_SERVER['SCRIPT_FILENAME'] ?? '';
+        $allowed = (
+            strpos($scriptPath, '/admin/warehouse.php') !== false
+            || strpos($scriptPath, '/api/warehouse_') !== false
+            || strpos($scriptPath, '/login.php') !== false
+            || strpos($scriptPath, '/logout') !== false
+        );
+        if (!$allowed) {
+            $isApi = (strpos($scriptPath, '/api/') !== false);
+            if ($isApi) {
+                http_response_code(403);
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => '权限不足：仓库账号仅可访问仓库出库台']);
+                exit;
+            }
+            header('Location: /admin/warehouse.php');
+            exit;
+        }
+    }
+
     return $_SESSION['store_id'] ?? null;
+}
+
+/**
+ * 是否为仓库角色
+ */
+function isWarehouse(): bool {
+    return ($_SESSION['role'] ?? '') === 'warehouse';
+}
+
+/**
+ * 仓库功能访问权限：超管/店管/仓库可用，运营不可用（运营不可操作仓库）
+ */
+function requireWarehouseAccess(): void {
+    requireAuth();
+    if (isOperator()) {
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => '权限不足：运营账号无仓库操作权限']);
+        exit;
+    }
 }
 
 /**

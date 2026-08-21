@@ -7,6 +7,7 @@
 .role-super { background:rgba(239,68,68,0.15); color:#ef4444; }
 .role-store { background:rgba(102,126,234,0.15); color:#667eea; }
 .role-operator { background:rgba(16,185,129,0.15); color:#10b981; }
+.role-warehouse { background:rgba(245,158,11,0.15); color:#f59e0b; }
 .users-toolbar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:20px; }
 .users-search { flex:1; min-width:200px; max-width:320px; }
 .users-filter { display:flex; gap:6px; flex-wrap:wrap; }
@@ -32,6 +33,7 @@
             <span class="filter-tag active" data-filter="all" onclick="setFilter(this, 'all')">全部</span>
             <?php if ($isSuperAdmin): ?><span class="filter-tag" data-filter="store_admin" onclick="setFilter(this, 'store_admin')">店铺管理员</span><?php endif; ?>
             <span class="filter-tag" data-filter="operator" onclick="setFilter(this, 'operator')">运营</span>
+            <span class="filter-tag" data-filter="warehouse" onclick="setFilter(this, 'warehouse')">仓库</span>
             <?php if ($isSuperAdmin): ?><span class="filter-tag" data-filter="super_admin" onclick="setFilter(this, 'super_admin')">超管</span><?php endif; ?>
             <span class="filter-tag" data-filter="active" onclick="setFilter(this, 'active')">启用</span>
             <span class="filter-tag" data-filter="disabled" onclick="setFilter(this, 'disabled')">禁用</span>
@@ -82,6 +84,7 @@
                 <select class="form-input" id="newRole" onchange="toggleCreateStoreSelect()">
                     <?php if ($isSuperAdmin): ?><option value="store_admin">店铺管理员</option><?php endif; ?>
                     <option value="operator">运营</option>
+                    <option value="warehouse">仓库</option>
                     <?php if ($isSuperAdmin): ?><option value="super_admin">超级管理员</option><?php endif; ?>
                 </select>
             </div>
@@ -127,6 +130,7 @@
                 <select class="form-input" id="editRole" onchange="toggleEditStoreSelect()">
                     <?php if ($isSuperAdmin): ?><option value="store_admin">店铺管理员</option><?php endif; ?>
                     <option value="operator">运营</option>
+                    <option value="warehouse">仓库</option>
                     <?php if ($isSuperAdmin): ?><option value="super_admin">超级管理员</option><?php endif; ?>
                 </select>
             </div>
@@ -200,6 +204,7 @@ function applyFilter() {
     // 筛选标签过滤
     if (currentFilter === 'store_admin') filtered = filtered.filter(u => u.role === 'store_admin');
     else if (currentFilter === 'operator') filtered = filtered.filter(u => u.role === 'operator');
+    else if (currentFilter === 'warehouse') filtered = filtered.filter(u => u.role === 'warehouse');
     else if (currentFilter === 'super_admin') filtered = filtered.filter(u => u.role === 'super_admin');
     else if (currentFilter === 'active') filtered = filtered.filter(u => u.is_active);
     else if (currentFilter === 'disabled') filtered = filtered.filter(u => !u.is_active);
@@ -239,7 +244,7 @@ function renderUsers(users) {
                     </div>
                 </div>
             </td>
-            <td><span class="user-role-badge ${u.role === 'super_admin' ? 'role-super' : u.role === 'operator' ? 'role-operator' : 'role-store'}">${u.role === 'super_admin' ? '超管' : u.role === 'operator' ? '运营' : '店铺管理员'}</span></td>
+            <td><span class="user-role-badge ${u.role === 'super_admin' ? 'role-super' : u.role === 'operator' ? 'role-operator' : u.role === 'warehouse' ? 'role-warehouse' : 'role-store'}">${u.role === 'super_admin' ? '超管' : u.role === 'operator' ? '运营' : u.role === 'warehouse' ? '仓库' : '店铺管理员'}</span></td>
             <td>${u.store_name || '-'}</td>
             <td>${u.is_active
                 ? '<span style="display:inline-flex;align-items:center;gap:4px;color:var(--success);"><span style="width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block;"></span>启用</span>'
@@ -272,7 +277,7 @@ function toggleCreateStoreSelect() {
     if (!IS_SUPER_ADMIN) return;
     const r = document.getElementById('newRole').value;
     document.getElementById('createStoreSelectGroup').style.display =
-        (r === 'store_admin' || r === 'operator') ? 'block' : 'none';
+        (r === 'store_admin' || r === 'operator' || r === 'warehouse') ? 'block' : 'none';
 }
 
 function openCreateModal() {
@@ -322,7 +327,7 @@ function toggleEditStoreSelect() {
     if (!IS_SUPER_ADMIN) return;
     const r = document.getElementById('editRole').value;
     document.getElementById('editStoreSelectGroup').style.display =
-        (r === 'store_admin' || r === 'operator') ? 'block' : 'none';
+        (r === 'store_admin' || r === 'operator' || r === 'warehouse') ? 'block' : 'none';
 }
 
 function openEditModal(userId) {

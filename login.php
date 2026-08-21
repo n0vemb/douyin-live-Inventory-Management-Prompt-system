@@ -1,10 +1,12 @@
 <?php
 require_once __DIR__ . '/config.php';
 
-// 如果已登录，直接跳转（运营跳直播场次，其余跳首页）
+// 如果已登录，直接跳转（运营跳待办事项，仓库跳仓库出库台，其余跳首页）
 if (!empty($_SESSION['user_id'])) {
     if (($_SESSION['role'] ?? '') === 'operator') {
-        header('Location: ../admin/sessions.php');
+        header('Location: ../admin/todos.php');
+    } elseif (($_SESSION['role'] ?? '') === 'warehouse') {
+        header('Location: ../admin/warehouse.php');
     } else {
         header('Location: ../admin/');
     }
@@ -67,9 +69,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?')
                     ->execute([$user['id']]);
 
-                // 运营登录后直达直播场次页，其余角色到首页
+                // 运营登录后直达待办事项页，仓库直达仓库出库台，其余角色到首页
                 if (($user['role'] ?? '') === 'operator') {
-                    header('Location: admin/sessions.php');
+                    header('Location: admin/todos.php');
+                } elseif (($user['role'] ?? '') === 'warehouse') {
+                    header('Location: admin/warehouse.php');
                 } else {
                     header('Location: admin/');
                 }

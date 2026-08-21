@@ -131,16 +131,39 @@ try {
                 $stmt = $pdo->prepare("UPDATE live_ledger_item SET product_id = ?, condition_type = ?, product_name = ?, qty = ?, sell_price = ?, purchase_cost = ?, is_gift = ? WHERE id = ? AND customer_id = ?");
                 $stmt->execute([$productId, $conditionType, $productName, $qty, $sellPrice, $purchaseCost, $isGift, $itemId, $custId]);
                 $seenItemIds[] = $itemId;
+
+                // 同步仓库出库单（仅 pending 状态跟随修改，已处理的历史单不动）
+                $stmt = $pdo->prepare("UPDATE warehouse_task SET product_id = ?, product_name = ?, condition_type = ?, qty = ?, is_gift = ? WHERE source_type = 'item' AND source_id = ? AND status = 'pending'");
+                $stmt->execute([$productId, $productName, $conditionType, $qty, $isGift, $itemId]);
             } else {
                 $stmt = $pdo->prepare("INSERT INTO live_ledger_item (session_id, customer_id, product_id, condition_type, product_name, qty, sell_price, purchase_cost, is_gift) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$sessionId, $custId, $productId, $conditionType, $productName, $qty, $sellPrice, $purchaseCost, $isGift]);
-                $seenItemIds[] = (int)$pdo->lastInsertId();
+                $itemId = (int)$pdo->lastInsertId();
+                $seenItemIds[] = $itemId;
+
+                // 新增商品 → 生成仓库待出库单（同事务）
+                $stmt = $pdo->prepare("INSERT INTO warehouse_task (store_id, session_id, source_type, source_id, customer_id, product_id, product_name, condition_type, qty, is_gift, type, status) VALUES (?, ?, 'item', ?, ?, ?, ?, ?, ?, ?, 'out', 'pending')");
+                $stmt->execute([$storeId, $sessionId, $itemId, $custId, $productId, $productName, $conditionType, $qty, $isGift]);
             }
         }
         // 删除前端未提交的 items
         $toDelete = array_diff($existingItemIds, $seenItemIds);
         if (!empty($toDelete)) {
             $ph = implode(',', array_fill(0, count($toDelete), '?'));
+            // 先取被删商品信息（生成回库单用）
+            $stmt = $pdo->prepare("SELECT id, session_id, customer_id, product_id, product_name, condition_type, qty, is_gift FROM live_ledger_item WHERE id IN ($ph)");
+            $stmt->execute(array_values($toDelete));
+            $deletedItems = $stmt->fetchAll();
+            foreach ($deletedItems as $di) {
+                // 撤回原待出库单（仅 pending）
+                $stmt = $pdo->prepare("UPDATE warehouse_task SET status = 'cancelled' WHERE source_type = 'item' AND source_id = ? AND status = 'pending'");
+                $stmt->execute([$di['id']]);
+                // 正常商品删除 → 自动生成待回库单（赠品不回收，只撤单）
+                if (!$di['is_gift']) {
+                    $stmt = $pdo->prepare("INSERT INTO warehouse_task (store_id, session_id, source_type, source_id, customer_id, product_id, product_name, condition_type, qty, is_gift, type, status) VALUES (?, ?, 'item', ?, ?, ?, ?, ?, ?, 0, 'return', 'pending')");
+                    $stmt->execute([$storeId, $di['session_id'], $di['id'], $di['customer_id'], $di['product_id'], $di['product_name'], $di['condition_type'], $di['qty']]);
+                }
+            }
             $stmt = $pdo->prepare("DELETE FROM live_ledger_item WHERE id IN ($ph)");
             $stmt->execute(array_values($toDelete));
         }
@@ -162,15 +185,27 @@ try {
                 $stmt = $pdo->prepare("UPDATE live_ledger_gift SET cost = ?, description = ?, name = ?, qty = ? WHERE id = ? AND customer_id = ?");
                 $stmt->execute([$cost, $desc, $giftName, $giftQty, $giftId, $custId]);
                 $seenGiftIds[] = $giftId;
+
+                // 同步仓库出库单（仅 pending 跟随修改）
+                $stmt = $pdo->prepare("UPDATE warehouse_task SET product_name = ?, qty = ? WHERE source_type = 'gift' AND source_id = ? AND status = 'pending'");
+                $stmt->execute([$giftName, $giftQty, $giftId]);
             } else {
                 $stmt = $pdo->prepare("INSERT INTO live_ledger_gift (session_id, customer_id, name, qty, cost, description) VALUES (?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$sessionId, $custId, $giftName, $giftQty, $cost, $desc]);
-                $seenGiftIds[] = (int)$pdo->lastInsertId();
+                $giftId = (int)$pdo->lastInsertId();
+                $seenGiftIds[] = $giftId;
+
+                // 新增赠品 → 生成仓库待出库单（赠品照发，不回收）
+                $stmt = $pdo->prepare("INSERT INTO warehouse_task (store_id, session_id, source_type, source_id, customer_id, product_name, qty, is_gift, type, status) VALUES (?, ?, 'gift', ?, ?, ?, ?, 1, 'out', 'pending')");
+                $stmt->execute([$storeId, $sessionId, $giftId, $custId, $giftName, $giftQty]);
             }
         }
         $toDelete = array_diff($existingGiftIds, $seenGiftIds);
         if (!empty($toDelete)) {
             $ph = implode(',', array_fill(0, count($toDelete), '?'));
+            // 撤回原赠品待出库单（赠品删除不回收，只撤单）
+            $stmt = $pdo->prepare("UPDATE warehouse_task SET status = 'cancelled' WHERE source_type = 'gift' AND source_id IN ($ph) AND status = 'pending'");
+            $stmt->execute(array_values($toDelete));
             $stmt = $pdo->prepare("DELETE FROM live_ledger_gift WHERE id IN ($ph)");
             $stmt->execute(array_values($toDelete));
         }
@@ -190,6 +225,15 @@ try {
     }
     if (!empty($toDeleteCust)) {
         $ph = implode(',', array_fill(0, count($toDeleteCust), '?'));
+        // 该客户被整体删除：先撤其全部 pending 出库单 + 非赠品生成待回库单
+        $stmt = $pdo->prepare("UPDATE warehouse_task SET status = 'cancelled' WHERE customer_id IN ($ph) AND status = 'pending'");
+        $stmt->execute(array_values($toDeleteCust));
+        $stmt = $pdo->prepare("SELECT id, session_id, customer_id, product_id, product_name, condition_type, qty, is_gift FROM live_ledger_item WHERE customer_id IN ($ph) AND is_gift = 0");
+        $stmt->execute(array_values($toDeleteCust));
+        foreach ($stmt->fetchAll() as $di) {
+            $stmt2 = $pdo->prepare("INSERT INTO warehouse_task (store_id, session_id, source_type, source_id, customer_id, product_id, product_name, condition_type, qty, is_gift, type, status) VALUES (?, ?, 'item', ?, ?, ?, ?, ?, ?, 0, 'return', 'pending')");
+            $stmt2->execute([$storeId, $di['session_id'], $di['id'], $di['customer_id'], $di['product_id'], $di['product_name'], $di['condition_type'], $di['qty']]);
+        }
         $stmt = $pdo->prepare("DELETE FROM live_ledger_item WHERE customer_id IN ($ph)");
         $stmt->execute(array_values($toDeleteCust));
         $stmt = $pdo->prepare("DELETE FROM live_ledger_gift WHERE customer_id IN ($ph)");

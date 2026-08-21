@@ -33,13 +33,13 @@ if (!$target) {
     error('用户不存在');
 }
 
-// 店铺管理员只能操作自己店铺的运营账号
+// 店铺管理员只能操作自己店铺的运营/仓库账号
 if ($isStoreAdmin) {
-    if ($target['role'] !== 'operator' || (int)$target['store_id'] !== (int)$currentUser['store_id']) {
-        error('只能管理自己店铺的运营账号');
+    if (!in_array($target['role'], ['operator', 'warehouse']) || (int)$target['store_id'] !== (int)$currentUser['store_id']) {
+        error('只能管理自己店铺的运营和仓库账号');
     }
-    // 强制：运营角色 + 自己店铺
-    $role = 'operator';
+    // 强制：运营/仓库角色 + 自己店铺
+    $role = $target['role'];
     $storeId = (int)$currentUser['store_id'];
 }
 
@@ -58,13 +58,13 @@ if (!empty($input['password'])) {
 
 // 角色/店铺更新（修复：原实现只更新密码/启用，角色和店铺不生效）
 if ($role !== null) {
-    if (!in_array($role, ['super_admin', 'store_admin', 'operator'])) {
+    if (!in_array($role, ['super_admin', 'store_admin', 'operator', 'warehouse'])) {
         error('无效的角色');
     }
-    // 店铺管理员/运营必须有店铺；超管不能绑店铺
-    if ($role === 'store_admin' || $role === 'operator') {
+    // 店铺管理员/运营/仓库必须有店铺；超管不能绑店铺
+    if (in_array($role, ['store_admin', 'operator', 'warehouse'])) {
         if (!$storeId) {
-            error('店铺管理员和运营必须指定所属店铺');
+            error('店铺管理员、运营和仓库账号必须指定所属店铺');
         }
     } else {
         $storeId = null;
