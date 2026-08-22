@@ -200,9 +200,9 @@ requireAuth(); $storeId = getStoreId();
             $productId = null;
 
             if (empty($product['barcode'])) {
-                // 条码为空：按商品名称匹配已有商品
-                $stmt = $pdo->prepare("SELECT id, barcode FROM products WHERE name = ?");
-                $stmt->execute([$product['name']]);
+                // 条码为空：按商品名称匹配已有商品（限定本店铺，防止跨店串数据）
+                $stmt = $pdo->prepare("SELECT id, barcode FROM products WHERE name = ? AND store_id = ?");
+                $stmt->execute([$product['name'], $storeId]);
                 $existing = $stmt->fetch();
 
                 if ($existing) {

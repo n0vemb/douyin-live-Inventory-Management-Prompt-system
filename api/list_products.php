@@ -54,6 +54,13 @@ $batchesData = [];
 $inventoryData = [];
 if (!empty($productIds)) {
     $placeholders = implode(',', array_fill(0, count($productIds), '?'));
+    // 批次查询限定当前店铺，防止跨店批次串入库存统计
+    $batchParams = $productIds;
+    $storeFilter = '';
+    if ($storeId) {
+        $storeFilter = ' AND store_id = ?';
+        $batchParams[] = $storeId;
+    }
     $stmt = $pdo->prepare("
         SELECT
             id,
@@ -68,9 +75,10 @@ if (!empty($productIds)) {
             purchased_at
         FROM inventory_batches
         WHERE product_id IN ({$placeholders})
+        {$storeFilter}
         ORDER BY purchased_at DESC
     ");
-    $stmt->execute($productIds);
+    $stmt->execute($batchParams);
     $allBatches = $stmt->fetchAll();
 
     foreach ($allBatches as $b) {
