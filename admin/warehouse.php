@@ -88,6 +88,13 @@ body {
   font-size:13px; padding:6px 12px; border-radius:8px; cursor:pointer; flex-shrink:0;
 }
 .fullscreen-btn:active { background: var(--bg-active); color: var(--text); }
+.logout-btn {
+  padding: 8px 14px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg-elevated); color: var(--text); font-size: 14px;
+  cursor: pointer; transition: background .2s, color .2s; flex-shrink: 0;
+}
+.logout-btn:hover { background: rgba(239,68,68,.15); border-color: rgba(239,68,68,.4); color: #f87171; }
+.logout-btn:active { background: rgba(239,68,68,.25); }
 
 /* 待处理总数徽标 */
 .pending-badge {
@@ -314,6 +321,7 @@ body {
       <span class="conn-dot" id="connDot"></span>
       <span class="clock" id="clock"></span>
       <button class="fullscreen-btn" onclick="toggleFullscreen()">全屏</button>
+      <button class="logout-btn" onclick="logout()">登出</button>
     </div>
   </div>
 
@@ -561,6 +569,14 @@ function toggleFullscreen() {
   } else {
     document.exitFullscreen().catch(() => {});
   }
+}
+
+// 登出：调接口清 session 后回登录页
+function logout() {
+  fetch('../api/logout.php', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => { window.location.href = '../login.php'; })
+    .catch(() => { window.location.href = '../login.php'; });
 }
 
 // 时钟
