@@ -395,9 +395,13 @@ function render(newIds = null) {
       `;
       $('taskList').appendChild(head);
       for (const t of g.tasks) {
-        const card = buildCard(t);
-        if (newIds && newIds.has(t.id)) card.classList.add('new');
-        $('taskList').appendChild(card);
+        // 拆件显示：qty>1 拆成 qty 张独立卡片（每张 ×1），每件独立处理
+        const n = Math.max(1, parseInt(t.qty) || 1);
+        for (let i = 0; i < n; i++) {
+          const card = buildCard(t);
+          if (newIds && newIds.has(t.id)) card.classList.add('new');
+          $('taskList').appendChild(card);
+        }
       }
     }
   }
@@ -408,17 +412,21 @@ function render(newIds = null) {
     $('doneList').innerHTML = `<div class="empty"><div class="big">✓</div><div>暂无已处理</div></div>`;
   } else {
     for (const t of done) {
-      const card = document.createElement('div');
-      card.className = 'done-card';
-      card.innerHTML = `
-        <div class="done-main">
-          <div class="done-name">${escapeHtml(t.product_name)} <span class="tc-kind" style="font-size:11px;${t.type === 'return' ? 'background:var(--warning);color:#000' : ''}">${t.type === 'return' ? '回库' : '出库'}</span></div>
-          <div class="done-meta">${escapeHtml(t.session_name)} · ${escapeHtml(t.vip_no || t.nickname || '新客户')} · ${escapeHtml(t.condition_type)}${t.is_gift ? ' · 赠品' : ''} · ${fmtTime(t.done_at)} 处理</div>
-        </div>
-        <div class="done-qty">×${t.qty}</div>
-        <button class="btn-undo" onclick="undoTask(${t.id})">撤销</button>
-      `;
-      $('doneList').appendChild(card);
+      // 已处理也拆件显示：qty=0（整单完成）显示 1 张供撤销；qty>1 拆多张，每次撤销恢复 1 件
+      const n = Math.max(1, parseInt(t.qty) || 1);
+      for (let i = 0; i < n; i++) {
+        const card = document.createElement('div');
+        card.className = 'done-card';
+        card.innerHTML = `
+          <div class="done-main">
+            <div class="done-name">${escapeHtml(t.product_name)} <span class="tc-kind" style="font-size:11px;${t.type === 'return' ? 'background:var(--warning);color:#000' : ''}">${t.type === 'return' ? '回库' : '出库'}</span></div>
+            <div class="done-meta">${escapeHtml(t.session_name)} · ${escapeHtml(t.vip_no || t.nickname || '新客户')} · ${escapeHtml(t.condition_type)}${t.is_gift ? ' · 赠品' : ''} · ${fmtTime(t.done_at)} 处理</div>
+          </div>
+          <div class="done-qty">×1</div>
+          <button class="btn-undo" onclick="undoTask(${t.id})">撤销</button>
+        `;
+        $('doneList').appendChild(card);
+      }
     }
   }
 }
@@ -436,7 +444,7 @@ function buildCard(t) {
     </div>
     <div class="tc-body">
       <div class="tc-name">${escapeHtml(t.product_name)}</div>
-      <div class="tc-qty">×${t.qty}</div>
+      <div class="tc-qty">×1</div>
     </div>
     <div class="tc-meta">
       <span class="tc-vip">${escapeHtml(vipText)}</span>
