@@ -26,6 +26,19 @@ if (empty($storeId)) {
     error('请先选择店铺后再操作');
 }
 
+// 幂等防重：网络延迟/连点导致同一提交重复请求时，5秒内相同特征直接返回成功（不重复入库）
+$sig = implode('|', [$storeId, $productId, $conditionType, $qty, $purchasePrice, $suggestedPrice, $supplier, $remark]);
+$now = time();
+if (isset($_SESSION['purchase_last_sig']) && $_SESSION['purchase_last_sig'] === $sig
+    && isset($_SESSION['purchase_last_time']) && ($now - $_SESSION['purchase_last_time']) < 5) {
+    success([
+        'message' => '入库成功',
+        'data' => ['deduped' => true, 'batch_id' => $_SESSION['purchase_last_batch_id'] ?? null]
+    ]);
+}
+$_SESSION['purchase_last_sig'] = $sig;
+$_SESSION['purchase_last_time'] = $now;
+
 $batchNo = 'B' . date('YmdHis') . sprintf('%04d', rand(0, 9999));
 
 $stmt = $pdo->prepare('
@@ -48,6 +61,7 @@ $stmt->execute([
 ]);
 
 $batchId = $pdo->lastInsertId();
+$_SESSION['purchase_last_batch_id'] = $batchId;
 
 $stmt = $pdo->prepare('
     INSERT INTO purchase_log

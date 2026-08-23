@@ -1004,6 +1004,7 @@ async function saveProduct(event) {
 
 /* ---------- 入库 ---------- */
 let purchaseProductId = null;
+let purchaseSaving = false; // 入库防重复提交锁
 async function renderPurchaseConditions() {
     const container = $('purchaseConditionsContainer');
     const keys = getConditionKeys();
@@ -1037,6 +1038,17 @@ function openPurchaseModal(productId) {
 }
 async function savePurchase(e) {
     e.preventDefault();
+    // 防重复提交：网络慢时用户连点会重复入库
+    if (purchaseSaving) { showToast('正在提交，请稍候...'); return; }
+    purchaseSaving = true;
+    try {
+        await doSavePurchase(e);
+    } finally {
+        purchaseSaving = false;
+    }
+}
+
+async function doSavePurchase(e) {
     const productId = purchaseProductId;
     const supplier = $('supplier').value.trim() || null;
     const remark = $('purchaseRemark').value.trim() || null;
