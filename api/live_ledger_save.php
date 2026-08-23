@@ -118,9 +118,10 @@ try {
             $sellPrice = floatval($item['sell_price'] ?? 0);
             $purchaseCost = floatval($item['purchase_cost'] ?? 0);
             $isGift = !empty($item['is_gift']) ? 1 : 0;
+            $isTemp = !empty($item['is_temp']) ? 1 : 0;
 
-            // 进价缺失/为0时自动补真实进价（防运营端或漏传导致成本丢失）
-            if ($purchaseCost <= 0 && !$isGift && $productId > 0) {
+            // 进价缺失/为0时自动补真实进价（防运营端或漏传导致成本丢失；临时商品无真实商品跳过）
+            if ($purchaseCost <= 0 && !$isGift && $productId > 0 && !$isTemp) {
                 $stmt = $pdo->prepare("SELECT purchase_price FROM inventory_batches WHERE product_id = ? AND condition_type = ? AND remaining_qty > 0 AND purchase_price > 0 AND store_id = ? ORDER BY purchased_at DESC, id DESC LIMIT 1");
                 $stmt->execute([$productId, $conditionType, $storeId]);
                 $realCost = $stmt->fetchColumn();
@@ -128,22 +129,26 @@ try {
             }
 
             if ($itemId > 0) {
-                $stmt = $pdo->prepare("UPDATE live_ledger_item SET product_id = ?, condition_type = ?, product_name = ?, qty = ?, sell_price = ?, purchase_cost = ?, is_gift = ? WHERE id = ? AND customer_id = ?");
-                $stmt->execute([$productId, $conditionType, $productName, $qty, $sellPrice, $purchaseCost, $isGift, $itemId, $custId]);
+                $stmt = $pdo->prepare("UPDATE live_ledger_item SET product_id = ?, condition_type = ?, product_name = ?, qty = ?, sell_price = ?, purchase_cost = ?, is_gift = ?, is_temp = ? WHERE id = ? AND customer_id = ?");
+                $stmt->execute([$productId, $conditionType, $productName, $qty, $sellPrice, $purchaseCost, $isGift, $isTemp, $itemId, $custId]);
                 $seenItemIds[] = $itemId;
 
-                // 同步仓库出库单（仅 pending 状态跟随修改，已处理的历史单不动）
-                $stmt = $pdo->prepare("UPDATE warehouse_task SET product_id = ?, product_name = ?, condition_type = ?, qty = ?, is_gift = ? WHERE source_type = 'item' AND source_id = ? AND status = 'pending'");
-                $stmt->execute([$productId, $productName, $conditionType, $qty, $isGift, $itemId]);
+                // 同步仓库出库单（仅 pending 状态跟随修改，已处理的历史单不动）；临时商品无出库单
+                if (!$isTemp) {
+                    $stmt = $pdo->prepare("UPDATE warehouse_task SET product_id = ?, product_name = ?, condition_type = ?, qty = ?, is_gift = ? WHERE source_type = 'item' AND source_id = ? AND status = 'pending'");
+                    $stmt->execute([$productId, $productName, $conditionType, $qty, $isGift, $itemId]);
+                }
             } else {
-                $stmt = $pdo->prepare("INSERT INTO live_ledger_item (session_id, customer_id, product_id, condition_type, product_name, qty, sell_price, purchase_cost, is_gift) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$sessionId, $custId, $productId, $conditionType, $productName, $qty, $sellPrice, $purchaseCost, $isGift]);
+                $stmt = $pdo->prepare("INSERT INTO live_ledger_item (session_id, customer_id, product_id, condition_type, product_name, qty, sell_price, purchase_cost, is_gift, is_temp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$sessionId, $custId, $productId, $conditionType, $productName, $qty, $sellPrice, $purchaseCost, $isGift, $isTemp]);
                 $itemId = (int)$pdo->lastInsertId();
                 $seenItemIds[] = $itemId;
 
-                // 新增商品 → 生成仓库待出库单（同事务）
-                $stmt = $pdo->prepare("INSERT INTO warehouse_task (store_id, session_id, source_type, source_id, customer_id, product_id, product_name, condition_type, qty, is_gift, type, status) VALUES (?, ?, 'item', ?, ?, ?, ?, ?, ?, ?, 'out', 'pending')");
-                $stmt->execute([$storeId, $sessionId, $itemId, $custId, $productId, $productName, $conditionType, $qty, $isGift]);
+                // 新增商品 → 生成仓库待出库单（同事务）；临时商品不入库不生成出库单
+                if (!$isTemp && $productId > 0) {
+                    $stmt = $pdo->prepare("INSERT INTO warehouse_task (store_id, session_id, source_type, source_id, customer_id, product_id, product_name, condition_type, qty, is_gift, type, status) VALUES (?, ?, 'item', ?, ?, ?, ?, ?, ?, ?, 'out', 'pending')");
+                    $stmt->execute([$storeId, $sessionId, $itemId, $custId, $productId, $productName, $conditionType, $qty, $isGift]);
+                }
             }
         }
         // 删除前端未提交的 items
@@ -151,15 +156,15 @@ try {
         if (!empty($toDelete)) {
             $ph = implode(',', array_fill(0, count($toDelete), '?'));
             // 先取被删商品信息（生成回库单用）
-            $stmt = $pdo->prepare("SELECT id, session_id, customer_id, product_id, product_name, condition_type, qty, is_gift FROM live_ledger_item WHERE id IN ($ph)");
+            $stmt = $pdo->prepare("SELECT id, session_id, customer_id, product_id, product_name, condition_type, qty, is_gift, is_temp FROM live_ledger_item WHERE id IN ($ph)");
             $stmt->execute(array_values($toDelete));
             $deletedItems = $stmt->fetchAll();
             foreach ($deletedItems as $di) {
                 // 撤回原待出库单（仅 pending）
                 $stmt = $pdo->prepare("UPDATE warehouse_task SET status = 'cancelled' WHERE source_type = 'item' AND source_id = ? AND status = 'pending'");
                 $stmt->execute([$di['id']]);
-                // 正常商品删除 → 自动生成待回库单（赠品不回收，只撤单）
-                if (!$di['is_gift']) {
+                // 正常商品删除 → 自动生成待回库单（赠品/临时商品不回收，只撤单）
+                if (!$di['is_gift'] && !$di['is_temp']) {
                     $stmt = $pdo->prepare("INSERT INTO warehouse_task (store_id, session_id, source_type, source_id, customer_id, product_id, product_name, condition_type, qty, is_gift, type, status) VALUES (?, ?, 'item', ?, ?, ?, ?, ?, ?, 0, 'return', 'pending')");
                     $stmt->execute([$storeId, $di['session_id'], $di['id'], $di['customer_id'], $di['product_id'], $di['product_name'], $di['condition_type'], $di['qty']]);
                 }

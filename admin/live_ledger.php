@@ -210,6 +210,37 @@ $isOperator = $user['role'] === 'operator';
   </div>
 </div>
 
+<!-- 临时商品弹窗 -->
+<div class="modal" id="tempProductModal">
+  <div class="modal-content" style="width:480px;">
+    <div class="modal-header">
+      <h3 class="modal-title">临时商品</h3>
+      <button class="modal-close" onclick="closeTempProductModal()">&times;</button>
+    </div>
+    <div style="margin-bottom:12px; padding:10px 12px; border-radius:8px; background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.3); color:var(--warning,#f59e0b); font-size:12px;">
+      临时记录，不入库不占库存。待店管入库真实商品后，可删除本临时商品并添加新库存给该客户。
+    </div>
+    <div style="margin-bottom:12px;">
+      <label>商品名称</label>
+      <input type="text" id="tempNameInput" class="form-input" placeholder="如 隐藏款-XX" style="margin-top:6px;">
+    </div>
+    <div style="display:flex; gap:12px; margin-bottom:12px;">
+      <div style="flex:1;">
+        <label>售价(元)</label>
+        <input type="number" id="tempPriceInput" class="form-input" step="0.01" min="0" placeholder="0.00" style="margin-top:6px;">
+      </div>
+      <div style="width:100px;">
+        <label>数量</label>
+        <input type="number" id="tempQtyInput" class="form-input" min="1" value="1" style="margin-top:6px;">
+      </div>
+    </div>
+    <div class="flex" style="justify-content:flex-end; gap:15px;">
+      <button class="btn btn-outline" onclick="closeTempProductModal()">取消</button>
+      <button class="btn btn-warning" style="background:var(--warning,#f59e0b); border-color:var(--warning,#f59e0b); color:#fff;" onclick="confirmTempProduct()">添加临时商品</button>
+    </div>
+  </div>
+</div>
+
 <!-- 赠品弹窗 -->
 <div class="modal" id="giftModal">
   <div class="modal-content" style="width:480px;">
@@ -307,6 +338,10 @@ $isOperator = $user['role'] === 'operator';
 .gift-row { background: rgba(245, 158, 11, 0.07); border-left: 3px solid rgba(245, 158, 11, 0.5); }
 .gift-row td:first-child { padding-left: 10px; }
 .gift-badge { background: var(--warning, #f59e0b); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
+/* 临时商品行：橙色高亮 + 标签 */
+.temp-row { background: rgba(245, 158, 11, 0.12); border-left: 3px solid rgba(245, 158, 11, 0.7); }
+.temp-row td:first-child { padding-left: 10px; }
+.temp-badge { background: var(--warning, #f59e0b); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; margin-left: 6px; font-weight: 600; }
 .del-btn { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--text-tertiary, #9ca3af); padding: 4px 6px; border-radius: 4px; }
 .del-btn:hover { color: var(--danger, #ef4444); background: #fee2e2; }
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 14px; z-index: 3000; display: none; }
@@ -881,10 +916,14 @@ function render() {
 
         let itemsHtml = (c.items || []).map(item => {
             const isGift = item.is_gift;
+            const isTemp = item.is_temp;
+            const rowCls = isGift ? 'gift-row' : (isTemp ? 'temp-row' : '');
+            const tempBadge = isTemp ? '<span class="temp-badge">临时</span>' : '';
+            const tempSku = isTemp ? '<span style="color:var(--warning,#f59e0b);">待入库</span>' : (isGift ? '' : esc(item.condition_name || item.condition_type || ''));
             if (isReadOnly) {
-                return `<tr class="${isGift ? 'gift-row' : ''}">
-                <td>${esc(item.product_name)}${isGift ? '<span class="gift-badge">赠品</span>' : ''}</td>
-                <td>${isGift ? '' : esc(item.condition_name || item.condition_type || '')}</td>
+                return `<tr class="${rowCls}">
+                <td>${esc(item.product_name)}${isGift ? '<span class="gift-badge">赠品</span>' : ''}${tempBadge}</td>
+                <td>${isGift ? '' : tempSku}</td>
                 ${CAN_SEE_PROFIT ? `<td>${fmt(item.purchase_cost)}</td>` : ''}
                 <td>${fmt(item.sell_price)}</td>
                 <td>${item.qty}</td>
@@ -892,9 +931,9 @@ function render() {
                 ${isGift ? '' : `<td><button class="btn btn-sm btn-outline" style="padding:2px 10px; font-size:12px;" onclick="returnItem(${c.id}, ${item.id})">退货</button></td>`}
             </tr>`;
             }
-            return `<tr class="${isGift ? 'gift-row' : ''}">
-                <td>${esc(item.product_name)}${isGift ? '<span class="gift-badge">赠品</span>' : ''}</td>
-                <td>${isGift ? '' : esc(item.condition_name || item.condition_type || '')}</td>
+            return `<tr class="${rowCls}">
+                <td>${esc(item.product_name)}${isGift ? '<span class="gift-badge">赠品</span>' : ''}${tempBadge}</td>
+                <td>${isGift ? '' : tempSku}</td>
                 ${CAN_SEE_PROFIT ? `<td>${fmt(item.purchase_cost)}</td>` : ''}
                 <td><span class="stepper"><button type="button" class="stepper-btn" onclick="stepPrice(${c.id}, ${item.id}, -1)">−</button><input type="text" inputmode="decimal" value="${item.sell_price}" class="form-input stepper-input" style="width:56px;" onchange="updateItemPrice(${c.id}, ${item.id}, this.value)"><button type="button" class="stepper-btn" onclick="stepPrice(${c.id}, ${item.id}, 1)">+</button></span></td>
                 <td><span class="stepper"><button type="button" class="stepper-btn" onclick="stepQty(${c.id}, ${item.id}, -1)">−</button><input type="text" inputmode="numeric" value="${item.qty}" class="form-input stepper-input" style="width:44px;" onchange="updateItemQty(${c.id}, ${item.id}, this.value)"><button type="button" class="stepper-btn" onclick="stepQty(${c.id}, ${item.id}, 1)">+</button></span></td>
@@ -938,6 +977,7 @@ function render() {
                     <span class="toggle-arrow">▼</span>
                     ${c.vip_no ? `<span class="badge" style="${vipTierStyle(c.vip_no)}">${esc(c.vip_no)}</span>` : ''}
                     <span class="nickname">${esc(c.nickname) || '(未命名)'}</span>
+                    ${(c.items || []).some(i => i.is_temp) ? '<span class="temp-badge" style="margin-left:6px;">临时</span>' : ''}
                     ${needsGift ? `<span class="gift-remind">🎁 待赠</span>` : ''}
                     <span class="summary"><span>${m.totalQty}件</span><span>¥${fmt(m.gmv)}</span></span>
                     <span class="actions" onclick="event.stopPropagation()">
@@ -958,8 +998,9 @@ function render() {
                         <thead><tr><th>商品</th><th>SKU</th>${CAN_SEE_PROFIT ? '<th>进价</th>' : ''}<th>售价</th><th>数量</th><th>小计</th><th></th></tr></thead>
                         <tbody>${itemsHtml}${giftHtml}</tbody>
                     </table>
-                    ${isReadOnly ? '' : `<div style="margin-top:10px;">
+                    ${isReadOnly ? '' : `<div style="margin-top:10px; display:flex; gap:8px;">
                         <button class="btn btn-sm btn-primary" onclick="openProductModal(${c.id})">添加商品</button>
+                        <button class="btn btn-sm btn-warning" style="background:var(--warning,#f59e0b); border-color:var(--warning,#f59e0b); color:#fff;" onclick="openTempProductModal(${c.id})">临时商品</button>
                     </div>`}
                     ${metrics}
                 </div>
@@ -1205,6 +1246,46 @@ function openProductModal(cid) {
 function closeProductModal() {
     modalOpen = false;
     document.getElementById('addProductModal').classList.remove('show');
+}
+
+// ===== 临时商品 =====
+let tempCustomerId = null;
+function openTempProductModal(cid) {
+    tempCustomerId = cid;
+    document.getElementById('tempNameInput').value = '';
+    document.getElementById('tempPriceInput').value = '';
+    document.getElementById('tempQtyInput').value = '1';
+    document.getElementById('tempProductModal').classList.add('show');
+    setTimeout(() => document.getElementById('tempNameInput').focus(), 100);
+}
+function closeTempProductModal() {
+    tempCustomerId = null;
+    document.getElementById('tempProductModal').classList.remove('show');
+}
+function confirmTempProduct() {
+    const name = document.getElementById('tempNameInput').value.trim();
+    const price = parseFloat(document.getElementById('tempPriceInput').value);
+    const qty = parseInt(document.getElementById('tempQtyInput').value) || 1;
+    if (!name) { toast('请填写商品名称', true); return; }
+    if (isNaN(price) || price < 0) { toast('请填写有效售价', true); return; }
+    let c = (sessionData.customers || []).find(x => x.id === tempCustomerId);
+    if (!c) { toast('客户不存在，请重试', true); return; }
+    c.items.push({
+        id: nextLocalId--,
+        product_id: 0,            // 无真实商品
+        condition_type: '',
+        condition_name: '',
+        product_name: name,
+        qty: qty,
+        sell_price: price,
+        purchase_cost: 0,
+        is_gift: 0,
+        is_temp: 1                // 标记临时商品
+    });
+    closeTempProductModal();
+    render();
+    toast('已添加临时商品（不入库，待替换真实商品）');
+    scheduleAutoSave();
 }
 
 function debounceSearchProduct() {
@@ -1465,6 +1546,7 @@ function buildPayload() {
                 sell_price: i.sell_price,
                 purchase_cost: i.purchase_cost,
                 is_gift: i.is_gift,
+                is_temp: i.is_temp,
             })),
             gifts: (c.gifts || []).map(g => ({
                 id: g.id > 0 ? g.id : 0,
