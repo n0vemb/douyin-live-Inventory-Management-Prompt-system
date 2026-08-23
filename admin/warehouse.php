@@ -182,6 +182,13 @@ body {
   font-size:26px; font-weight:700;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
+/* 商品名右侧价格 */
+.tc-price {
+  font-size:20px; font-weight:700;
+  color: var(--success, #22c55e);
+  margin-left:10px;
+  white-space:nowrap;
+}
 .tc-qty {
   flex-shrink:0;
   font-size:30px; font-weight:800;
@@ -349,6 +356,31 @@ let allItems = [];          // 后端返回全部（pending + done）
 let knownIds = new Set();   // 已渲染 id（用于检测新单）
 let currentTab = 'todo';
 let loading = false;
+let condMap = {};           // condition_type key → 中文名（从店铺设置加载）
+
+// 默认映射（设置未加载时兜底）
+const COND_FALLBACK = { sealed: '未拆袋', opened: '已拆无瑕', boxless: '无盒无瑕', flawed: '微瑕' };
+function condCN(key) {
+  if (!key) return '';
+  return condMap[key] || COND_FALLBACK[key] || key;
+}
+// 加载店铺状态设置
+async function loadSettings() {
+  try {
+    const res = await fetch('../api/get_settings.php');
+    const data = await res.json();
+    if (data.success && data.data && data.data.condition_types) {
+      const cm = {};
+      data.data.condition_types.forEach(c => { cm[c.key] = c.name; });
+      condMap = cm;
+    }
+  } catch (e) {}
+}
+// 价格显示：客户记账实际售价（操作人改过即改后价）
+function fmtPrice(v) {
+  if (v === null || v === undefined || v === '') return '';
+  return '¥' + (parseFloat(v) || 0).toFixed(2);
+}
 
 // ============ 渲染 ============
 function fmtTime(ts) {
@@ -419,8 +451,8 @@ function render(newIds = null) {
         card.className = 'done-card';
         card.innerHTML = `
           <div class="done-main">
-            <div class="done-name">${escapeHtml(t.product_name)} <span class="tc-kind" style="font-size:11px;${t.type === 'return' ? 'background:var(--warning);color:#000' : ''}">${t.type === 'return' ? '回库' : '出库'}</span></div>
-            <div class="done-meta">${escapeHtml(t.session_name)} · ${escapeHtml(t.vip_no || t.nickname || '新客户')} · ${escapeHtml(t.condition_type)}${t.is_gift ? ' · 赠品' : ''} · ${fmtTime(t.done_at)} 处理</div>
+            <div class="done-name">${escapeHtml(t.product_name)} <span class="tc-kind" style="font-size:11px;${t.type === 'return' ? 'background:var(--warning);color:#000' : ''}">${t.type === 'return' ? '回库' : '出库'}</span>${t.sell_price !== null && t.sell_price !== undefined && t.sell_price !== '' ? `<span class="tc-price">${fmtPrice(t.sell_price)}</span>` : ''}</div>
+            <div class="done-meta">${escapeHtml(t.session_name)} · ${escapeHtml(t.vip_no || t.nickname || '新客户')} · ${escapeHtml(condCN(t.condition_type))}${t.is_gift ? ' · 赠品' : ''} · ${fmtTime(t.done_at)} 处理</div>
           </div>
           <div class="done-qty">×1</div>
           <button class="btn-undo" onclick="undoTask(${t.id})">撤销</button>
@@ -443,12 +475,12 @@ function buildCard(t) {
       <span class="tc-time">${fmtTime(t.created_at)}</span>
     </div>
     <div class="tc-body">
-      <div class="tc-name">${escapeHtml(t.product_name)}</div>
+      <div class="tc-name">${escapeHtml(t.product_name)} ${t.sell_price !== null && t.sell_price !== undefined && t.sell_price !== '' ? `<span class="tc-price">${fmtPrice(t.sell_price)}</span>` : ''}</div>
       <div class="tc-qty">×1</div>
     </div>
     <div class="tc-meta">
       <span class="tc-vip">${escapeHtml(vipText)}</span>
-      ${t.condition_type ? `<span class="tc-cond">${escapeHtml(t.condition_type)}</span>` : ''}
+      ${t.condition_type ? `<span class="tc-cond">${escapeHtml(condCN(t.condition_type))}</span>` : ''}
       ${t.is_gift ? `<span class="tc-gift">赠品</span>` : ''}
     </div>
     <div class="tc-actions">
@@ -592,6 +624,7 @@ setInterval(() => { $('clock').textContent = fmtClock(now()); }, 1000);
 $('clock').textContent = fmtClock(now());
 
 // 轮询
+loadSettings();  // 预加载状态中文名（异步，首帧可能用兜底映射，刷新后正确）
 load();
 setInterval(load, 5000);
 </script>

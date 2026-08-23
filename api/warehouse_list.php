@@ -16,10 +16,12 @@ SELECT wt.id, wt.source_type, wt.source_id, wt.customer_id, wt.product_id,
        wt.product_name, wt.condition_type, wt.qty, wt.is_gift, wt.type, wt.status,
        wt.done_at, wt.created_at,
        s.id AS session_id, s.session_name, s.status AS session_status,
-       c.nickname, c.vip_no
+       c.nickname, c.vip_no,
+       li.sell_price
 FROM warehouse_task wt
 LEFT JOIN live_ledger_session s ON wt.session_id = s.id
 LEFT JOIN live_ledger_customer c ON wt.customer_id = c.id
+LEFT JOIN live_ledger_item li ON wt.source_type = 'item' AND li.id = wt.source_id
 WHERE 1=1";
 $params = [];
 if ($storeId) {
