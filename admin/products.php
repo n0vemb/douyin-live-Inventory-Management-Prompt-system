@@ -1029,7 +1029,8 @@ function openPurchaseModal(productId) {
     const keys = getConditionKeys();
     keys.forEach(k => {
         $('pur_qty_' + k).value = '';
-        $('pur_cost_' + k).value = '';
+        // 进价框仅超管/店管可见(CAN_SEE_PROFIT)，运营无此元素，跳过避免 null 报错
+        if (CAN_SEE_PROFIT && $('pur_cost_' + k)) $('pur_cost_' + k).value = '';
         $('pur_price_' + k).value = '';
     });
     $('supplier').value = '';
