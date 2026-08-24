@@ -130,7 +130,7 @@ $qrAli = posAssetUrl($qrAli);
     .cart-fab{display:flex}
     .cart{top:56px}
     .sheet{max-width:100%;max-height:86vh}
-    .sheet-body{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+    .sheet-body .sku-opt{width:min(220px,46vw)}
   }
   .mask{position:fixed;inset:0;background:rgba(15,20,40,.5);display:none;align-items:flex-end;justify-content:center;z-index:50}
   .mask.show{display:flex}
@@ -139,7 +139,8 @@ $qrAli = posAssetUrl($qrAli);
   .sheet-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
   .sheet-head .st{font-size:17px;font-weight:800}
   .sheet-head .x{margin-left:auto;font-size:26px;color:var(--text-3);cursor:pointer;line-height:1}
-  .sheet-body{padding:14px 20px 24px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+  .sheet-body{padding:14px 20px 24px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-content:flex-start}
+  .sheet-body .sku-opt{width:220px;flex:none}
   .sku-opt{border:1px solid var(--border);border-radius:14px;padding:13px 14px;cursor:pointer;transition:.15s;background:var(--surface-2)}
   .sku-opt:active{transform:scale(.98)}
   .sku-opt.sold{opacity:.45;cursor:not-allowed;background:#f4eef1}
@@ -411,6 +412,7 @@ function addToCart(pid, cond) {
   const ex = cart.find(c => c.key === key);
   if (ex) { ex.qty++; }
   else cart.push({ key, pid, name: p.name, series: p.series, cond, condName: sk.cond_name, unit: sk.price, qty: 1, imgUrl: p.image_url || '' });
+  closeSku(); // 点击 SKU 加入后关闭品相弹层
   // 若清单被收起，加入商品时自动弹出
   if (!$('cart').classList.contains('open')) expandCart();
   renderCart();
