@@ -50,13 +50,13 @@ $qrAli = posAssetUrl($qrAli);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%}
-  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:15px;overflow:hidden}
-  .topbar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(135deg,#ff5c8a,#ff8a5c);color:#fff;box-shadow:var(--shadow);z-index:20}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:15px;overflow-y:auto}
+  .topbar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:12px 18px;background:var(--primary);color:#fff;box-shadow:var(--shadow);z-index:20}
   .topbar .store{font-size:17px;font-weight:800;letter-spacing:.5px;white-space:nowrap;justify-self:start}
   .search-wrap{display:flex;align-items:center;gap:7px;background:#fff;border-radius:22px;padding:8px 15px;width:min(380px,60vw);justify-self:center;box-shadow:0 1px 5px rgba(0,0,0,.12)}
   .search-wrap .si{font-size:14px;opacity:.55}
   .search-wrap .search{border:none;outline:none;background:transparent;font-size:14.5px;width:100%;color:#1c2230}
-  .kiosk{display:flex;height:calc(100vh - 60px)}
+  .kiosk{display:flex;min-height:calc(100vh - 60px);height:auto}
   .menu{flex:1;display:flex;flex-direction:column;min-width:0}
   .cats{display:flex;gap:4px 18px;padding:14px 18px 6px;flex-wrap:wrap;flex-shrink:0;max-height:200px;overflow-y:auto}
   .brand-item{font-size:15px;font-weight:600;color:var(--text-2);padding:8px 4px;cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;transition:.15s;line-height:1.2}
@@ -67,8 +67,8 @@ $qrAli = posAssetUrl($qrAli);
   .series-bar{display:flex;gap:8px;padding:6px 18px 0;flex-wrap:wrap;flex-shrink:0;max-height:180px;overflow-y:auto}
   .series-bar .cat{background:var(--surface-2);border-color:var(--border);font-size:13px;padding:7px 14px;min-height:34px}
   .series-bar .cat.on{background:var(--primary-soft);color:var(--primary-d);border-color:var(--primary);font-weight:700}
-  .grid{flex:1;overflow-y:auto;padding:12px 18px 24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:14px;align-content:start}
-  .pcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:.15s;box-shadow:var(--shadow);display:flex;flex-direction:column}
+  .grid{flex:1;overflow:visible;padding:12px 18px 24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));grid-auto-rows:max-content;gap:14px;align-content:start}
+  .pcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:.15s;box-shadow:var(--shadow);display:flex;flex-direction:column;height:max-content;min-height:0}
   .pcard:active{transform:scale(.97)}
   .pcard .img{aspect-ratio:3/4;width:100%;flex:none;display:flex;align-items:center;justify-content:center;font-size:44px;font-weight:800;color:#fff;position:relative;overflow:hidden}
   .pcard .img img{width:100%;height:100%;object-fit:contain;position:absolute;inset:0;background:#fff}
@@ -115,7 +115,7 @@ $qrAli = posAssetUrl($qrAli);
 
   /* ===== 竖屏适配（平板竖放 / 窄屏）===== */
   @media (max-width: 820px) {
-    .kiosk{height:calc(100vh - 56px)}
+    .kiosk{min-height:calc(100vh - 56px);height:auto}
     .topbar{grid-template-columns:1fr auto;padding:10px 14px}
     .topbar .store{font-size:15px}
     .search-wrap{max-width:none}
