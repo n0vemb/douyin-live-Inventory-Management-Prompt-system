@@ -58,7 +58,10 @@ $qrAli = posAssetUrl($qrAli);
   .search-wrap .search{border:none;outline:none;background:transparent;font-size:14.5px;width:100%;color:#1c2230}
   .kiosk{display:flex;height:calc(100vh - 60px)}
   .menu{flex:1;display:flex;flex-direction:column;min-width:0}
-  .cats{display:flex;gap:8px;padding:12px 18px 4px;flex-wrap:wrap;flex-shrink:0;max-height:220px;overflow-y:auto}
+  .cats{display:flex;gap:4px 18px;padding:14px 18px 6px;flex-wrap:wrap;flex-shrink:0;max-height:200px;overflow-y:auto}
+  .brand-item{font-size:15px;font-weight:600;color:var(--text-2);padding:8px 4px;cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;transition:.15s;line-height:1.2}
+  .brand-item:hover{color:var(--text)}
+  .brand-item.on{color:var(--primary);border-bottom-color:var(--primary);font-weight:800}
   .cat{padding:9px 16px;border-radius:22px;background:var(--surface);border:1px solid var(--border);font-size:14px;font-weight:600;color:var(--text-2);white-space:nowrap;cursor:pointer;min-height:40px}
   .cat.on{background:var(--primary);color:#fff;border-color:var(--primary)}
   .series-bar{display:flex;gap:8px;padding:6px 18px 0;flex-wrap:wrap;flex-shrink:0;max-height:180px;overflow-y:auto}
@@ -76,7 +79,8 @@ $qrAli = posAssetUrl($qrAli);
   .pcard .from{font-size:11.5px;color:var(--text-2);margin-top:6px}
   .pcard .from b{color:var(--primary);font-size:15px}
   .pcard .sku-n{font-size:10.5px;color:var(--text-3);margin-top:2px}
-  .cart{width:330px;flex-shrink:0;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;box-shadow:-6px 0 20px rgba(30,40,80,.05)}
+  .cart{position:fixed;right:0;top:60px;bottom:0;width:min(340px,88vw);flex-shrink:0;background:var(--surface);border-left:1px solid var(--border);display:none;flex-direction:column;box-shadow:-8px 0 24px rgba(30,40,80,.18);z-index:40}
+  .cart.open{display:flex}
   .cart-head{padding:14px 16px;border-bottom:1px solid var(--border);font-weight:800;font-size:16px;display:flex;align-items:center;gap:8px}
   .cart-head .cnt{background:var(--primary);color:#fff;font-size:12px;padding:1px 9px;border-radius:12px}
   .cart-head .collapse{margin-left:auto;border:none;background:var(--surface-2);width:34px;height:34px;border-radius:10px;font-size:20px;color:var(--text-2);cursor:pointer}
@@ -106,7 +110,7 @@ $qrAli = posAssetUrl($qrAli);
   .btn:active{transform:scale(.98)}
   .btn-primary{background:var(--primary);color:#fff}
   .btn-ghost{background:var(--surface);border:1px solid var(--border);color:var(--text-2);flex:0 0 auto;width:120px}
-  .cart-fab{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:30;display:none;flex-direction:column;align-items:center;gap:5px;background:var(--primary);color:#fff;border:none;border-radius:24px 0 0 24px;padding:14px 11px;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:var(--shadow);min-height:64px;justify-content:center}
+  .cart-fab{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:30;display:none;flex-direction:column;align-items:center;gap:5px;background:var(--primary);color:#fff;border:none;border-radius:0;padding:14px 11px;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:var(--shadow);min-height:64px;justify-content:center}
   .cart-fab .n{background:#fff;color:var(--primary);border-radius:12px;padding:0 8px;font-size:12px;font-weight:800}
 
   /* ===== 竖屏适配（平板竖放 / 窄屏）===== */
@@ -123,9 +127,8 @@ $qrAli = posAssetUrl($qrAli);
     .pcard .body{padding:7px 9px 10px}
     .pcard .pn{font-size:13px}
     /* 竖屏默认收起购物车，用悬浮按钮 */
-    .cart{display:none !important}
     .cart-fab{display:flex}
-    .cart.open{display:flex !important;width:min(330px,86vw);position:fixed;right:0;top:56px;bottom:0;z-index:40;box-shadow:-8px 0 30px rgba(0,0,0,.18)}
+    .cart{top:56px}
     .sheet{max-width:100%;max-height:86vh}
     .sheet-body{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
   }
@@ -190,8 +193,8 @@ $qrAli = posAssetUrl($qrAli);
   </div>
   <div class="cart" id="cart" style="display:none">
     <div class="cart-head">
-      <span>购物清单</span><span class="cnt" id="cartCnt">0</span>
-      <button class="collapse" onclick="collapseCart()" title="收起清单">›</button>
+      <span>购物车</span><span class="cnt" id="cartCnt">0</span>
+      <button class="collapse" onclick="collapseCart()" title="收起购物车">›</button>
     </div>
     <div class="cart-list" id="cartList"></div>
     <div class="summary" id="summary"></div>
@@ -201,7 +204,7 @@ $qrAli = posAssetUrl($qrAli);
     </div>
   </div>
 </div>
-<button class="cart-fab" id="cartFab" onclick="expandCart()"><span class="n" id="fabCnt">0</span>清单</button>
+<button class="cart-fab" id="cartFab" onclick="expandCart()"><span class="n" id="fabCnt">0</span>购物车</button>
 
 <!-- 品相选择 -->
 <div class="mask" id="skuMask" onclick="if(event.target===this)closeSku()">
@@ -330,7 +333,7 @@ function setSeries(s) {
 }
 function renderBrands() {
   const brands = listBrands();
-  $('brands').innerHTML = brands.map(b => `<div class="cat ${b === curBrand ? 'on' : ''}" onclick="setBrand('${b.replace(/'/g, "\\'")}')">${b}</div>`).join('');
+  $('brands').innerHTML = brands.map(b => `<div class="brand-item ${b === curBrand ? 'on' : ''}" onclick="setBrand('${b.replace(/'/g, "\\\\'")}')">${b}</div>`).join('');
 }
 function renderSeries() {
   const series = listSeries(curBrand);
@@ -409,7 +412,7 @@ function addToCart(pid, cond) {
   if (ex) { ex.qty++; }
   else cart.push({ key, pid, name: p.name, series: p.series, cond, condName: sk.cond_name, unit: sk.price, qty: 1, imgUrl: p.image_url || '' });
   // 若清单被收起，加入商品时自动弹出
-  if (isNarrow() ? !$('cart').classList.contains('open') : ($('cart').style.display === 'none')) expandCart();
+  if (!$('cart').classList.contains('open')) expandCart();
   renderCart();
   toast('已加入 ' + p.name + ' · ' + sk.cond_name);
 }
@@ -424,17 +427,8 @@ function clearCart() {
   if (!cart.length) return;
   cart = []; renderCart(); toast('已清空');
 }
-function isNarrow() { return window.matchMedia('(max-width: 820px)').matches; }
-function collapseCart() {
-  if (isNarrow()) { $('cart').classList.remove('open'); }
-  else { $('cart').style.display = 'none'; }
-  $('cartFab').style.display = 'flex';
-}
-function expandCart() {
-  if (isNarrow()) { $('cart').classList.add('open'); }
-  else { $('cart').style.display = 'flex'; }
-  $('cartFab').style.display = 'none';
-}
+function collapseCart() { $('cart').classList.remove('open'); $('cartFab').style.display = 'flex'; }
+function expandCart() { $('cart').classList.add('open'); $('cartFab').style.display = 'none'; }
 function renderCart() {
   const list = $('cartList');
   if (!cart.length) {
