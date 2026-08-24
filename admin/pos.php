@@ -191,7 +191,7 @@ $qrAli = posAssetUrl($qrAli);
     <div class="series-bar" id="seriesBar"></div>
     <div class="grid" id="grid"></div>
   </div>
-  <div class="cart" id="cart" style="display:none">
+  <div class="cart" id="cart">
     <div class="cart-head">
       <span>购物车</span><span class="cnt" id="cartCnt">0</span>
       <button class="collapse" onclick="collapseCart()" title="收起购物车">›</button>
