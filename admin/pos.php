@@ -58,10 +58,10 @@ $qrAli = posAssetUrl($qrAli);
   .search-wrap .search{border:none;outline:none;background:transparent;font-size:14.5px;width:100%;color:#1c2230}
   .kiosk{display:flex;height:calc(100vh - 60px)}
   .menu{flex:1;display:flex;flex-direction:column;min-width:0}
-  .cats{display:flex;gap:8px;padding:12px 18px 4px;overflow-x:auto;flex-shrink:0}
+  .cats{display:flex;gap:8px;padding:12px 18px 4px;flex-wrap:wrap;flex-shrink:0;max-height:220px;overflow-y:auto}
   .cat{padding:9px 16px;border-radius:22px;background:var(--surface);border:1px solid var(--border);font-size:14px;font-weight:600;color:var(--text-2);white-space:nowrap;cursor:pointer;min-height:40px}
   .cat.on{background:var(--primary);color:#fff;border-color:var(--primary)}
-  .series-bar{display:flex;gap:8px;padding:6px 18px 0;overflow-x:auto;flex-shrink:0}
+  .series-bar{display:flex;gap:8px;padding:6px 18px 0;flex-wrap:wrap;flex-shrink:0;max-height:180px;overflow-y:auto}
   .series-bar .cat{background:var(--surface-2);border-color:var(--border);font-size:13px;padding:7px 14px;min-height:34px}
   .series-bar .cat.on{background:var(--primary-soft);color:var(--primary-d);border-color:var(--primary);font-weight:700}
   .grid{flex:1;overflow-y:auto;padding:12px 18px 24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:14px;align-content:start}
