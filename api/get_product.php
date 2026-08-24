@@ -116,8 +116,12 @@ $result = [
     'common_name' => $product['common_name'] ?? null,
     'product_description' => $product['product_description'] ?? null,
     'series' => $product['series'],
+    'brand' => $product['brand'] ?? null,
     'barcode' => $product['barcode'],
     'qiandao_price' => $product['qiandao_price'],
+    'release_date' => $product['release_date'] ?? null,
+    'remark' => $product['remark'] ?? null,
+    'pinyin_initials' => $product['pinyin_initials'] ?? null,
     'image_url' => $product['image_url'],
     'inventory' => $inventoryData
 ];

@@ -67,8 +67,8 @@ $qrAli = posAssetUrl($qrAli);
   .grid{flex:1;overflow-y:auto;padding:12px 18px 24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:14px;align-content:start}
   .pcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:.15s;box-shadow:var(--shadow);display:flex;flex-direction:column}
   .pcard:active{transform:scale(.97)}
-  .pcard .img{height:118px;display:flex;align-items:center;justify-content:center;font-size:44px;font-weight:800;color:#fff;position:relative;overflow:hidden}
-  .pcard .img img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+  .pcard .img{aspect-ratio:3/4;width:100%;flex:none;display:flex;align-items:center;justify-content:center;font-size:44px;font-weight:800;color:#fff;position:relative;overflow:hidden}
+  .pcard .img img{width:100%;height:100%;object-fit:contain;position:absolute;inset:0;background:#fff}
   .pcard .series{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.45);color:#fff;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;z-index:2}
   .pcard .body{padding:9px 11px 12px}
   .pcard .pn{font-size:14px;font-weight:700;line-height:1.25}
