@@ -89,10 +89,12 @@ $stmt = $pdo->prepare("
         ib.purchase_price,
         ib.suggested_price,
         ib.remaining_qty,
+        ib.locked_qty,
+        (ib.remaining_qty - ib.locked_qty) AS available_qty,
         ib.purchased_at
     FROM inventory_batches ib
     JOIN products p ON ib.product_id = p.id
-    WHERE p.id IN ({$placeholders}) AND ib.remaining_qty > 0" . ($storeId ? " AND ib.store_id = ?" : "") . "
+    WHERE p.id IN ({$placeholders}) AND ib.remaining_qty - ib.locked_qty > 0" . ($storeId ? " AND ib.store_id = ?" : "") . "
     ORDER BY p.id, ib.condition_type, ib.purchased_at ASC
 ");
 $params = $productIds;

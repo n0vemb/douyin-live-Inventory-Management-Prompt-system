@@ -9,7 +9,7 @@ try {
 
     if ($storeId) {
         // 店铺管理员：从 stores 表读取店铺级配置
-        $stmt = $pdo->prepare('SELECT name, system_name, logo_path, condition_types, live_display, shipping_fee, actual_shipping_fee, platform_fee_rate FROM stores WHERE id = ?');
+        $stmt = $pdo->prepare('SELECT name, system_name, logo_path, condition_types, live_display, shipping_fee, actual_shipping_fee, platform_fee_rate, offline_price_ratio, offline_staff_pwd, offline_pay_qr_wx, offline_pay_qr_ali, pos_token FROM stores WHERE id = ?');
         $stmt->execute([$storeId]);
         $store = $stmt->fetch();
 
@@ -27,6 +27,12 @@ try {
                 $decoded = json_decode($store['live_display'], true);
                 if (is_array($decoded)) $formatted['live_display'] = $decoded;
             }
+            // 线下收银台配置（店员密码绝不回传，只给是否已设置）
+            $formatted['offline_price_ratio'] = $store['offline_price_ratio'] !== null ? floatval($store['offline_price_ratio']) : 1.80;
+            $formatted['offline_staff_pwd_set'] = !empty($store['offline_staff_pwd']);
+            $formatted['offline_pay_qr_wx'] = $store['offline_pay_qr_wx'] ?? '';
+            $formatted['offline_pay_qr_ali'] = $store['offline_pay_qr_ali'] ?? '';
+            $formatted['pos_token'] = $store['pos_token'] ?? '';
         }
 
         // 填充默认值

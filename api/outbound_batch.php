@@ -56,10 +56,10 @@ try {
 
         // 与读 API 保持一致：store_id 存在则过滤，全平台视角则不限制
         if ($storeId) {
-            $stmt = $pdo->prepare('SELECT * FROM inventory_batches WHERE id = ? AND remaining_qty >= ? AND store_id = ? FOR UPDATE');
+            $stmt = $pdo->prepare('SELECT * FROM inventory_batches WHERE id = ? AND remaining_qty - locked_qty >= ? AND store_id = ? FOR UPDATE');
             $stmt->execute([$batchId, $qty, $storeId]);
         } else {
-            $stmt = $pdo->prepare('SELECT * FROM inventory_batches WHERE id = ? AND remaining_qty >= ? FOR UPDATE');
+            $stmt = $pdo->prepare('SELECT * FROM inventory_batches WHERE id = ? AND remaining_qty - locked_qty >= ? FOR UPDATE');
             $stmt->execute([$batchId, $qty]);
         }
         $batch = $stmt->fetch();

@@ -85,7 +85,7 @@ try {
     $stmt = $pdo->prepare('
         SELECT condition_type, GROUP_CONCAT(DISTINCT purchase_price ORDER BY purchase_price SEPARATOR "/") as prices
         FROM inventory_batches
-        WHERE product_id = ? AND remaining_qty > 0 AND purchase_price > 0 AND store_id = ?
+        WHERE product_id = ? AND remaining_qty - locked_qty > 0 AND purchase_price > 0 AND store_id = ?
         GROUP BY condition_type
     ');
     $stmt->execute([$product['id'], $storeId]);

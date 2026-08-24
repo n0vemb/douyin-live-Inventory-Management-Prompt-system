@@ -16,13 +16,24 @@ try {
 
     if ($storeId) {
         // 店铺管理员：保存到 stores 表
-        $allowedFields = ['system_name', 'logo_path', 'condition_types', 'live_display', 'shipping_fee', 'actual_shipping_fee', 'platform_fee_rate'];
+        $allowedFields = ['system_name', 'logo_path', 'condition_types', 'live_display', 'shipping_fee', 'actual_shipping_fee', 'platform_fee_rate', 'offline_price_ratio', 'offline_pay_qr_wx', 'offline_pay_qr_ali'];
         // store_name 映射到 name 字段
         $fieldMap = ['store_name' => 'name'];
         // 数值字段，不需要 JSON 编码
-        $numericFields = ['shipping_fee', 'platform_fee_rate'];
+        $numericFields = ['shipping_fee', 'platform_fee_rate', 'offline_price_ratio'];
         $updateFields = [];
         $updateParams = [];
+
+        // 店员密码：非空才更新，password_hash 存储；空值不修改
+        if (isset($settings['offline_staff_pwd']) && $settings['offline_staff_pwd'] !== '') {
+            $updateFields[] = 'offline_staff_pwd = ?';
+            $updateParams[] = password_hash($settings['offline_staff_pwd'], PASSWORD_DEFAULT);
+        }
+        // 重置收银台 token
+        if (!empty($settings['offline_reset_token'])) {
+            $updateFields[] = 'pos_token = ?';
+            $updateParams[] = bin2hex(random_bytes(16));
+        }
 
         foreach ($allowedFields as $field) {
             if (isset($settings[$field])) {

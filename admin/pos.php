@@ -1,0 +1,568 @@
+<?php
+/**
+ * admin/pos.php — 线下收银台（免登录，URL 带店铺 token）
+ * 访问：/admin/pos.php?t={pos_token}（店铺设置中查看/复制）
+ * 顾客自助看图下单：品牌/IP → 系列 → 商品 → 品相 → 购物车
+ * 结算：选微信/支付宝 → 弹店铺收款码 → 顾客扫码付款 → 点「已付款」→ 订单进后台待出库
+ * 一期纯自助：无店员模式、无折扣、无改价
+ */
+require_once __DIR__ . '/../api/pos_auth.php';
+$storeId = posStoreId();
+if (!$storeId) {
+    http_response_code(401);
+    echo '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>收银台</title></head>
+<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#fdf3f6;color:#7a6b75">
+<div style="text-align:center"><h2 style="color:#2b2230">收银台链接无效</h2>
+<p>请从后台「店铺设置 → 线下收银台」获取正确的访问链接</p></div></body></html>';
+    exit;
+}
+$pdo = getDB();
+$stmt = $pdo->prepare('SELECT name, offline_pay_qr_wx, offline_pay_qr_ali FROM stores WHERE id = ?');
+$stmt->execute([$storeId]);
+$storeRow = $stmt->fetch();
+$storeName = $storeRow['name'] ?? '线下收银台';
+$qrWx = $storeRow['offline_pay_qr_wx'] ?? '';
+$qrAli = $storeRow['offline_pay_qr_ali'] ?? '';
+?>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title><?= htmlspecialchars($storeName) ?> · 收银台</title>
+<style>
+  :root{
+    --bg:#fdf3f6; --surface:#ffffff; --surface-2:#fff0f4; --border:#ffd9e4;
+    --text:#2b2230; --text-2:#7a6b75; --text-3:#b6a7b1;
+    --primary:#ff5c8a; --primary-d:#e63e72; --primary-soft:#ffe3ec;
+    --ok:#22b07d; --warn:#ff9f43; --danger:#ff5a5f;
+    --shadow:0 8px 24px rgba(255,92,138,.14);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:15px;overflow:hidden}
+  .topbar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(135deg,#ff5c8a,#ff8a5c);color:#fff;box-shadow:var(--shadow);z-index:20}
+  .topbar .store{font-size:17px;font-weight:800;letter-spacing:.5px;white-space:nowrap;justify-self:start}
+  .search-wrap{display:flex;align-items:center;gap:7px;background:#fff;border-radius:22px;padding:8px 15px;width:min(380px,60vw);justify-self:center;box-shadow:0 1px 5px rgba(0,0,0,.12)}
+  .search-wrap .si{font-size:14px;opacity:.55}
+  .search-wrap .search{border:none;outline:none;background:transparent;font-size:14.5px;width:100%;color:#1c2230}
+  .kiosk{display:flex;height:calc(100vh - 60px)}
+  .menu{flex:1;display:flex;flex-direction:column;min-width:0}
+  .cats{display:flex;gap:8px;padding:12px 18px 4px;overflow-x:auto;flex-shrink:0}
+  .cat{padding:9px 16px;border-radius:22px;background:var(--surface);border:1px solid var(--border);font-size:14px;font-weight:600;color:var(--text-2);white-space:nowrap;cursor:pointer;min-height:40px}
+  .cat.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .series-bar{display:flex;gap:8px;padding:6px 18px 0;overflow-x:auto;flex-shrink:0}
+  .series-bar .cat{background:var(--surface-2);border-color:var(--border);font-size:13px;padding:7px 14px;min-height:34px}
+  .series-bar .cat.on{background:var(--primary-soft);color:var(--primary-d);border-color:var(--primary);font-weight:700}
+  .grid{flex:1;overflow-y:auto;padding:12px 18px 24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:14px;align-content:start}
+  .pcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:.15s;box-shadow:var(--shadow);display:flex;flex-direction:column}
+  .pcard:active{transform:scale(.97)}
+  .pcard .img{height:118px;display:flex;align-items:center;justify-content:center;font-size:44px;font-weight:800;color:#fff;position:relative;overflow:hidden}
+  .pcard .img img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+  .pcard .series{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.45);color:#fff;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;z-index:2}
+  .pcard .body{padding:9px 11px 12px}
+  .pcard .pn{font-size:14px;font-weight:700;line-height:1.25}
+  .pcard .pb{font-size:11.5px;color:var(--text-3);margin-top:2px}
+  .pcard .from{font-size:11.5px;color:var(--text-2);margin-top:6px}
+  .pcard .from b{color:var(--primary);font-size:15px}
+  .pcard .sku-n{font-size:10.5px;color:var(--text-3);margin-top:2px}
+  .cart{width:330px;flex-shrink:0;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;box-shadow:-6px 0 20px rgba(30,40,80,.05)}
+  .cart-head{padding:14px 16px;border-bottom:1px solid var(--border);font-weight:800;font-size:16px;display:flex;align-items:center;gap:8px}
+  .cart-head .cnt{background:var(--primary);color:#fff;font-size:12px;padding:1px 9px;border-radius:12px}
+  .cart-head .collapse{margin-left:auto;border:none;background:var(--surface-2);width:34px;height:34px;border-radius:10px;font-size:20px;color:var(--text-2);cursor:pointer}
+  .cart-list{flex:1;overflow-y:auto;padding:10px 14px}
+  .empty{text-align:center;color:var(--text-3);padding:50px 20px;font-size:14px}
+  .empty .big{font-size:46px;margin-bottom:10px}
+  .citem{display:flex;gap:10px;padding:10px;background:var(--surface-2);border-radius:12px;margin-bottom:9px;border:1px solid var(--border)}
+  .citem .ci{width:50px;height:50px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;overflow:hidden;position:relative}
+  .citem .ci img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+  .citem .cm{flex:1;min-width:0}
+  .citem .cn{font-size:13.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .citem .cs{font-size:11.5px;color:var(--text-3)}
+  .citem .cp{font-size:12px;color:var(--text-2);margin-top:2px}
+  .citem .cp b{color:var(--primary)}
+  .citem .cr{color:var(--danger);font-size:11px;cursor:pointer;font-weight:700}
+  .stepper{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:6px}
+  .stepper button{width:30px;height:30px;border:none;background:var(--surface);color:var(--text-2);font-size:17px;font-weight:700;cursor:pointer}
+  .stepper button:active{background:var(--primary-soft)}
+  .stepper span{width:38px;text-align:center;font-weight:800;font-size:14px}
+  .citem .line{font-weight:800;font-size:14px;white-space:nowrap;align-self:center;margin-left:auto}
+  .summary{border-top:1px solid var(--border);padding:12px 16px;background:var(--surface-2)}
+  .srow{display:flex;justify-content:space-between;font-size:13.5px;padding:3px 0;color:var(--text-2)}
+  .srow.total{font-size:17px;font-weight:800;color:var(--text);padding-top:8px;margin-top:4px;border-top:1px dashed var(--border)}
+  .srow.total b{color:var(--primary);font-size:21px}
+  .cart-actions{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:10px}
+  .btn{flex:1;border:none;border-radius:12px;padding:15px;font-size:15.5px;font-weight:800;cursor:pointer;min-height:52px}
+  .btn:active{transform:scale(.98)}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-ghost{background:var(--surface);border:1px solid var(--border);color:var(--text-2);flex:0 0 auto;width:120px}
+  .cart-fab{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:30;display:none;flex-direction:column;align-items:center;gap:5px;background:var(--primary);color:#fff;border:none;border-radius:24px 0 0 24px;padding:14px 11px;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:var(--shadow);min-height:64px;justify-content:center}
+  .cart-fab .n{background:#fff;color:var(--primary);border-radius:12px;padding:0 8px;font-size:12px;font-weight:800}
+  .mask{position:fixed;inset:0;background:rgba(15,20,40,.5);display:none;align-items:flex-end;justify-content:center;z-index:50}
+  .mask.show{display:flex}
+  .sheet{background:var(--surface);width:100%;max-width:760px;border-radius:20px 20px 0 0;max-height:82vh;display:flex;flex-direction:column;animation:up .2s ease}
+  @keyframes up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
+  .sheet-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+  .sheet-head .st{font-size:17px;font-weight:800}
+  .sheet-head .x{margin-left:auto;font-size:26px;color:var(--text-3);cursor:pointer;line-height:1}
+  .sheet-body{padding:14px 20px 24px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+  .sku-opt{border:1px solid var(--border);border-radius:14px;padding:13px 14px;cursor:pointer;transition:.15s;background:var(--surface-2)}
+  .sku-opt:active{transform:scale(.98)}
+  .sku-opt.sold{opacity:.45;cursor:not-allowed;background:#f4eef1}
+  .sku-opt .lab{font-weight:700;font-size:14.5px;display:flex;align-items:center;gap:7px}
+  .sku-opt .cond{font-size:11px;font-weight:700;padding:1px 8px;border-radius:9px}
+  .sku-opt .calc{font-size:12px;color:var(--text-2);margin-top:8px}
+  .sku-opt .calc b{color:var(--primary);font-size:18px}
+  .sku-opt .stk{font-size:11.5px;color:var(--text-2);margin-top:3px}
+  .sku-opt .stk.low{color:var(--warn);font-weight:700}
+  .sku-opt .stk.out{color:var(--danger);font-weight:700}
+  .cond-sealed{background:#e8f0ff;color:#2f6fed}.cond-opened{background:#eafaf0;color:#16a34a}.cond-boxless{background:#fff4e0;color:#b45309}.cond-flawed{background:#fdecec;color:#dc2626}
+  .modal{background:var(--surface);border-radius:18px;width:min(480px,94vw);padding:22px;animation:up .2s ease}
+  .modal h3{margin:0 0 14px;font-size:18px}
+  .pay-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0 4px}
+  .pay-opt{border:2px solid var(--border);border-radius:14px;padding:18px;text-align:center;font-weight:800;font-size:15px;cursor:pointer;background:var(--surface-2);transition:.15s}
+  .pay-opt:active{transform:scale(.97)}
+  .pay-opt .pi{font-size:30px;display:block;margin-bottom:6px}
+  .pay-opt:hover{border-color:var(--primary)}
+  .success{text-align:center;padding:10px}
+  .success .ok{width:72px;height:72px;border-radius:50%;background:var(--ok);color:#fff;font-size:40px;display:flex;align-items:center;justify-content:center;margin:6px auto 14px}
+  .success .ot{font-size:13px;color:var(--text-2);margin:3px 0}
+  .success .ot b{color:var(--text)}
+  .success .ot.note{color:var(--text-3);font-size:12px;margin-top:8px}
+  .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:#1c2230;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;opacity:0;transition:.25s;z-index:90;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.err{background:#b3261e}
+  .scan-hint{font-size:11.5px;color:var(--text-3);text-align:center;padding:0 20px 12px}
+  .qr-box{width:210px;height:210px;margin:6px auto 4px;background:#fff;border:1px solid var(--border);border-radius:14px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .qr-box img{max-width:100%;max-height:100%}
+  .qr-missing{color:var(--text-3);font-size:13px;padding:20px;text-align:center}
+  .qr-tip{font-size:13.5px;color:var(--text-2);margin:8px 0 2px;font-weight:600}
+  .qr-amt{font-size:24px;font-weight:800;color:var(--primary);margin-bottom:6px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="store" id="storeName"><?= htmlspecialchars($storeName) ?></div>
+  <div class="search-wrap">
+    <span class="si">🔍</span>
+    <input class="search" id="searchInput" placeholder="搜索商品名称" oninput="onSearch(this.value)">
+  </div>
+  <div></div>
+</div>
+
+<div class="kiosk" id="kiosk">
+  <div class="menu">
+    <div class="cats" id="brands"></div>
+    <div class="series-bar" id="seriesBar"></div>
+    <div class="grid" id="grid"></div>
+  </div>
+  <div class="cart" id="cart" style="display:none">
+    <div class="cart-head">
+      <span>购物清单</span><span class="cnt" id="cartCnt">0</span>
+      <button class="collapse" onclick="collapseCart()" title="收起清单">›</button>
+    </div>
+    <div class="cart-list" id="cartList"></div>
+    <div class="summary" id="summary"></div>
+    <div class="cart-actions">
+      <button class="btn-ghost" onclick="clearCart()">清空</button>
+      <button class="btn btn-primary" onclick="openCheckout()">去结算</button>
+    </div>
+  </div>
+</div>
+<button class="cart-fab" id="cartFab" onclick="expandCart()"><span class="n" id="fabCnt">0</span>清单</button>
+
+<!-- 品相选择 -->
+<div class="mask" id="skuMask" onclick="if(event.target===this)closeSku()">
+  <div class="sheet">
+    <div class="sheet-head">
+      <span class="st" id="skuTitle">选择品相</span>
+      <span class="x" onclick="closeSku()">×</span>
+    </div>
+    <div class="scan-hint" id="skuHint">点选品相即可加入购物清单</div>
+    <div class="sheet-body" id="skuBody"></div>
+  </div>
+</div>
+
+<!-- 结算：选择支付方式 -->
+<div class="mask" id="checkoutMask" onclick="if(event.target===this)closeCheckout()">
+  <div class="modal">
+    <div class="sheet-head" style="border:0;padding:0 0 12px">
+      <span class="st">确认订单</span>
+      <span class="x" onclick="closeCheckout()">×</span>
+    </div>
+    <div id="checkoutBody"></div>
+    <div class="pay-grid">
+      <div class="pay-opt" onclick="startPay('wechat')"><span class="pi">💚</span>微信扫码</div>
+      <div class="pay-opt" onclick="startPay('alipay')"><span class="pi">💙</span>支付宝</div>
+    </div>
+  </div>
+</div>
+
+<!-- 店铺收款码 -->
+<div class="mask" id="qrMask" onclick="if(event.target===this)cancelQr()">
+  <div class="modal" style="width:min(360px,92vw);text-align:center">
+    <div class="sheet-head" style="border:0;justify-content:center;position:relative">
+      <span class="st" id="qrTitle">扫码收款</span>
+      <span class="x" onclick="cancelQr()" style="position:absolute;right:0">×</span>
+    </div>
+    <div class="qr-badge" id="qrBadge" style="display:inline-block;padding:6px 16px;border-radius:999px;color:#fff;font-size:15px;font-weight:600;background:#07C160;margin:6px 0 10px">微信收款码</div>
+    <div class="qr-amt" id="qrAmt">¥0.00</div>
+    <div class="qr-box" id="qrBox"></div>
+    <div class="qr-tip">请使用微信/支付宝扫码付款</div>
+    <div class="scan-hint" id="qrHint">付款完成后请找工作人员配货</div>
+    <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="onPaid()">已付款</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="cancelQr()">取消</button>
+  </div>
+</div>
+
+<!-- 下单成功 -->
+<div class="mask" id="successMask">
+  <div class="modal">
+    <div class="success">
+      <div class="ok">✓</div>
+      <h3 style="margin:0 0 6px">下单成功</h3>
+      <div class="ot" id="sOrderNo">订单号 —</div>
+      <div class="ot" id="sItems">—</div>
+      <div class="ot" id="sPay">应付 —</div>
+      <div class="ot" id="sMethod">支付方式 —</div>
+      <div class="ot note" id="sNote">订单已提交，请凭订单号找工作人员配货</div>
+      <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="backHome()">返回</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== 常量（PHP 注入）=====
+const STORE = {
+  name: <?= json_encode($storeName) ?>,
+  qrWx: <?= json_encode($qrWx) ?>,
+  qrAli: <?= json_encode($qrAli) ?>
+};
+const API = '../api/';
+
+// ===== 状态 =====
+let CATALOG = { store_name: '', products: [] };
+let cart = [];          // {pid, key, name, series, cond, condName, unit, qty, imgUrl}
+let curBrand = '';
+let curSeries = '';
+let kw = '';
+let payMethod = 'wechat';
+let curOrder = null;    // 当前待确认收款的订单 {order_id, order_no}
+
+// ===== 加载目录 =====
+async function loadCatalog() {
+  try {
+    const res = await fetch(API + 'pos_catalog.php');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || '加载失败');
+    CATALOG = data;
+    $('storeName').textContent = CATALOG.store_name || STORE.name;
+    const brands = listBrands();
+    curBrand = brands[0] || '';
+    curSeries = firstSeries(curBrand);
+    renderBrands(); renderSeries(); renderGrid(); renderCart();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// ===== 品牌 / 系列 =====
+function productsOf(brand) {
+  if (brand === '其他') return CATALOG.products.filter(p => !p.brand);
+  return CATALOG.products.filter(p => p.brand === brand);
+}
+function listBrands() {
+  const hasOther = CATALOG.products.some(p => !p.brand);
+  const brands = [...new Set(CATALOG.products.map(p => p.brand).filter(Boolean))];
+  if (hasOther) brands.push('其他');
+  return brands;
+}
+function listSeries(brand) {
+  // 空系列归为「未分类」，保证所有商品可达
+  return [...new Set(productsOf(brand).map(p => p.series || '未分类'))];
+}
+function firstSeries(brand) {
+  const s = listSeries(brand);
+  return s[0] || '';
+}
+function setBrand(b) {
+  curBrand = b;
+  curSeries = firstSeries(b);
+  renderBrands(); renderSeries(); renderGrid();
+}
+function setSeries(s) {
+  curSeries = s;
+  renderSeries(); renderGrid();
+}
+function renderBrands() {
+  const brands = listBrands();
+  $('brands').innerHTML = brands.map(b => `<div class="cat ${b === curBrand ? 'on' : ''}" onclick="setBrand('${b.replace(/'/g, "\\'")}')">${b}</div>`).join('');
+}
+function renderSeries() {
+  const series = listSeries(curBrand);
+  if (series.length <= 1) { $('seriesBar').innerHTML = ''; return; }
+  $('seriesBar').innerHTML = series.map(s => `<div class="cat ${s === curSeries ? 'on' : ''}" onclick="setSeries('${s.replace(/'/g, "\\'")}')">${s}</div>`).join('');
+}
+function onSearch(v) {
+  kw = (v || '').trim().toLowerCase();
+  renderGrid();
+}
+
+// ===== 渲染 =====
+function grad(series) {
+  const map = {'小野':'linear-gradient(135deg,#ffd1e8,#ff9ec7)','嘎子姐':'linear-gradient(135deg,#ffe0c2,#ffb088)','Dimoo':'linear-gradient(135deg,#c2e9ff,#9ed2ff)','Molly':'linear-gradient(135deg,#fff0b3,#ffd97a)','其他':'linear-gradient(135deg,#e0d4ff,#c7b3ff)'};
+  return map[series] || map['其他'];
+}
+function renderGrid() {
+  let list;
+  if (kw) {
+    list = CATALOG.products.filter(p => p.name.toLowerCase().includes(kw));
+  } else {
+    list = productsOf(curBrand);
+    if (curSeries) {
+      list = list.filter(p => (curSeries === '未分类') ? !p.series : p.series === curSeries);
+    }
+  }
+  if (!list.length) {
+    $('grid').innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="big">🔍</div>未找到相关商品</div>`;
+    return;
+  }
+  $('grid').innerHTML = list.map((p) => {
+    const avail = p.skus.filter(s => s.stock > 0);
+    const minPrice = avail.length ? Math.min(...avail.map(s => s.price)) : null;
+    const img = p.image_url ? `<img src="${p.image_url}" loading="lazy" onerror="this.remove()">` : '';
+    return `<div class="pcard" onclick="openSku(${p.id})">
+      <div class="img" style="background:${grad(p.series)}">${img}<span class="series">${p.series || ''}</span>${img ? '' : (p.name[0] || '')}</div>
+      <div class="body">
+        <div class="pn">${p.name}</div>
+        <div class="pb">${p.brand || ''} · ${p.series || ''}</div>
+        <div class="from">${minPrice != null ? `from <b>¥${minPrice.toFixed(2)}</b>` : '暂时缺货'}</div>
+        <div class="sku-n">${p.skus.length} 个品相可选</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== 品相弹层 =====
+function openSku(pid) {
+  const p = CATALOG.products.find(x => x.id === pid);
+  if (!p) return;
+  $('skuTitle').textContent = p.name;
+  $('skuHint').textContent = '点选品相即可加入购物清单';
+  $('skuBody').innerHTML = p.skus.map(s => {
+    const sold = s.stock <= 0;
+    const low = !sold && s.stock <= 5;
+    const stkCls = sold ? 'out' : (low ? 'low' : '');
+    const stkTxt = sold ? '已售罄' : (low ? `仅剩 ${s.stock} 件` : `库存 ${s.stock}`);
+    return `<div class="sku-opt ${sold ? 'sold' : ''}" ${sold ? '' : `onclick="addToCart(${p.id}, '${s.condition_type}')"`}>
+      <div class="lab"><span class="cond cond-${s.condition_type}">${s.cond_name}</span></div>
+      <div class="calc">售价 <b>¥${s.price.toFixed(2)}</b></div>
+      <div class="stk ${stkCls}">${stkTxt}</div>
+    </div>`;
+  }).join('');
+  show('skuMask');
+}
+function closeSku() { hide('skuMask'); }
+
+// ===== 购物车 =====
+function addToCart(pid, cond) {
+  const p = CATALOG.products.find(x => x.id === pid);
+  if (!p) return;
+  const sk = p.skus.find(s => s.condition_type === cond);
+  if (!sk) return;
+  const key = pid + '_' + cond;
+  const ex = cart.find(c => c.key === key);
+  if (ex) { ex.qty++; }
+  else cart.push({ key, pid, name: p.name, series: p.series, cond, condName: sk.cond_name, unit: sk.price, qty: 1, imgUrl: p.image_url || '' });
+  closeSku();
+  if ($('cart').style.display === 'none') expandCart();
+  renderCart();
+  toast('已加入 ' + p.name + ' · ' + sk.cond_name);
+}
+function chgQty(key, d) {
+  const it = cart.find(c => c.key === key); if (!it) return;
+  it.qty += d;
+  if (it.qty <= 0) cart = cart.filter(c => c.key !== key);
+  renderCart();
+}
+function rmItem(key) { cart = cart.filter(c => c.key !== key); renderCart(); }
+function clearCart() {
+  if (!cart.length) return;
+  cart = []; renderCart(); toast('已清空');
+}
+function collapseCart() { $('cart').style.display = 'none'; $('cartFab').style.display = 'flex'; }
+function expandCart() { $('cart').style.display = 'flex'; $('cartFab').style.display = 'none'; }
+function renderCart() {
+  const list = $('cartList');
+  if (!cart.length) {
+    list.innerHTML = `<div class="empty"><div class="big">🛒</div>点击左侧商品开始点单<br>选品相后自动加入清单</div>`;
+  } else {
+    list.innerHTML = cart.map(it => `
+      <div class="citem">
+        <div class="ci" style="background:${grad(it.series)}">${it.imgUrl ? `<img src="${it.imgUrl}" onerror="this.remove()">` : (it.name[0] || '')}</div>
+        <div class="cm">
+          <div class="cn">${it.name}</div>
+          <div class="cs">${it.condName}</div>
+          <div class="cp">单价 <b>¥${it.unit.toFixed(2)}</b></div>
+          <div class="stepper"><button onclick="chgQty('${it.key}',-1)">−</button><span>${it.qty}</span><button onclick="chgQty('${it.key}',1)">＋</button></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+          <span class="cr" onclick="rmItem('${it.key}')">删除</span>
+          <span class="line">¥${(it.unit * it.qty).toFixed(2)}</span>
+        </div>
+      </div>`).join('');
+  }
+  const cnt = cart.reduce((a, b) => a + b.qty, 0);
+  $('cartCnt').textContent = cnt;
+  $('fabCnt').textContent = cnt;
+  renderSummary();
+}
+function calc() {
+  const subtotal = cart.reduce((a, b) => a + b.unit * b.qty, 0);
+  return { subtotal, payable: +subtotal.toFixed(2) };
+}
+function renderSummary() {
+  const c = calc();
+  let html = `<div class="srow"><span>商品小计（${cart.reduce((a, b) => a + b.qty, 0)}件）</span><span>¥${c.subtotal.toFixed(2)}</span></div>`;
+  html += `<div class="srow total"><span>应付合计</span><b>¥${c.payable.toFixed(2)}</b></div>`;
+  $('summary').innerHTML = html;
+}
+
+// ===== 结算 =====
+function openCheckout() {
+  if (!cart.length) { toast('清单为空'); return; }
+  const c = calc();
+  let html = `<div style="max-height:34vh;overflow:auto;margin-bottom:10px">`;
+  cart.forEach(it => {
+    html += `<div style="display:flex;justify-content:space-between;font-size:13.5px;padding:5px 0;border-bottom:1px dashed var(--border)">
+      <span>${it.name} · ${it.condName} ×${it.qty}</span><span>¥${(it.unit * it.qty).toFixed(2)}</span></div>`;
+  });
+  html += `</div>`;
+  html += `<div class="srow"><span>小计</span><span>¥${c.subtotal.toFixed(2)}</span></div>`;
+  html += `<div class="srow total"><span>应付</span><b>¥${c.payable.toFixed(2)}</b></div>`;
+  html += `<div style="font-size:12.5px;color:var(--text-3);text-align:center;margin-top:8px">请选择支付方式，扫码完成付款</div>`;
+  $('checkoutBody').innerHTML = html;
+  show('checkoutMask');
+}
+function closeCheckout() { hide('checkoutMask'); }
+
+// 选支付方式 → 立即落单(pending) + 弹收款码
+async function startPay(method) {
+  payMethod = method;
+  const qrUrl = method === 'wechat' ? STORE.qrWx : STORE.qrAli;
+  if (!qrUrl) { toast('本店未配置收款码，请联系店员', true); return; }
+  try {
+    const order = await doCheckout();
+    openQr(order, qrUrl);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// 落单（服务端重算价+锁库存，pay_method=scan）
+async function doCheckout() {
+  const items = cart.map(it => ({ product_id: it.pid, condition_type: it.cond, qty: it.qty }));
+  const res = await fetch(API + 'pos_checkout.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items, pay_method: 'scan' })
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || '下单失败');
+  return data;
+}
+
+// 收款码弹窗
+function openQr(order, qrUrl) {
+  curOrder = order;
+  const isWx = payMethod === 'wechat';
+  const name = isWx ? '微信收款码' : '支付宝收款码';
+  const color = isWx ? '#07C160' : '#1677FF';
+  $('qrTitle').textContent = name;
+  $('qrBadge').textContent = name;
+  $('qrBadge').style.background = color;
+  $('qrAmt').textContent = '¥' + order.payable.toFixed(2);
+  $('qrBox').innerHTML = qrUrl
+    ? `<img src="${qrUrl}" alt="收款码">`
+    : `<div class="qr-missing">未配置收款码</div>`;
+  $('qrHint').textContent = '付款完成后请找工作人员配货';
+  closeCheckout();
+  show('qrMask');
+}
+// 纯关闭收款码弹窗（已付款成功路径）
+function closeQr() { hide('qrMask'); }
+
+// 取消订单：释放锁定 + 删除订单（不进入门店待出库）
+async function cancelQr() {
+  if (!curOrder) { closeQr(); return; }
+  const orderId = curOrder.order_id;
+  try {
+    const res = await fetch(API + 'pos_cancel.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: orderId })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || '取消失败');
+    curOrder = null;
+    closeQr();
+    toast('订单已取消，未进入待出库');
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// 顾客点「已付款」
+async function onPaid() {
+  if (!curOrder) { closeQr(); return; }
+  try {
+    const res = await fetch(API + 'pos_pay_confirm.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: curOrder.order_id })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || '确认失败');
+    closeQr();
+    showSuccess(curOrder);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// 成功页
+function showSuccess(order) {
+  const mName = { wechat: '微信扫码', alipay: '支付宝' }[payMethod] || '扫码支付';
+  $('sOrderNo').textContent = '订单号 ' + order.order_no;
+  $('sItems').textContent = '共 ' + cart.reduce((a, b) => a + b.qty, 0) + ' 件';
+  $('sPay').textContent = '应付 ¥' + order.payable.toFixed(2);
+  $('sMethod').textContent = '支付方式 ' + mName;
+  show('successMask');
+}
+function backHome() {
+  cart = []; curOrder = null; payMethod = 'wechat';
+  renderCart(); hide('successMask'); expandCart();
+  toast('已返回');
+}
+
+// ===== 工具 =====
+function $(id) { return document.getElementById(id); }
+function show(id) { $(id).classList.add('show'); }
+function hide(id) { $(id).classList.remove('show'); }
+let toastT;
+function toast(msg, isError) {
+  const t = $('toast'); t.textContent = msg; t.className = 'toast' + (isError ? ' err' : '');
+  requestAnimationFrame(() => t.classList.add('show'));
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), isError ? 10000 : 1800);
+}
+
+// ===== init =====
+loadCatalog();
+renderCart();
+collapseCart();
+</script>
+</body>
+</html>

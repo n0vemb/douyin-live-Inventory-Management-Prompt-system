@@ -346,6 +346,55 @@ input:checked + .toggle-slider:before {
 </div>
 
 <div class="card">
+    <h3 class="card-title">线下收银台</h3>
+    <div class="form-row">
+        <div class="form-group">
+            <label class="form-label">加价比例（售价 = 最高在库进价 × 比例）</label>
+            <input type="number" id="offlineRatio" class="form-input" step="0.01" min="1" placeholder="1.80"
+                onchange="tempSettings.offline_price_ratio = parseFloat(this.value) || 1.8; markChanged();">
+            <span style="font-size:11px; color:var(--text-tertiary);">仅服务端用于算价，收银台页面不显示</span>
+        </div>
+        <div class="form-group">
+            <label class="form-label">店员模式密码 <span id="staffPwdState" style="font-size:11px;color:var(--text-tertiary)"></span></label>
+            <input type="password" id="offlineStaffPwd" class="form-input" placeholder="留空则不修改" autocomplete="new-password"
+                onchange="if(this.value) tempSettings.offline_staff_pwd = this.value; markChanged();">
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label class="form-label">微信收款码</label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input type="file" id="qrWxFile" accept="image/*" style="display:none;">
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('qrWxFile').click()">上传</button>
+                <input type="text" id="qrWxUrl" class="form-input" placeholder="或输入图片URL" style="flex:1; min-width:120px;"
+                    onchange="tempSettings.offline_pay_qr_wx = this.value; markChanged();">
+                <img id="qrWxPreview" style="max-height:36px; border-radius:6px; display:none;">
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">支付宝收款码</label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input type="file" id="qrAliFile" accept="image/*" style="display:none;">
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('qrAliFile').click()">上传</button>
+                <input type="text" id="qrAliUrl" class="form-input" placeholder="或输入图片URL" style="flex:1; min-width:120px;"
+                    onchange="tempSettings.offline_pay_qr_ali = this.value; markChanged();">
+                <img id="qrAliPreview" style="max-height:36px; border-radius:6px; display:none;">
+            </div>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group" style="flex:1">
+            <label class="form-label">收银台访问链接（顾客触屏 / 门店平板，免登录）</label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input type="text" id="posLink" class="form-input" readonly style="flex:1; min-width:220px; background:var(--bg-hover);">
+                <button class="btn btn-secondary btn-sm" onclick="copyPosLink()">复制</button>
+                <button class="btn btn-secondary btn-sm" onclick="resetPosToken()">重置链接</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
     <h3 class="card-title">直播页面配置</h3>
     <div class="section-hint">
         💡 在浏览器中同时打开直播页面，调整配置后会实时更新！
@@ -502,7 +551,12 @@ const defaultSettings = {
     },
     shipping_fee: 3.00,
     actual_shipping_fee: 3.00,
-    platform_fee_rate: 0.05
+    platform_fee_rate: 0.05,
+    offline_price_ratio: 1.80,
+    offline_staff_pwd_set: false,
+    offline_pay_qr_wx: '',
+    offline_pay_qr_ali: '',
+    pos_token: ''
 };
 
 let savedSettings = JSON.parse(JSON.stringify(defaultSettings));
@@ -590,6 +644,23 @@ function applySettings() {
     if (sfEl) sfEl.value = parseFloat(tempSettings.shipping_fee ?? 3).toFixed(2);
     if (asfEl) asfEl.value = parseFloat(tempSettings.actual_shipping_fee ?? 3).toFixed(2);
     if (pfrEl) pfrEl.value = parseFloat(tempSettings.platform_fee_rate ?? 0.05).toFixed(4);
+    // 线下收银台
+    const orEl = document.getElementById('offlineRatio');
+    if (orEl) orEl.value = parseFloat(tempSettings.offline_price_ratio ?? 1.8).toFixed(2);
+    const pwdState = document.getElementById('staffPwdState');
+    if (pwdState) pwdState.textContent = tempSettings.offline_staff_pwd_set ? '（已设置）' : '（未设置）';
+    const wxEl = document.getElementById('qrWxUrl');
+    if (wxEl) wxEl.value = tempSettings.offline_pay_qr_wx || '';
+    const wxPrev = document.getElementById('qrWxPreview');
+    if (wxPrev && tempSettings.offline_pay_qr_wx) { wxPrev.src = tempSettings.offline_pay_qr_wx; wxPrev.style.display = ''; }
+    const aliEl = document.getElementById('qrAliUrl');
+    if (aliEl) aliEl.value = tempSettings.offline_pay_qr_ali || '';
+    const aliPrev = document.getElementById('qrAliPreview');
+    if (aliPrev && tempSettings.offline_pay_qr_ali) { aliPrev.src = tempSettings.offline_pay_qr_ali; aliPrev.style.display = ''; }
+    const plEl = document.getElementById('posLink');
+    if (plEl && tempSettings.pos_token) {
+        plEl.value = location.origin + '/admin/pos.php?t=' + tempSettings.pos_token;
+    }
     renderConditionTypes();
     renderElementList();
     updateSaveStatus(false);
@@ -961,6 +1032,57 @@ function clearLogo() {
     document.getElementById('logoPreview').src = '';
     document.getElementById('logoFile').value = '';
     updateSaveStatus(true);
+}
+
+// ── 线下收银台：收款码上传 ──
+function bindQrUpload(inputId, key, previewId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('type', 'qr');
+        fetch('../api/upload_image.php', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    tempSettings[key] = data.data.url;
+                    const prev = document.getElementById(previewId);
+                    if (prev) { prev.src = data.data.url; prev.style.display = ''; }
+                    const urlEl = document.getElementById(previewId === 'qrWxPreview' ? 'qrWxUrl' : 'qrAliUrl');
+                    if (urlEl) urlEl.value = data.data.url;
+                    updateSaveStatus(true);
+                } else {
+                    alert('上传失败: ' + (data.error || '未知错误'));
+                }
+            })
+            .catch(err => alert('上传失败: ' + err.message));
+    });
+}
+bindQrUpload('qrWxFile', 'offline_pay_qr_wx', 'qrWxPreview');
+bindQrUpload('qrAliFile', 'offline_pay_qr_ali', 'qrAliPreview');
+
+function copyPosLink() {
+    const el = document.getElementById('posLink');
+    if (!el || !el.value) { alert('请先保存配置生成链接'); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(el.value).then(() => alert('收银台链接已复制'));
+    } else {
+        el.select();
+        document.execCommand('copy');
+        alert('收银台链接已复制');
+    }
+}
+
+function resetPosToken() {
+    if (!confirm('重置后旧链接立即失效，确定重置？')) return;
+    tempSettings.offline_reset_token = true;
+    saveSettings().then(() => {
+        tempSettings.offline_reset_token = false;
+        loadSettings();
+    });
 }
 
 function showLogoPreview(path) {

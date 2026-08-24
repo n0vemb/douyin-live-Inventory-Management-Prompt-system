@@ -72,7 +72,7 @@ try {
     // 预取所有商品批次（有库存的）
     $allBatches = [];
     foreach ($purchaseMap as $pid => $need) {
-        $stmt = $pdo->prepare("SELECT * FROM inventory_batches WHERE product_id = ? AND remaining_qty > 0" . ($storeId ? " AND store_id = ?" : "") . " ORDER BY purchased_at ASC, id ASC FOR UPDATE");
+        $stmt = $pdo->prepare("SELECT * FROM inventory_batches WHERE product_id = ? AND remaining_qty - locked_qty > 0" . ($storeId ? " AND store_id = ?" : "") . " ORDER BY purchased_at ASC, id ASC FOR UPDATE");
         $params = [$pid];
         if ($storeId) $params[] = $storeId;
         $stmt->execute($params);
@@ -97,8 +97,9 @@ try {
             $remaining = $needQty;
             foreach ($allBatches[$pid] as &$batch) {
                 if ($remaining <= 0) break;
-                if ($batch['remaining_qty'] <= 0) continue;
-                $take = min($remaining, (int)$batch['remaining_qty']);
+                $avail = (int)$batch['remaining_qty'] - (int)$batch['locked_qty']; // POS锁定部分不可用
+                if ($avail <= 0) continue;
+                $take = min($remaining, $avail);
                 $batch['remaining_qty'] -= $take;
                 $newRemaining = $batch['remaining_qty'];
                 $stmt = $pdo->prepare("UPDATE inventory_batches SET remaining_qty = ? WHERE id = ?" . ($storeId ? " AND store_id = ?" : ""));

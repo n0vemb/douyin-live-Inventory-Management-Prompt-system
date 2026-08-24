@@ -122,7 +122,7 @@ try {
 
             // 进价缺失/为0时自动补真实进价（防运营端或漏传导致成本丢失；临时商品无真实商品跳过）
             if ($purchaseCost <= 0 && !$isGift && $productId > 0 && !$isTemp) {
-                $stmt = $pdo->prepare("SELECT purchase_price FROM inventory_batches WHERE product_id = ? AND condition_type = ? AND remaining_qty > 0 AND purchase_price > 0 AND store_id = ? ORDER BY purchased_at DESC, id DESC LIMIT 1");
+                $stmt = $pdo->prepare("SELECT purchase_price FROM inventory_batches WHERE product_id = ? AND condition_type = ? AND remaining_qty - locked_qty > 0 AND purchase_price > 0 AND store_id = ? ORDER BY purchased_at DESC, id DESC LIMIT 1");
                 $stmt->execute([$productId, $conditionType, $storeId]);
                 $realCost = $stmt->fetchColumn();
                 if ($realCost !== false) $purchaseCost = floatval($realCost);
