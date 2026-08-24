@@ -42,9 +42,9 @@ $qrAli = posAssetUrl($qrAli);
 <title><?= htmlspecialchars($storeName) ?> · 收银台</title>
 <style>
   :root{
-    --bg:#fdf3f6; --surface:#ffffff; --surface-2:#fff0f4; --border:#ffd9e4;
+    --bg:#fdf5f5; --surface:#ffffff; --surface-2:#fff0f1; --border:#f5d9dc;
     --text:#2b2230; --text-2:#7a6b75; --text-3:#b6a7b1;
-    --primary:#ff5c8a; --primary-d:#e63e72; --primary-soft:#ffe3ec;
+    --primary:#e6021f; --primary-d:#c40119; --primary-soft:#fde3e6;
     --ok:#22b07d; --warn:#ff9f43; --danger:#ff5a5f;
     --shadow:0 8px 24px rgba(255,92,138,.14);
   }
