@@ -108,6 +108,27 @@ $qrAli = posAssetUrl($qrAli);
   .btn-ghost{background:var(--surface);border:1px solid var(--border);color:var(--text-2);flex:0 0 auto;width:120px}
   .cart-fab{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:30;display:none;flex-direction:column;align-items:center;gap:5px;background:var(--primary);color:#fff;border:none;border-radius:24px 0 0 24px;padding:14px 11px;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:var(--shadow);min-height:64px;justify-content:center}
   .cart-fab .n{background:#fff;color:var(--primary);border-radius:12px;padding:0 8px;font-size:12px;font-weight:800}
+
+  /* ===== 竖屏适配（平板竖放 / 窄屏）===== */
+  @media (max-width: 820px) {
+    .kiosk{height:calc(100vh - 56px)}
+    .topbar{grid-template-columns:1fr auto;padding:10px 14px}
+    .topbar .store{font-size:15px}
+    .search-wrap{max-width:none}
+    .cats{padding:10px 12px 2px}
+    .series-bar{padding:4px 12px 0}
+    .grid{padding:10px 12px 18px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+    .pcard .img{aspect-ratio:3/4}
+    .pcard .img{font-size:34px}
+    .pcard .body{padding:7px 9px 10px}
+    .pcard .pn{font-size:13px}
+    /* 竖屏默认收起购物车，用悬浮按钮 */
+    .cart{display:none !important}
+    .cart-fab{display:flex}
+    .cart.open{display:flex !important;width:min(330px,86vw);position:fixed;right:0;top:56px;bottom:0;z-index:40;box-shadow:-8px 0 30px rgba(0,0,0,.18)}
+    .sheet{max-width:100%;max-height:86vh}
+    .sheet-body{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+  }
   .mask{position:fixed;inset:0;background:rgba(15,20,40,.5);display:none;align-items:flex-end;justify-content:center;z-index:50}
   .mask.show{display:flex}
   .sheet{background:var(--surface);width:100%;max-width:760px;border-radius:20px 20px 0 0;max-height:82vh;display:flex;flex-direction:column;animation:up .2s ease}
@@ -387,8 +408,8 @@ function addToCart(pid, cond) {
   const ex = cart.find(c => c.key === key);
   if (ex) { ex.qty++; }
   else cart.push({ key, pid, name: p.name, series: p.series, cond, condName: sk.cond_name, unit: sk.price, qty: 1, imgUrl: p.image_url || '' });
-  closeSku();
-  if ($('cart').style.display === 'none') expandCart();
+  // 若清单被收起，加入商品时自动弹出
+  if (isNarrow() ? !$('cart').classList.contains('open') : ($('cart').style.display === 'none')) expandCart();
   renderCart();
   toast('已加入 ' + p.name + ' · ' + sk.cond_name);
 }
@@ -403,8 +424,17 @@ function clearCart() {
   if (!cart.length) return;
   cart = []; renderCart(); toast('已清空');
 }
-function collapseCart() { $('cart').style.display = 'none'; $('cartFab').style.display = 'flex'; }
-function expandCart() { $('cart').style.display = 'flex'; $('cartFab').style.display = 'none'; }
+function isNarrow() { return window.matchMedia('(max-width: 820px)').matches; }
+function collapseCart() {
+  if (isNarrow()) { $('cart').classList.remove('open'); }
+  else { $('cart').style.display = 'none'; }
+  $('cartFab').style.display = 'flex';
+}
+function expandCart() {
+  if (isNarrow()) { $('cart').classList.add('open'); }
+  else { $('cart').style.display = 'flex'; }
+  $('cartFab').style.display = 'none';
+}
 function renderCart() {
   const list = $('cartList');
   if (!cart.length) {
