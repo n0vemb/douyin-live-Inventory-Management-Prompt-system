@@ -33,12 +33,14 @@ try {
     $prefix = generateStoreBarcodePrefix($pdo);
     // 生成 VIP 外部同步 Token（vip_sync.php 用，每店铺独立）
     $vipSyncToken = bin2hex(random_bytes(24));
+    // 生成收银台免登录 Token（pos.php 用，每店铺独立）
+    $posToken = bin2hex(random_bytes(16));
 
     $pdo->beginTransaction();
 
     // 创建店铺
-    $stmt = $pdo->prepare('INSERT INTO stores (name, barcode_prefix, vip_sync_token) VALUES (?, ?, ?)');
-    $stmt->execute([$storeName, $prefix, $vipSyncToken]);
+    $stmt = $pdo->prepare('INSERT INTO stores (name, barcode_prefix, vip_sync_token, pos_token) VALUES (?, ?, ?, ?)');
+    $stmt->execute([$storeName, $prefix, $vipSyncToken, $posToken]);
     $storeId = (int)$pdo->lastInsertId();
 
     // 创建管理员用户

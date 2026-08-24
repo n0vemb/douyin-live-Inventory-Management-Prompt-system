@@ -956,9 +956,10 @@ async function uploadImage(e) {
         const res = await fetch('../api/upload_image.php', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.success) {
-            $('imageUrl').value = data.data.path;
-            $('previewImg').src = '../' + data.data.path;
-            $('previewImg').style.display = 'block';
+            const url = data.data.url || data.data.path || '';
+            $('imageUrl').value = url;
+            $('previewImg').src = url ? '../' + url : '';
+            $('previewImg').style.display = url ? 'block' : 'none';
             showToast('图片上传成功');
         } else {
             showErrorToast(data.error || '上传失败');
