@@ -23,6 +23,16 @@ $storeRow = $stmt->fetch();
 $storeName = $storeRow['name'] ?? '线下收银台';
 $qrWx = $storeRow['offline_pay_qr_wx'] ?? '';
 $qrAli = $storeRow['offline_pay_qr_ali'] ?? '';
+// 补全相对路径为完整 URL（库中存 uploads/... 相对路径；页面在 admin/ 下需 ../ 前缀）
+function posAssetUrl($path) {
+    if (!$path) return '';
+    if (preg_match('#^https?://#i', $path)) return $path;
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    return $scheme . '://' . $host . '/' . ltrim($path, '/');
+}
+$qrWx = posAssetUrl($qrWx);
+$qrAli = posAssetUrl($qrAli);
 ?>
 <!doctype html>
 <html lang="zh-CN">

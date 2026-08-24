@@ -652,11 +652,11 @@ function applySettings() {
     const wxEl = document.getElementById('qrWxUrl');
     if (wxEl) wxEl.value = tempSettings.offline_pay_qr_wx || '';
     const wxPrev = document.getElementById('qrWxPreview');
-    if (wxPrev && tempSettings.offline_pay_qr_wx) { wxPrev.src = tempSettings.offline_pay_qr_wx; wxPrev.style.display = ''; }
+    if (wxPrev && tempSettings.offline_pay_qr_wx) { wxPrev.src = assetUrl(tempSettings.offline_pay_qr_wx); wxPrev.style.display = ''; }
     const aliEl = document.getElementById('qrAliUrl');
     if (aliEl) aliEl.value = tempSettings.offline_pay_qr_ali || '';
     const aliPrev = document.getElementById('qrAliPreview');
-    if (aliPrev && tempSettings.offline_pay_qr_ali) { aliPrev.src = tempSettings.offline_pay_qr_ali; aliPrev.style.display = ''; }
+    if (aliPrev && tempSettings.offline_pay_qr_ali) { aliPrev.src = assetUrl(tempSettings.offline_pay_qr_ali); aliPrev.style.display = ''; }
     const plEl = document.getElementById('posLink');
     if (plEl && tempSettings.pos_token) {
         plEl.value = location.origin + '/admin/pos.php?t=' + tempSettings.pos_token;
@@ -1035,6 +1035,12 @@ function clearLogo() {
 }
 
 // ── 线下收银台：收款码上传 ──
+// 图片URL补全：相对 uploads 路径 → 完整URL（admin页面需 ../ 前缀）
+function assetUrl(path) {
+    if (!path) return '';
+    if (/^https?:\/\//i.test(path)) return path;
+    return location.origin + '/' + path.replace(/^\.\.\//, '');
+}
 function bindQrUpload(inputId, key, previewId) {
     const input = document.getElementById(inputId);
     if (!input) return;
@@ -1050,7 +1056,7 @@ function bindQrUpload(inputId, key, previewId) {
                 if (data.success) {
                     tempSettings[key] = data.data.url;
                     const prev = document.getElementById(previewId);
-                    if (prev) { prev.src = data.data.url; prev.style.display = ''; }
+                    if (prev) { prev.src = assetUrl(data.data.url); prev.style.display = ''; }
                     const urlEl = document.getElementById(previewId === 'qrWxPreview' ? 'qrWxUrl' : 'qrAliUrl');
                     if (urlEl) urlEl.value = data.data.url;
                     updateSaveStatus(true);

@@ -6,6 +6,15 @@
  */
 require_once __DIR__ . '/pos_auth.php';
 $storeId = requirePosStore();
+
+// 补全相对路径为完整 URL（库中存 uploads/... 相对路径）
+function posCatAssetUrl($path) {
+    if (!$path) return '';
+    if (preg_match('#^https?://#i', $path)) return $path;
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    return $scheme . '://' . $host . '/' . ltrim($path, '/');
+}
 $pdo = getDB();
 
 try {
@@ -41,7 +50,7 @@ try {
                 'name' => $r['name'],
                 'series' => $r['series'] ?? '',
                 'brand' => $r['brand'] ?? '',
-                'image_url' => $r['image_url'] ?? '',
+                'image_url' => posCatAssetUrl($r['image_url'] ?? ''),
                 'skus' => []
             ];
         }
