@@ -386,10 +386,9 @@ function renderGrid() {
     const minPrice = avail.length ? Math.min(...avail.map(s => s.price)) : null;
     const img = p.image_url ? `<img src="${p.image_url}" loading="lazy" onerror="this.remove()">` : '';
     return `<div class="pcard" onclick="openSku(${p.id})">
-      <div class="img" style="background:${grad(p.series)}">${img}<span class="series">${p.series || ''}</span>${img ? '' : (p.name[0] || '')}</div>
+      <div class="img" style="background:${grad(p.series)}">${img}${img ? '' : (p.name[0] || '')}</div>
       <div class="body">
         <div class="pn">${p.name}</div>
-        <div class="pb">${p.brand || ''} · ${p.series || ''}</div>
         <div class="from">${minPrice != null ? `<b>¥${minPrice.toFixed(2)}</b> 起` : '暂时缺货'}</div>
         <div class="sku-n">${p.skus.length} 个品相可选</div>
       </div>
