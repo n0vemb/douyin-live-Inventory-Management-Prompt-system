@@ -7,19 +7,21 @@
 require_once __DIR__ . '/../config.php';
 
 function posStoreId() {
-    // 优先 session（已通过 token 验证）
-    if (!empty($_SESSION['pos_store_id'])) return (int)$_SESSION['pos_store_id'];
-    // 支持 ?t= / token 参数直接验证（首访或 session 丢失）
+    // 支持 ?t= / token 参数直接验证（token 优先于 session：换链接即换店铺，避免 session 缓存旧店）
     $token = $_GET['t'] ?? ($_POST['token'] ?? '');
-    if ($token === '') return null;
-    $pdo = getDB();
-    $stmt = $pdo->prepare('SELECT id FROM stores WHERE pos_token = ?');
-    $stmt->execute([$token]);
-    $row = $stmt->fetch();
-    if ($row) {
-        $_SESSION['pos_store_id'] = (int)$row['id'];
-        return (int)$row['id'];
+    if ($token !== '') {
+        $pdo = getDB();
+        $stmt = $pdo->prepare('SELECT id FROM stores WHERE pos_token = ?');
+        $stmt->execute([$token]);
+        $row = $stmt->fetch();
+        if ($row) {
+            $_SESSION['pos_store_id'] = (int)$row['id'];
+            return (int)$row['id'];
+        }
+        return null; // token 无效：不信任 session 残留，直接拒绝
     }
+    // 无 token 时回退 session（API 请求场景）
+    if (!empty($_SESSION['pos_store_id'])) return (int)$_SESSION['pos_store_id'];
     return null;
 }
 
