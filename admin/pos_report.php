@@ -56,6 +56,31 @@ require_once __DIR__ . '/layout.php';
     </div>
 </div>
 
+<!-- 心愿单（求补货统计） -->
+<div class="card" style="margin-bottom:18px; padding:16px 18px;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+        <span style="font-size:16px;">🎁</span>
+        <span style="font-weight:700; font-size:15px;">心愿单（求补货统计）</span>
+        <span style="font-size:12px; color:var(--text-tertiary);">期间内顾客对售罄商品点击「求补货」的次数（每客户每商品仅计一次）</span>
+    </div>
+    <div style="font-size:13px; color:var(--text-secondary);" id="wishEmpty" style="display:none; padding:8px 0;">该时间段暂无求补货记录</div>
+    <div style="overflow-x:auto; margin-top:8px;">
+        <table>
+            <thead>
+                <tr>
+                    <th>商品</th>
+                    <th>系列</th>
+                    <th style="text-align:right">求补货次数</th>
+                    <th>最近求补货时间</th>
+                </tr>
+            </thead>
+            <tbody id="wishTbody">
+                <tr><td colspan="4" style="text-align:center;color:var(--text-tertiary);padding:20px">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <!-- 明细表 -->
 <div class="card" style="padding:0; overflow:hidden;">
     <div style="overflow-x:auto;">
@@ -132,6 +157,22 @@ function render(d) {
     $('tProfit').textContent = '¥' + d.total.profit.toFixed(2);
     $('tCash').textContent = d.total.cash_orders + ' / ¥' + d.total.cash_sales.toFixed(2);
     $('tScan').textContent = d.total.scan_orders + ' / ¥' + d.total.scan_sales.toFixed(2);
+
+    // 心愿单
+    const wishes = d.wishlist || [];
+    const wt = $('wishTbody');
+    const we = $('wishEmpty');
+    if (!wishes.length) {
+        wt.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-tertiary);padding:20px">该时间段暂无求补货记录</td></tr>';
+    } else {
+        wt.innerHTML = wishes.map(w => `
+            <tr>
+                <td>${w.product_name || ('商品#' + w.product_id)}</td>
+                <td>${w.series || '-'}</td>
+                <td style="text-align:right"><b style="color:#e6021f">${w.wish_count}</b></td>
+                <td>${(w.last_wished || '').replace('T', ' ').slice(0, 19)}</td>
+            </tr>`).join('');
+    }
 
     if (!d.rows.length) {
         $('tbody').innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary);padding:30px">该时间段暂无线下销售数据</td></tr>';

@@ -102,7 +102,32 @@ try {
         $total['scan_sales'] += $r['scan_sales'];
     }
 
-    success(['rows' => $rows, 'total' => $total, 'from' => $from, 'to' => $to]);
+    // 心愿单：求补货统计（商品 + 次数，按创建时间倒序）
+    $wishSql = "SELECT w.product_id, p.name AS product_name, p.series, p.image_url,
+                       COUNT(*) AS wish_count, MAX(w.created_at) AS last_wished
+                FROM pos_wishlist w
+                LEFT JOIN products p ON p.id = w.product_id
+                WHERE w.created_at >= ? AND w.created_at < DATE_ADD(?, INTERVAL 1 DAY)" .
+                ($storeId ? " AND w.store_id = ?" : "") . "
+                GROUP BY w.product_id, p.name, p.series, p.image_url
+                ORDER BY wish_count DESC, last_wished DESC
+                LIMIT 100";
+    $wishParams = [$from . ' 00:00:00', $to . ' 00:00:00'];
+    if ($storeId) $wishParams[] = $storeId;
+    $stmt = $pdo->prepare($wishSql);
+    $stmt->execute($wishParams);
+    $wishlist = array_map(function ($r) {
+        return [
+            'product_id' => (int)$r['product_id'],
+            'product_name' => $r['product_name'],
+            'series' => $r['series'],
+            'image_url' => $r['image_url'],
+            'wish_count' => (int)$r['wish_count'],
+            'last_wished' => $r['last_wished']
+        ];
+    }, $stmt->fetchAll());
+
+    success(['rows' => $rows, 'total' => $total, 'wishlist' => $wishlist, 'from' => $from, 'to' => $to]);
 } catch (Exception $e) {
     logError($e->getMessage(), 'pos_report');
     error('报表加载失败: ' . $e->getMessage(), 500);

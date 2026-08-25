@@ -157,6 +157,9 @@ $qrAli = posAssetUrl($qrAli);
   .sku-opt .stk{font-size:11.5px;color:var(--text-2);margin-top:3px}
   .sku-opt .stk.low{color:var(--warn);font-weight:700}
   .sku-opt .stk.out{color:var(--danger);font-weight:700}
+  .sku-opt .wish-btn{width:100%;margin-top:10px;border:1px solid var(--primary);background:var(--primary-soft);color:var(--primary);border-radius:10px;padding:8px;font-size:13px;font-weight:700;cursor:pointer}
+  .sku-opt .wish-btn:hover{background:var(--primary);color:#fff}
+  .sku-opt .wish-done{width:100%;margin-top:10px;text-align:center;font-size:13px;font-weight:700;color:var(--ok);padding:8px}
   .cond-sealed{background:#e8f0ff;color:#2f6fed}.cond-opened{background:#eafaf0;color:#16a34a}.cond-boxless{background:#fff4e0;color:#b45309}.cond-flawed{background:#fdecec;color:#dc2626}
   .modal{background:var(--surface);border-radius:18px;width:min(480px,94vw);padding:22px;animation:up .2s ease}
   .modal h3{margin:0 0 14px;font-size:18px}
@@ -401,12 +404,17 @@ function openSku(pid) {
   const p = CATALOG.products.find(x => x.id === pid);
   if (!p) return;
   $('skuTitle').textContent = p.name;
-  $('skuHint').textContent = '点选品相即可加入购物清单';
+  const requested = wishRequested(pid);
+  $('skuHint').textContent = requested ? '你已为这款商品求过补货' : '点选品相即可加入购物清单';
   $('skuBody').innerHTML = p.skus.map(s => {
     const sold = s.stock <= 0;
     const low = !sold && s.stock <= 5;
     const stkCls = sold ? 'out' : (low ? 'low' : '');
     const stkTxt = sold ? '已售罄' : (low ? `仅剩 ${s.stock} 件` : `库存 ${s.stock}`);
+    const wishBtn = sold ? (requested
+      ? `<div class="wish-done">✓ 已求补货</div>`
+      : `<button class="wish-btn" onclick="event.stopPropagation();requestRestock(${p.id}, '${s.condition_type}')">求补货</button>`)
+      : '';
     return `<div class="sku-opt ${sold ? 'sold' : ''}" ${sold ? '' : `onclick="addToCart(${p.id}, '${s.condition_type}')"`}>
       <div class="lab"><span class="cond cond-${s.condition_type}">${s.cond_name}</span></div>
       <div class="row">
@@ -414,9 +422,32 @@ function openSku(pid) {
         ${sold ? '' : `<span class="add-btn" title="加入购物车">+</span>`}
       </div>
       <div class="stk ${stkCls}">${stkTxt}</div>
+      ${wishBtn}
     </div>`;
   }).join('');
   show('skuMask');
+}
+// 求补货（每客户每商品一次，localStorage 记录 + 后端统计）
+function clientKey() {
+  let k = localStorage.getItem('wish_client');
+  if (!k) { k = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); localStorage.setItem('wish_client', k); }
+  return k;
+}
+function wishKey(pid) { return 'wish_' + pid; }
+function wishRequested(pid) { return localStorage.getItem(wishKey(pid)) === '1'; }
+function requestRestock(pid, cond) {
+  if (wishRequested(pid)) { toast('你已经求过补货了'); return; }
+  localStorage.setItem(wishKey(pid), '1');
+  // 记录到后端（统计用）
+  fetch(API + 'pos_wish.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ product_id: pid, condition_type: cond, client_key: clientKey() })
+  }).catch(() => {});
+  renderCart();
+  toast('已记录，补货后我们会尽快上架');
+  closeSku();
+  setTimeout(() => openSku(pid), 50);
 }
 function closeSku() { hide('skuMask'); }
 
@@ -428,8 +459,14 @@ function addToCart(pid, cond) {
   if (!sk) return;
   const key = pid + '_' + cond;
   const ex = cart.find(c => c.key === key);
-  if (ex) { ex.qty++; }
-  else cart.push({ key, pid, name: p.name, series: p.series, cond, condName: sk.cond_name, unit: sk.price, qty: 1, imgUrl: p.image_url || '' });
+  if (ex) {
+    if (ex.qty >= sk.stock) { toast('已达该品相库存上限'); return; }
+    ex.qty++;
+  }
+  else {
+    if (sk.stock <= 0) return;
+    cart.push({ key, pid, name: p.name, series: p.series, cond, condName: sk.cond_name, unit: sk.price, qty: 1, stock: sk.stock, imgUrl: p.image_url || '' });
+  }
   closeSku(); // 点击 SKU 加入后关闭品相弹层
   // 若清单被收起，加入商品时自动弹出
   if (!$('cart').classList.contains('open')) expandCart();
@@ -438,6 +475,7 @@ function addToCart(pid, cond) {
 }
 function chgQty(key, d) {
   const it = cart.find(c => c.key === key); if (!it) return;
+  if (d > 0 && it.qty >= it.stock) { toast('已达库存上限'); return; }
   it.qty += d;
   if (it.qty <= 0) cart = cart.filter(c => c.key !== key);
   renderCart();
@@ -607,13 +645,32 @@ function $(id) { return document.getElementById(id); }
 function show(id) { $(id).classList.add('show'); }
 function hide(id) { $(id).classList.remove('show'); }
 
-// 全屏切换（同仓库出库台）
+// 全屏切换（同仓库出库台）+ 强制全屏：退出需输入密码 888888
+const FULLSCREEN_PWD = '888888';
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
-    (document.documentElement.requestFullscreen ? document.documentElement.requestFullscreen() : Promise.resolve())
-      .then(() => {}).catch(() => {});
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (req) req.call(el).catch(() => {});
+    else toast('当前浏览器不支持全屏');
+  }
+  // 进入全屏后由 fullscreenchange 监听处理退出（需密码）
+}
+document.addEventListener('fullscreenchange', function () {
+  if (!document.fullscreenElement && !window.__fsPwdOk) {
+    askFsPwd();
+  }
+  window.__fsPwdOk = false;
+});
+function askFsPwd() {
+  const pwd = prompt('退出全屏需输入密码：');
+  if (pwd === FULLSCREEN_PWD) {
+    window.__fsPwdOk = true; // 允许退出，不再强制回全屏
   } else {
-    document.exitFullscreen().catch(() => {});
+    toast('密码错误，重新进入全屏');
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (req) req.call(el).catch(() => {});
   }
 }
 let toastT;
