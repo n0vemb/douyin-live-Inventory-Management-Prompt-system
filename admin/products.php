@@ -1,4 +1,6 @@
 <?php
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 $pageTitle = '商品管理';
 $currentPage = 'products';
 require_once __DIR__ . '/layout.php';
