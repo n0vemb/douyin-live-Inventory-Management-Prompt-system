@@ -233,8 +233,12 @@ $qrAli = posAssetUrl($qrAli);
     </div>
     <div id="checkoutBody"></div>
     <div class="pay-grid">
-      <div class="pay-opt" onclick="startPay('wechat')"><span class="pi">💚</span>微信扫码</div>
-      <div class="pay-opt" onclick="startPay('alipay')"><span class="pi">💙</span>支付宝</div>
+      <div class="pay-opt" onclick="startPay('wechat')"><span class="pi">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="#07C160" aria-label="微信"><path d="M8.7 4.6C4.9 4.6 2 7.1 2 10.2c0 1.8 1 3.4 2.6 4.5l-.7 2.1 2.3-1.2c.8.2 1.6.4 2.5.4h.2c-.1-.4-.2-.8-.2-1.2 0-2.7 2.7-4.9 6-4.9h.3C14.5 6.6 11.8 4.6 8.7 4.6zm-2 3.7c.5 0 .9.4.9.9s-.4.9-.9.9-.9-.4-.9-.9.4-.9.9-.9zm4 0c.5 0 .9.4.9.9s-.4.9-.9.9-.9-.4-.9-.9.4-.9.9-.9z"/><path d="M22 14.6c0-2.5-2.5-4.5-5.6-4.5s-5.6 2-5.6 4.5 2.5 4.5 5.6 4.5c.6 0 1.2-.1 1.8-.3l1.8.9-.5-1.6c1.5-.8 2.5-2.1 2.5-3.5zm-7.3-1.3c-.4 0-.7-.3-.7-.7s.3-.7.7-.7.7.3.7.7-.3.7-.7.7zm3.4 0c-.4 0-.7-.3-.7-.7s.3-.7.7-.7.7.3.7.7-.3.7-.7.7z"/></svg>
+      </span>微信扫码</div>
+      <div class="pay-opt" onclick="startPay('alipay')"><span class="pi">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="#1677FF" aria-label="支付宝"><path d="M21.4 15.4c-3.4-1.1-5.7-1.8-7.9-2.5 1.1-1.8 2-3.9 2.6-6.1H12.2v-1h6v-.9h-6.2V1.5h-2v3.4h-6v1h6v.9h-5.9c.2 2.9 1.4 5.5 3.4 7.1-1.6.5-3.4 1.3-4.7 2.5-1.2-1.4-1.9-3.2-2-5.2l-2 .2c.2 4.9 2.9 9 6.9 10.8-1.4 2.3-3.5 4.2-6 5.5.5.3 1 .5 1.5.7 2.8-1.4 5-3.5 6.4-6.1 2.4.6 5 .9 7.7.9.3 0 .6 0 .9-.1v-2.1c-.1 0-.4.1-.9-.1zM6.9 12.4c-1.2-1.1-2-2.7-2.3-4.4h5.2c-.5 2.6-1.5 5.2-2.9 7.3-.1.1-.2 0 0-.1-.1-.1-.1-.1 0 0zm10.4 4.2c-.4.1-.7.1-.7.1v2.1c.1 0 .1 0 .1.1.4 0 .8.1 1.2.1-1.2 2.3-3.3 4-5.7 5-.1-.1-.2-.1-.3-.1 2.4-1.6 4.2-3.8 5.1-6.4.2 0 .3-.1.3-.1v-1.2c1.5.3 3.3.8 5.3 1.4-.5.2-3.9-1-5.3-1z"/></svg>
+      </span>支付宝</div>
     </div>
   </div>
 </div>
@@ -310,13 +314,15 @@ async function loadCatalog() {
 }
 
 // ===== 品牌 / 系列 =====
+function hasStock(p) { return p.skus && p.skus.some(s => s.stock > 0); }
 function productsOf(brand) {
-  if (brand === '其他') return CATALOG.products.filter(p => !p.brand);
-  return CATALOG.products.filter(p => p.brand === brand);
+  if (brand === '其他') return CATALOG.products.filter(p => !p.brand && hasStock(p));
+  return CATALOG.products.filter(p => p.brand === brand && hasStock(p));
 }
 function listBrands() {
-  const hasOther = CATALOG.products.some(p => !p.brand);
-  const brands = [...new Set(CATALOG.products.map(p => p.brand).filter(Boolean))];
+  const inStock = CATALOG.products.filter(hasStock);
+  const hasOther = inStock.some(p => !p.brand);
+  const brands = [...new Set(inStock.map(p => p.brand).filter(Boolean))];
   if (hasOther) brands.push('其他');
   return brands;
 }
@@ -366,6 +372,8 @@ function renderGrid() {
       list = list.filter(p => (curSeries === '未分类') ? !p.series : p.series === curSeries);
     }
   }
+  // 隐藏无库存商品（所有品相都售罄的商品不展示）
+  list = list.filter(p => p.skus && p.skus.some(s => s.stock > 0));
   if (!list.length) {
     $('grid').innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="big">🔍</div>未找到相关商品</div>`;
     return;
@@ -379,7 +387,7 @@ function renderGrid() {
       <div class="body">
         <div class="pn">${p.name}</div>
         <div class="pb">${p.brand || ''} · ${p.series || ''}</div>
-        <div class="from">${minPrice != null ? `from <b>¥${minPrice.toFixed(2)}</b>` : '暂时缺货'}</div>
+        <div class="from">${minPrice != null ? `<b>¥${minPrice.toFixed(2)}</b> 起` : '暂时缺货'}</div>
         <div class="sku-n">${p.skus.length} 个品相可选</div>
       </div>
     </div>`;
