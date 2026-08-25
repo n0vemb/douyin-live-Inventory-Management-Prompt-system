@@ -226,7 +226,7 @@ $qrAli = posAssetUrl($qrAli);
 </div>
 <div class="cart-fab" id="cartFab">
   <button class="fab-btn fab-cart" onclick="expandCart()"><span class="n" id="fabCnt">0</span>购物车</button>
-  <button class="fab-btn fab-refresh" onclick="location.reload()" title="刷新页面"><span class="ri">⟳</span>刷新</button>
+  <button class="fab-btn fab-refresh" onclick="refreshWithFullscreen()" title="刷新页面（自动进入全屏）"><span class="ri">⟳</span>刷新</button>
 </div>
 
 <!-- 品相选择 -->
@@ -293,7 +293,7 @@ $qrAli = posAssetUrl($qrAli);
   </div>
 </div>
 
-<div class="mask" id="fsPwdMask" onclick="if(event.target===this)fsPwdCancel()">
+<div class="mask" id="fsPwdMask" style="z-index:9999" onclick="if(event.target===this)fsPwdCancel()">
   <div class="modal" style="width:min(360px,92vw);text-align:center">
     <div class="sheet-head" style="border:0;justify-content:center;position:relative">
       <span class="st">退出全屏</span>
@@ -677,25 +677,34 @@ function hide(id) { $(id).classList.remove('show'); }
 
 // 全屏切换（同仓库出库台）+ 强制全屏：退出需输入密码 888888
 const FULLSCREEN_PWD = '888888';
+let fsForce = false; // 是否处于"强制全屏"模式（自动全屏/刷新后）
+function enterFullscreen() {
+  if (document.fullscreenElement) return;
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+  if (req) req.call(el).catch(() => {});
+}
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
-    const el = document.documentElement;
-    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
-    if (req) req.call(el).catch(() => {});
-    else toast('当前浏览器不支持全屏');
-  }
-  // 进入全屏后由 fullscreenchange 监听处理退出（需密码）
-}
-document.addEventListener('fullscreenchange', function () {
-  if (!document.fullscreenElement && !window.__fsPwdOk) {
+    fsForce = true;
+    enterFullscreen();
+  } else {
+    // 手动退出：走密码流程
     askFsPwd();
   }
-  window.__fsPwdOk = false;
+}
+// 监听全屏状态变化：退出全屏时若处于强制模式 → 立即重进全屏 + 弹密码框
+document.addEventListener('fullscreenchange', function () {
+  if (!document.fullscreenElement) {
+    if (window.__fsPwdOk) { window.__fsPwdOk = false; fsForce = false; return; } // 密码正确，允许退出
+    enterFullscreen();          // 先重进全屏（安卓触摸屏：防止系统 UI 覆盖密码框）
+    setTimeout(askFsPwd, 200);  // 重进后再弹密码框，确保在全屏层内可见
+  }
 });
 function askFsPwd() {
   $('fsPwdInput').value = '';
   show('fsPwdMask');
-  setTimeout(() => { const inp = $('fsPwdInput'); if (inp && inp.focus) inp.focus(); }, 50);
+  setTimeout(() => { const inp = $('fsPwdInput'); if (inp && inp.focus) inp.focus(); }, 120);
 }
 function fsPwdConfirm() {
   const pwd = $('fsPwdInput').value;
@@ -708,17 +717,13 @@ function fsPwdConfirm() {
     $('fsPwdInput').value = '';
     hide('fsPwdMask');
     // 密码错误：强制回到全屏
-    const el = document.documentElement;
-    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
-    if (req) req.call(el).catch(() => {});
+    enterFullscreen();
   }
 }
 function fsPwdCancel() {
   hide('fsPwdMask');
   // 取消=留在全屏：强制回全屏
-  const el = document.documentElement;
-  const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
-  if (req) req.call(el).catch(() => {});
+  enterFullscreen();
 }
 let toastT;
 function toast(msg, isError) {
@@ -738,6 +743,23 @@ function enterFullscreen() {
   const el = document.documentElement;
   const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
   if (req) req.call(el).catch(() => {});
+}
+// 刷新按钮：在用户手势内先请求全屏，成功后再 reload（Chrome 允许已全屏页面导航后保持全屏）
+function refreshWithFullscreen() {
+  const doReload = () => { location.reload(); };
+  if (!document.fullscreenElement) {
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (req) {
+      Promise.resolve(req.call(el))
+        .then(() => { setTimeout(doReload, 200); })
+        .catch(() => { doReload(); }); // 全屏失败也刷新
+    } else {
+      doReload();
+    }
+  } else {
+    doReload(); // 已全屏直接刷新
+  }
 }
 try {
   enterFullscreen();
