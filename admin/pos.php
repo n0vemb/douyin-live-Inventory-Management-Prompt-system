@@ -113,8 +113,13 @@ $qrAli = posAssetUrl($qrAli);
   .btn:active{transform:scale(.98)}
   .btn-primary{background:var(--primary);color:#fff}
   .btn-ghost{background:var(--surface);border:1px solid var(--border);color:var(--text-2);flex:0 0 auto;width:120px}
-  .cart-fab{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:30;display:none;flex-direction:column;align-items:center;gap:5px;background:var(--primary);color:#fff;border:none;border-radius:0;padding:14px 11px;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:var(--shadow);min-height:64px;justify-content:center}
+  .cart-fab{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:30;display:none;flex-direction:column;align-items:stretch;gap:8px}
+  .fab-btn{border:none;cursor:pointer;box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:5px;font-size:12.5px;font-weight:700;color:#fff;padding:14px 11px;min-height:64px;justify-content:center}
+  .fab-btn:active{transform:scale(.97)}
+  .fab-cart{background:var(--primary);border-radius:0}
+  .fab-refresh{background:#f5b400;border-radius:0}
   .cart-fab .n{background:#fff;color:var(--primary);border-radius:12px;padding:0 8px;font-size:12px;font-weight:800}
+  .fab-refresh .ri{font-size:20px;line-height:1}
 
   /* ===== 竖屏适配（平板竖放 / 窄屏）===== */
   @media (max-width: 820px) {
@@ -219,7 +224,10 @@ $qrAli = posAssetUrl($qrAli);
     </div>
   </div>
 </div>
-<button class="cart-fab" id="cartFab" onclick="expandCart()"><span class="n" id="fabCnt">0</span>购物车</button>
+<div class="cart-fab" id="cartFab">
+  <button class="fab-btn fab-cart" onclick="expandCart()"><span class="n" id="fabCnt">0</span>购物车</button>
+  <button class="fab-btn fab-refresh" onclick="location.reload()" title="刷新页面"><span class="ri">⟳</span>刷新</button>
+</div>
 
 <!-- 品相选择 -->
 <div class="mask" id="skuMask" onclick="if(event.target===this)closeSku()">
