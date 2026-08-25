@@ -56,6 +56,9 @@ $qrAli = posAssetUrl($qrAli);
   .search-wrap{display:flex;align-items:center;gap:7px;background:#fff;border-radius:22px;padding:8px 15px;width:min(380px,60vw);justify-self:center;box-shadow:0 1px 5px rgba(0,0,0,.12)}
   .search-wrap .si{font-size:14px;opacity:.55}
   .search-wrap .search{border:none;outline:none;background:transparent;font-size:14.5px;width:100%;color:#1c2230}
+  .fullscreen-btn{border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.14);color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;flex-shrink:0;min-height:38px}
+  .fullscreen-btn:hover{background:rgba(255,255,255,.25)}
+  .fullscreen-btn:active{background:rgba(255,255,255,.32)}
   .kiosk{display:flex;min-height:calc(100vh - 60px);height:auto}
   .menu{flex:1;display:flex;flex-direction:column;min-width:0}
   .cats{display:flex;gap:4px 18px;padding:14px 18px 6px;flex-wrap:wrap;flex-shrink:0;max-height:200px;overflow-y:auto}
@@ -183,7 +186,9 @@ $qrAli = posAssetUrl($qrAli);
     <span class="si">🔍</span>
     <input class="search" id="searchInput" placeholder="搜索商品名称" oninput="onSearch(this.value)">
   </div>
-  <div></div>
+  <div style="justify-self:end;display:flex;align-items:center;gap:10px">
+    <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ 全屏</button>
+  </div>
 </div>
 
 <div class="kiosk" id="kiosk">
@@ -588,6 +593,16 @@ function backHome() {
 function $(id) { return document.getElementById(id); }
 function show(id) { $(id).classList.add('show'); }
 function hide(id) { $(id).classList.remove('show'); }
+
+// 全屏切换（同仓库出库台）
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    (document.documentElement.requestFullscreen ? document.documentElement.requestFullscreen() : Promise.resolve())
+      .then(() => {}).catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+}
 let toastT;
 function toast(msg, isError) {
   const t = $('toast'); t.textContent = msg; t.className = 'toast' + (isError ? ' err' : '');

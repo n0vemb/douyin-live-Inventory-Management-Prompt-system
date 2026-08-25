@@ -399,7 +399,8 @@ function escapeHtml(s) {
 
 function render(newIds = null) {
   const pending = allItems.filter(t => t.status === 'pending');
-  const done = allItems.filter(t => t.status === 'done');
+  const done = allItems.filter(t => t.status === 'done')
+    .sort((a, b) => new Date(b.done_at) - new Date(a.done_at)); // 已处理：最新处理在上
 
   $('pendingBadge').textContent = pending.length;
   $('tabTodoCnt').textContent = pending.length;
