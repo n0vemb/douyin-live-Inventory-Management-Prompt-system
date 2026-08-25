@@ -142,14 +142,16 @@ $qrAli = posAssetUrl($qrAli);
   }
   .mask{position:fixed;inset:0;background:rgba(15,20,40,.5);display:none;align-items:flex-end;justify-content:center;z-index:50}
   .mask.show{display:flex}
-  .sheet{background:var(--surface);width:100%;max-width:760px;border-radius:20px;max-height:82vh;display:flex;flex-direction:column;animation:pop .25s ease;box-shadow:0 18px 50px rgba(15,20,40,.35)}
+  .sheet{background:var(--surface);width:min(420px,94vw);border-radius:20px;max-height:88vh;display:flex;flex-direction:column;animation:pop .25s ease;box-shadow:0 18px 50px rgba(15,20,40,.35)}
   @keyframes pop{from{transform:scale(.96) translateY(14px);opacity:.5}to{transform:none;opacity:1}}
   @keyframes up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
-  .sheet-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
-  .sheet-head .st{font-size:17px;font-weight:800}
+  .sheet-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+  .sheet-head .st{font-size:16px;font-weight:800}
   .sheet-head .x{margin-left:auto;font-size:26px;color:var(--text-3);cursor:pointer;line-height:1}
-  .sheet-body{padding:14px 20px 24px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-content:flex-start}
-  .sheet-body .sku-opt{width:220px;flex:none}
+  .sku-img-wrap{background:var(--surface-2);padding:10px 10px 0}
+  .sku-img-wrap img{width:100%;aspect-ratio:4/5;object-fit:contain;background:var(--surface-2);border-radius:10px}
+  .sheet-body{padding:12px 18px 22px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-content:flex-start}
+  .sheet-body .sku-opt{width:100%;flex:none}
   .sku-opt{border:1px solid var(--border);border-radius:14px;padding:13px 14px;cursor:pointer;transition:.15s;background:var(--surface-2)}
   .sku-opt:active{transform:scale(.98)}
   .sku-opt.sold{opacity:.45;cursor:not-allowed;background:#f4eef1}
@@ -254,7 +256,7 @@ $qrAli = posAssetUrl($qrAli);
       <span class="x" onclick="closeSku()">×</span>
     </div>
     <div class="sku-img-wrap" id="skuImgWrap" style="display:none;">
-      <img id="skuImg" src="" alt="" style="width:100%;height:150px;object-fit:contain;background:var(--surface-2);">
+      <img id="skuImg" src="" alt="" style="width:100%;object-fit:contain;background:var(--surface-2);">
     </div>
     <div class="scan-hint" id="skuHint">点选品相即可加入购物清单</div>
     <div class="sheet-body" id="skuBody"></div>
