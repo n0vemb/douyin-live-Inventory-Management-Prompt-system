@@ -160,6 +160,9 @@ $qrAli = posAssetUrl($qrAli);
   .sku-opt .wish-btn{width:100%;margin-top:10px;border:1px solid var(--primary);background:var(--primary-soft);color:var(--primary);border-radius:10px;padding:8px;font-size:13px;font-weight:700;cursor:pointer}
   .sku-opt .wish-btn:hover{background:var(--primary);color:#fff}
   .sku-opt .wish-done{width:100%;margin-top:10px;text-align:center;font-size:13px;font-weight:700;color:var(--ok);padding:8px}
+  .sku-empty{width:100%;text-align:center;padding:30px 10px}
+  .sku-empty-txt{font-size:14px;color:var(--text-2);margin-bottom:14px}
+  .wish-btn-lg{width:auto;min-width:160px;padding:12px 30px;font-size:15px;border-radius:12px}
   .cond-sealed{background:#e8f0ff;color:#2f6fed}.cond-opened{background:#eafaf0;color:#16a34a}.cond-boxless{background:#fff4e0;color:#b45309}.cond-flawed{background:#fdecec;color:#dc2626}
   .modal{background:var(--surface);border-radius:18px;width:min(480px,94vw);padding:22px;animation:up .2s ease}
   .modal h3{margin:0 0 14px;font-size:18px}
@@ -279,6 +282,18 @@ $qrAli = posAssetUrl($qrAli);
       <div class="ot note" id="sNote">订单已提交，请凭订单号找工作人员配货</div>
       <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="backHome()">返回</button>
     </div>
+  </div>
+</div>
+
+<div class="mask" id="fsPwdMask" onclick="if(event.target===this)fsPwdCancel()">
+  <div class="modal" style="width:min(360px,92vw);text-align:center">
+    <div class="sheet-head" style="border:0;justify-content:center;position:relative">
+      <span class="st">退出全屏</span>
+    </div>
+    <div style="font-size:13px;color:var(--text-2);margin:4px 0 14px">请输入密码后退出全屏</div>
+    <input id="fsPwdInput" type="password" placeholder="请输入退出密码" style="width:100%;padding:12px 13px;border:1px solid var(--border);border-radius:10px;font-size:15px;margin-bottom:12px" onkeydown="if(event.key==='Enter')fsPwdConfirm()">
+    <button class="btn btn-primary" style="width:100%" onclick="fsPwdConfirm()">退出全屏</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="fsPwdCancel()">留在全屏</button>
   </div>
 </div>
 
@@ -406,7 +421,14 @@ function openSku(pid) {
   $('skuTitle').textContent = p.name;
   const requested = wishRequested(pid);
   $('skuHint').textContent = requested ? '你已为这款商品求过补货' : '点选品相即可加入购物清单';
-  $('skuBody').innerHTML = p.skus.map(s => {
+  $('skuBody').innerHTML = p.skus.length === 0
+    ? `<div class="sku-empty">
+         <div class="sku-empty-txt">该商品暂未入库，暂无品相可选</div>
+         ${requested
+           ? `<div class="wish-done">✓ 已求补货</div>`
+           : `<button class="wish-btn wish-btn-lg" onclick="requestRestock(${p.id}, '')">求补货</button>`}
+       </div>`
+    : p.skus.map(s => {
     const sold = s.stock <= 0;
     const low = !sold && s.stock <= 5;
     const stkCls = sold ? 'out' : (low ? 'low' : '');
@@ -663,15 +685,32 @@ document.addEventListener('fullscreenchange', function () {
   window.__fsPwdOk = false;
 });
 function askFsPwd() {
-  const pwd = prompt('退出全屏需输入密码：');
+  $('fsPwdInput').value = '';
+  show('fsPwdMask');
+  setTimeout(() => { const inp = $('fsPwdInput'); if (inp && inp.focus) inp.focus(); }, 50);
+}
+function fsPwdConfirm() {
+  const pwd = $('fsPwdInput').value;
   if (pwd === FULLSCREEN_PWD) {
-    window.__fsPwdOk = true; // 允许退出，不再强制回全屏
+    window.__fsPwdOk = true;
+    hide('fsPwdMask');
+    // 密码正确：允许退出（保持当前非全屏状态）
   } else {
     toast('密码错误，重新进入全屏');
+    $('fsPwdInput').value = '';
+    hide('fsPwdMask');
+    // 密码错误：强制回到全屏
     const el = document.documentElement;
     const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
     if (req) req.call(el).catch(() => {});
   }
+}
+function fsPwdCancel() {
+  hide('fsPwdMask');
+  // 取消=留在全屏：强制回全屏
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+  if (req) req.call(el).catch(() => {});
 }
 let toastT;
 function toast(msg, isError) {
