@@ -264,13 +264,17 @@ $qrAli = posAssetUrl($qrAli);
 </div>
 
 <!-- 结算：选择支付方式 -->
-<div class="mask" id="checkoutMask" onclick="if(event.target===this)closeCheckout()">
+<div class="mask" id="checkoutMask" style="align-items:center;padding-top:4vh" onclick="if(event.target===this)closeCheckout()">
   <div class="modal">
     <div class="sheet-head" style="border:0;padding:0 0 12px">
       <span class="st">确认订单</span>
       <span class="x" onclick="closeCheckout()">×</span>
     </div>
     <div id="checkoutBody"></div>
+    <div class="field" style="margin-top:12px">
+      <label>顾客手机号（选填，便于售后联系）</label>
+      <input type="tel" id="customerPhone" maxlength="11" placeholder="请输入手机号（可不填）" style="width:100%;padding:12px 13px;border:1px solid var(--border);border-radius:10px;font-size:15px;" onkeydown="if(event.key==='Enter')startPay('wechat')">
+    </div>
     <div class="pay-grid">
       <div class="pay-opt" onclick="startPay('wechat')"><span class="pi">
         <svg viewBox="0 0 1024 1024" width="34" height="34" aria-label="微信支付"><path d="M404.511405 600.865957c-4.042059 2.043542-8.602935 3.223415-13.447267 3.223415-11.197016 0-20.934798-6.169513-26.045189-15.278985l-1.959631-4.296863-81.56569-178.973184c-0.880043-1.954515-1.430582-4.14746-1.430582-6.285147 0-8.251941 6.686283-14.944364 14.938224-14.944364 3.351328 0 6.441713 1.108241 8.94165 2.966565l96.242971 68.521606c7.037277 4.609994 15.433504 7.305383 24.464181 7.305383 5.40101 0 10.533914-1.00284 15.328104-2.75167l452.645171-201.459315C811.496653 163.274644 677.866167 100.777241 526.648117 100.777241c-247.448742 0-448.035176 167.158091-448.035176 373.361453 0 112.511493 60.353576 213.775828 154.808832 282.214547 7.582699 5.405103 12.537548 14.292518 12.537548 24.325012 0 3.312442-0.712221 6.358825-1.569752 9.515724-7.544837 28.15013-19.62599 73.202209-20.188808 75.314313-0.940418 3.529383-2.416026 7.220449-2.416026 10.917654 0 8.245801 6.692423 14.933107 14.944364 14.933107 3.251044 0 5.89015-1.202385 8.629541-2.7793l98.085946-56.621579c7.377014-4.266164 15.188934-6.89913 23.790846-6.89913 4.577249 0 9.003048 0.703011 13.174044 1.978051 45.75509 13.159718 95.123474 20.476357 146.239666 20.476357 247.438509 0 448.042339-167.162184 448.042339-373.372709 0-62.451354-18.502399-121.275087-51.033303-173.009356L407.778822 598.977957 404.511405 600.865957z" fill="#00C800"/></svg>
@@ -283,7 +287,7 @@ $qrAli = posAssetUrl($qrAli);
 </div>
 
 <!-- 店铺收款码 -->
-<div class="mask" id="qrMask" onclick="if(event.target===this)cancelQr()">
+<div class="mask" id="qrMask" style="align-items:center;padding-top:4vh" onclick="if(event.target===this)cancelQr()">
   <div class="modal" style="width:min(360px,92vw);text-align:center">
     <div class="sheet-head" style="border:0;justify-content:center;position:relative">
       <span class="st" id="qrTitle">扫码收款</span>
@@ -651,10 +655,16 @@ function closeCheckout() { hide('checkoutMask'); }
 // 选支付方式 → 立即落单(pending) + 弹收款码
 async function startPay(method) {
   payMethod = method;
+  // 手机号选填，填了才校验格式
+  const phone = ($('customerPhone').value || '').trim();
+  if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
+    toast('手机号格式不正确', true);
+    return;
+  }
   const qrUrl = method === 'wechat' ? STORE.qrWx : STORE.qrAli;
   if (!qrUrl) { toast('本店未配置收款码，请联系店员', true); return; }
   try {
-    const order = await doCheckout();
+    const order = await doCheckout(phone);
     openQr(order, qrUrl);
   } catch (e) {
     toast(e.message, true);
@@ -662,12 +672,12 @@ async function startPay(method) {
 }
 
 // 落单（服务端重算价+锁库存，pay_method=scan）
-async function doCheckout() {
+async function doCheckout(phone) {
   const items = cart.map(it => ({ product_id: it.pid, condition_type: it.cond, qty: it.qty }));
   const res = await fetch(API + 'pos_checkout.php', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items, pay_method: 'scan' })
+    body: JSON.stringify({ items, pay_method: 'scan', customer_phone: phone || null })
   });
   const data = await res.json();
   if (!data.success) throw new Error(data.error || '下单失败');

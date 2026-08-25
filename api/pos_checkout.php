@@ -12,6 +12,10 @@ $input = json_decode(file_get_contents('php://input'), true);
 $items = $input['items'] ?? [];
 $payMethod = $input['pay_method'] ?? 'cash';
 $cashierName = trim($input['cashier_name'] ?? '');
+$customerPhone = trim($input['customer_phone'] ?? '');
+if ($customerPhone !== '' && !preg_match('/^1[3-9]\d{9}$/', $customerPhone)) {
+    $customerPhone = '';
+}
 $discount = isset($input['staff_discount']) ? floatval($input['staff_discount']) : 1;
 
 if (empty($items)) error('购物清单为空');
@@ -39,12 +43,12 @@ try {
     // 1) 生成订单主表（先占 id）
     $orderNo = posOrderNo();
     $insertOrder = $pdo->prepare(
-        "INSERT INTO pos_orders (store_id, order_no, cashier_name, staff_mode, staff_discount, subtotal, discount_amount, payable, pay_method, pay_status, paid_at, outbound_status)
-         VALUES (?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, 'pending')"
+        "INSERT INTO pos_orders (store_id, order_no, cashier_name, staff_mode, customer_phone, staff_discount, subtotal, discount_amount, payable, pay_method, pay_status, paid_at, outbound_status)
+         VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, 'pending')"
     );
     $payStatus = $payMethod === 'cash' ? 'paid' : 'pending';
     $paidAt = $payMethod === 'cash' ? date('Y-m-d H:i:s') : null;
-    $insertOrder->execute([$storeId, $orderNo, $cashierName ?: null, $isStaff ? 1 : 0, $isStaff ? $staffDiscount : null, $payMethod, $payStatus, $paidAt]);
+    $insertOrder->execute([$storeId, $orderNo, $cashierName ?: null, $isStaff ? 1 : 0, $customerPhone !== '' ? $customerPhone : null, $isStaff ? $staffDiscount : null, $payMethod, $payStatus, $paidAt]);
     $orderId = (int)$pdo->lastInsertId();
 
     // 2) 逐 item：算价 + FIFO 锁批次
