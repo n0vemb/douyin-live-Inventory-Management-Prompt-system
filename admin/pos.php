@@ -326,16 +326,24 @@ let payMethod = 'wechat';
 let curOrder = null;    // 当前待确认收款的订单 {order_id, order_no}
 
 // ===== 加载目录 =====
-async function loadCatalog() {
+async function loadCatalog(keepFilter) {
   try {
     const res = await fetch(API + 'pos_catalog.php', { cache: 'no-store' });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || '加载失败');
+    const prevBrand = curBrand, prevSeries = curSeries, prevKw = kw;
     CATALOG = data;
     $('storeName').textContent = CATALOG.store_name || STORE.name;
     const brands = listBrands();
-    curBrand = brands[0] || '';
-    curSeries = firstSeries(curBrand);
+    if (keepFilter && brands.includes(prevBrand)) {
+      curBrand = prevBrand;
+      curSeries = brands.includes(prevBrand) && listSeries(curBrand).includes(prevSeries) ? prevSeries : firstSeries(curBrand);
+      kw = prevKw;
+    } else {
+      curBrand = brands[0] || '';
+      curSeries = firstSeries(curBrand);
+      kw = '';
+    }
     renderBrands(); renderSeries(); renderGrid(); renderCart();
   } catch (e) {
     toast(e.message, true);
@@ -711,7 +719,11 @@ function fsPwdConfirm() {
   if (pwd === FULLSCREEN_PWD) {
     window.__fsPwdOk = true;
     hide('fsPwdMask');
-    // 密码正确：允许退出（保持当前非全屏状态）
+    // 密码正确：主动退出全屏
+    if (document.fullscreenElement) {
+      const ex = document.exitFullscreen || document.webkitExitFullscreen;
+      if (ex) ex.call(document).catch(() => {});
+    }
   } else {
     toast('密码错误，重新进入全屏');
     $('fsPwdInput').value = '';
@@ -744,22 +756,17 @@ function enterFullscreen() {
   const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
   if (req) req.call(el).catch(() => {});
 }
-// 刷新按钮：在用户手势内先请求全屏，成功后再 reload（Chrome 允许已全屏页面导航后保持全屏）
+// 刷新按钮：进入全屏 + 重新加载目录数据（不整页 reload，保留全屏状态）
 function refreshWithFullscreen() {
-  const doReload = () => { location.reload(); };
   if (!document.fullscreenElement) {
     const el = document.documentElement;
     const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
-    if (req) {
-      Promise.resolve(req.call(el))
-        .then(() => { setTimeout(doReload, 200); })
-        .catch(() => { doReload(); }); // 全屏失败也刷新
-    } else {
-      doReload();
-    }
-  } else {
-    doReload(); // 已全屏直接刷新
+    if (req) req.call(el).catch(() => {});
   }
+  // 重新拉取目录数据（no-store）并重渲染，保留当前品牌/系列/搜索
+  loadCatalog(true).then(() => {
+    toast('已刷新');
+  }).catch(() => { toast('刷新失败', true); });
 }
 try {
   enterFullscreen();
