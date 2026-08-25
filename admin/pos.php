@@ -731,6 +731,21 @@ function toast(msg, isError) {
 loadCatalog();
 renderCart();
 collapseCart();
+
+// 刷新后自动强制全屏（浏览器要求用户手势，首次点击/触摸时触发）
+function enterFullscreen() {
+  if (document.fullscreenElement) return;
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+  if (req) req.call(el).catch(() => {});
+}
+try {
+  enterFullscreen();
+  // 若自动进入失败（需手势），在首次用户交互时补触发
+  const tryOnce = () => { enterFullscreen(); document.removeEventListener('pointerdown', tryOnce); document.removeEventListener('keydown', tryOnce); };
+  document.addEventListener('pointerdown', tryOnce);
+  document.addEventListener('keydown', tryOnce);
+} catch (e) {}
 </script>
 </body>
 </html>
