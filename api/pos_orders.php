@@ -50,7 +50,8 @@ try {
     // ---- 列表（仅显示已付款订单：收银台未点「已付款」的订单不进待出库）----
     $condNames = conditionNames($pdo, $storeId ?: 1);
     $where = "po.store_id" . ($storeId ? " = " . (int)$storeId : " IS NOT NULL");
-    $where .= " AND po.pay_status = 'paid'";
+    // 待出库必须已收款（未收款不能出库）；已作废/已出库不要求收款状态
+    if ($status === 'pending') $where .= " AND po.pay_status = 'paid'";
     if ($status !== 'all') $where .= " AND po.outbound_status = '" . $status . "'";
     $orders = $pdo->query(
         "SELECT po.*, (SELECT COUNT(*) FROM pos_order_items pi WHERE pi.order_id = po.id AND pi.status = 'active') AS active_items
@@ -103,19 +104,19 @@ try {
         ];
     }
 
-    // ---- 统计（待出库口径）----
+    // ---- 统计（待出库口径：仅已收款订单）----
     $statWhere = $storeId ? " AND store_id = " . (int)$storeId : "";
     $stat = $pdo->query(
         "SELECT COUNT(*) AS order_count,
                 COALESCE(SUM(payable), 0) AS total_payable
-         FROM pos_orders WHERE outbound_status = 'pending'" . $statWhere
+         FROM pos_orders WHERE outbound_status = 'pending' AND pay_status = 'paid'" . $statWhere
     )->fetch();
     $totalQty = 0;
     if ((int)$stat['order_count'] > 0) {
         $totalQty = (int)$pdo->query(
             "SELECT COALESCE(SUM(pi.qty), 0) FROM pos_order_items pi
              JOIN pos_orders po ON po.id = pi.order_id
-             WHERE po.outbound_status = 'pending' AND pi.status = 'active'" . ($storeId ? " AND po.store_id = " . (int)$storeId : "")
+             WHERE po.outbound_status = 'pending' AND po.pay_status = 'paid' AND pi.status = 'active'" . ($storeId ? " AND po.store_id = " . (int)$storeId : "")
         )->fetchColumn();
     }
 
