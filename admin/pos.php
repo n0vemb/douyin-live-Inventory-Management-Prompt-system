@@ -73,7 +73,7 @@ $qrAli = posAssetUrl($qrAli);
   .grid{flex:1;overflow:visible;padding:12px 18px 24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));grid-auto-rows:max-content;gap:14px;align-content:start}
   .pcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:.15s;box-shadow:var(--shadow);display:flex;flex-direction:column;height:max-content;min-height:0}
   .pcard:active{transform:scale(.97)}
-  .pcard .img{aspect-ratio:3/4;width:100%;flex:none;display:flex;align-items:center;justify-content:center;font-size:44px;font-weight:800;color:#fff;position:relative;overflow:hidden}
+  .pcard .img{aspect-ratio:4/5;width:100%;flex:none;display:flex;align-items:center;justify-content:center;font-size:44px;font-weight:800;color:#fff;position:relative;overflow:hidden}
   .pcard .img img{width:100%;height:100%;object-fit:contain;position:absolute;inset:0;background:#fff}
   .pcard .series{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.45);color:#fff;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;z-index:2}
   .pcard .body{padding:9px 11px 12px}
@@ -125,7 +125,7 @@ $qrAli = posAssetUrl($qrAli);
     .cats{padding:10px 12px 2px}
     .series-bar{padding:4px 12px 0}
     .grid{padding:10px 12px 18px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
-    .pcard .img{aspect-ratio:3/4}
+    .pcard .img{aspect-ratio:4/5}
     .pcard .img{font-size:34px}
     .pcard .body{padding:7px 9px 10px}
     .pcard .pn{font-size:13px}
@@ -151,6 +151,9 @@ $qrAli = posAssetUrl($qrAli);
   .sku-opt .cond{font-size:11px;font-weight:700;padding:1px 8px;border-radius:9px}
   .sku-opt .calc{font-size:12px;color:var(--text-2);margin-top:8px}
   .sku-opt .calc b{color:var(--primary);font-size:18px}
+  .sku-opt .row{display:flex;align-items:center;justify-content:space-between;margin-top:8px;gap:8px}
+  .sku-opt .add-btn{width:34px;height:34px;border-radius:50%;border:none;background:var(--primary);color:#fff;font-size:22px;font-weight:800;line-height:1;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(230,2,31,.35)}
+  .sku-opt .add-btn:hover{background:var(--primary-d)}
   .sku-opt .stk{font-size:11.5px;color:var(--text-2);margin-top:3px}
   .sku-opt .stk.low{color:var(--warn);font-weight:700}
   .sku-opt .stk.out{color:var(--danger);font-weight:700}
@@ -407,7 +410,10 @@ function openSku(pid) {
     const stkTxt = sold ? '已售罄' : (low ? `仅剩 ${s.stock} 件` : `库存 ${s.stock}`);
     return `<div class="sku-opt ${sold ? 'sold' : ''}" ${sold ? '' : `onclick="addToCart(${p.id}, '${s.condition_type}')"`}>
       <div class="lab"><span class="cond cond-${s.condition_type}">${s.cond_name}</span></div>
-      <div class="calc">售价 <b>¥${s.price.toFixed(2)}</b></div>
+      <div class="row">
+        <div class="calc">售价 <b>¥${s.price.toFixed(2)}</b></div>
+        ${sold ? '' : `<span class="add-btn" title="加入购物车">+</span>`}
+      </div>
       <div class="stk ${stkCls}">${stkTxt}</div>
     </div>`;
   }).join('');
