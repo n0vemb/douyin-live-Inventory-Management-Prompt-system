@@ -528,14 +528,18 @@ async function loadProducts() {
         const data = await res.json();
         allProducts = data.data.products;
         const seriesSelect = $('seriesFilter');
+        const prevSeries = seriesSelect.value; // 保留筛选值
         seriesSelect.innerHTML = '<option value="">全部系列</option>';
         (data.data.series_list || []).forEach(s => {
             const opt = document.createElement('option');
             opt.value = s; opt.textContent = s;
             seriesSelect.appendChild(opt);
         });
+        if (prevSeries) seriesSelect.value = prevSeries; // 恢复筛选值
         renderProducts(allProducts);
         loadStats();
+        // 保留当前筛选/搜索条件（编辑保存后不重置筛选）
+        searchProducts();
     } catch (err) { console.error(err); showErrorToast('商品列表加载失败'); }
 }
 
