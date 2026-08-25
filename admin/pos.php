@@ -302,7 +302,7 @@ let curOrder = null;    // 当前待确认收款的订单 {order_id, order_no}
 // ===== 加载目录 =====
 async function loadCatalog() {
   try {
-    const res = await fetch(API + 'pos_catalog.php');
+    const res = await fetch(API + 'pos_catalog.php', { cache: 'no-store' });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || '加载失败');
     CATALOG = data;

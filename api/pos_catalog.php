@@ -5,6 +5,8 @@
  * 库存 = remaining_qty - locked_qty（POS锁定量视为不可用）
  */
 require_once __DIR__ . '/pos_auth.php';
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 $storeId = requirePosStore();
 
 // 补全相对路径为完整 URL（库中存 uploads/... 相对路径）
