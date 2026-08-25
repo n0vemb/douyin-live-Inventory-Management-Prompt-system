@@ -317,15 +317,15 @@ async function loadCatalog() {
 }
 
 // ===== 品牌 / 系列 =====
-function hasStock(p) { return p.skus && p.skus.some(s => s.stock > 0); }
+function totalStock(p) { return p.skus ? p.skus.reduce((a, s) => a + (s.stock > 0 ? s.stock : 0), 0) : 0; }
+function hasStock(p) { return totalStock(p) > 0; }
 function productsOf(brand) {
-  if (brand === '其他') return CATALOG.products.filter(p => !p.brand && hasStock(p));
-  return CATALOG.products.filter(p => p.brand === brand && hasStock(p));
+  if (brand === '其他') return CATALOG.products.filter(p => !p.brand);
+  return CATALOG.products.filter(p => p.brand === brand);
 }
 function listBrands() {
-  const inStock = CATALOG.products.filter(hasStock);
-  const hasOther = inStock.some(p => !p.brand);
-  const brands = [...new Set(inStock.map(p => p.brand).filter(Boolean))];
+  const hasOther = CATALOG.products.some(p => !p.brand);
+  const brands = [...new Set(CATALOG.products.map(p => p.brand).filter(Boolean))];
   if (hasOther) brands.push('其他');
   return brands;
 }
@@ -375,8 +375,8 @@ function renderGrid() {
       list = list.filter(p => (curSeries === '未分类') ? !p.series : p.series === curSeries);
     }
   }
-  // 隐藏无库存商品（所有品相都售罄的商品不展示）
-  list = list.filter(p => p.skus && p.skus.some(s => s.stock > 0));
+  // 全部显示，按库存排序（库存多的靠前，售罄靠后）
+  list = [...list].sort((a, b) => totalStock(b) - totalStock(a));
   if (!list.length) {
     $('grid').innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="big">🔍</div>未找到相关商品</div>`;
     return;
