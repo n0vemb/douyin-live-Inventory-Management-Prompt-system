@@ -157,8 +157,8 @@ $qrAli = posAssetUrl($qrAli);
   .sku-opt .stk{font-size:11.5px;color:var(--text-2);margin-top:3px}
   .sku-opt .stk.low{color:var(--warn);font-weight:700}
   .sku-opt .stk.out{color:var(--danger);font-weight:700}
-  .sku-opt .wish-btn{width:100%;margin-top:10px;border:1px solid var(--primary);background:var(--primary-soft);color:var(--primary);border-radius:10px;padding:8px;font-size:13px;font-weight:700;cursor:pointer}
-  .sku-opt .wish-btn:hover{background:var(--primary);color:#fff}
+  .wish-btn{width:100%;margin-top:10px;border:none;background:var(--primary);color:#fff;border-radius:10px;padding:8px;font-size:13px;font-weight:700;cursor:pointer}
+  .wish-btn:hover{background:var(--primary-d)}
   .sku-opt .wish-done{width:100%;margin-top:10px;text-align:center;font-size:13px;font-weight:700;color:var(--ok);padding:8px}
   .sku-empty{width:100%;text-align:center;padding:30px 10px}
   .sku-empty-txt{font-size:14px;color:var(--text-2);margin-bottom:14px}
