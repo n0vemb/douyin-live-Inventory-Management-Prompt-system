@@ -172,6 +172,7 @@ function render(d) {
             <div class="customer-header" onclick="toggle(${o.id})">
                 <span class="toggle-arrow">▼</span>
                 <span class="nickname">${esc(o.order_no)}</span>
+                ${o.customer_phone ? `<span class="badge" style="background:#eef2ff;color:#4f46e5">📱 ${esc(o.customer_phone)}</span>` : ''}
                 <span class="badge" style="background:${bg};color:${fg}">${bl}</span>
                 <span class="summary">
                     <span class="o-time">${esc(o.created_at)}</span>

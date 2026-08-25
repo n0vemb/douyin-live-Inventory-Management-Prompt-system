@@ -74,6 +74,7 @@ try {
             'order_no' => $o['order_no'],
             'created_at' => $o['created_at'],
             'cashier_name' => $o['cashier_name'],
+            'customer_phone' => $o['customer_phone'] ?? null,
             'staff_mode' => (int)$o['staff_mode'],
             'staff_discount' => $o['staff_discount'] !== null ? floatval($o['staff_discount']) : null,
             'subtotal' => floatval($o['subtotal']),

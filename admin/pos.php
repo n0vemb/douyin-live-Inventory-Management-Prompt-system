@@ -272,8 +272,8 @@ $qrAli = posAssetUrl($qrAli);
     </div>
     <div id="checkoutBody"></div>
     <div class="field" style="margin-top:12px">
-      <label>顾客手机号（选填，便于售后联系）</label>
-      <input type="tel" id="customerPhone" maxlength="11" placeholder="请输入手机号（可不填）" style="width:100%;padding:12px 13px;border:1px solid var(--border);border-radius:10px;font-size:15px;" onkeydown="if(event.key==='Enter')startPay('wechat')">
+      <label>顾客手机号（选填）</label>
+      <input type="tel" id="customerPhone" maxlength="11" placeholder="请输入手机号" style="width:100%;padding:12px 13px;border:1px solid var(--border);border-radius:10px;font-size:15px;" onkeydown="if(event.key==='Enter')startPay('wechat')">
     </div>
     <div class="pay-grid">
       <div class="pay-opt" onclick="startPay('wechat')"><span class="pi">
