@@ -28,7 +28,8 @@ try {
     $ssImg = $store['pos_screensaver_img'] ?? '';
     $ssSec = (int)($store['pos_screensaver_sec'] ?? 30);
     $ratio = decimal($store['offline_price_ratio'] ?? 1.80);
-    if ($ratio <= 0) $ratio = 1.80;
+    // ratio=0 表示隐藏价格（前端价格全部显示 0.00）；负数视为异常重置为默认
+    if ($ratio < 0) $ratio = 1.80;
     $condNames = conditionNames($pdo, $storeId);
 
     // 商品 + 品相聚合：可用库存 = Σ(remaining-locked)，售价 = MAX(可用批次的进价)×ratio

@@ -357,6 +357,16 @@ input:checked + .toggle-slider:before {
             </label>
         </div>
         <div class="form-group">
+            <label class="form-label">隐藏价格</label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:6px;">
+                <input type="checkbox" id="posHidePrice" style="width:18px; height:18px;"
+                    onchange="tempSettings.pos_hide_price = this.checked ? 1 : 0; markChanged();">
+                <span style="font-size:13.5px; color:var(--text-secondary);">开启后收银台前端所有价格显示 0.00</span>
+            </label>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
             <label class="form-label">静止进入屏保（秒）</label>
             <input type="number" id="posSsSec" class="form-input" step="1" min="5" placeholder="30"
                 onchange="tempSettings.pos_screensaver_sec = parseInt(this.value) || 30; markChanged();">
@@ -380,9 +390,9 @@ input:checked + .toggle-slider:before {
     <div class="form-row">
         <div class="form-group">
             <label class="form-label">加价比例（售价 = 最高在库进价 × 比例）</label>
-            <input type="number" id="offlineRatio" class="form-input" step="0.01" min="1" placeholder="1.80"
-                onchange="tempSettings.offline_price_ratio = parseFloat(this.value) || 1.8; markChanged();">
-            <span style="font-size:11px; color:var(--text-tertiary);">仅服务端用于算价，收银台页面不显示</span>
+            <input type="number" id="offlineRatio" class="form-input" step="0.01" min="0" placeholder="1.80"
+                onchange="tempSettings.offline_price_ratio = (this.value === '' || isNaN(parseFloat(this.value))) ? 1.8 : parseFloat(this.value); markChanged();">
+            <span style="font-size:11px; color:var(--text-tertiary);">仅服务端用于算价，收银台页面不显示；<b>填 0 则收银台价格全部显示 0.00（隐藏价格）</b></span>
         </div>
         <div class="form-group">
             <label class="form-label">店员模式密码 <span id="staffPwdState" style="font-size:11px;color:var(--text-tertiary)"></span></label>
@@ -589,6 +599,7 @@ const defaultSettings = {
     pos_enabled: 1,
     pos_screensaver_img: '',
     pos_screensaver_sec: 30,
+    pos_hide_price: 0,
     pos_token: ''
 };
 
@@ -680,6 +691,8 @@ function applySettings() {
     // 线下收银台
     const peEl = document.getElementById('posEnabled');
     if (peEl) peEl.checked = (tempSettings.pos_enabled ?? 1) == 1;
+    const hpEl = document.getElementById('posHidePrice');
+    if (hpEl) hpEl.checked = (tempSettings.pos_hide_price ?? 0) == 1;
     const ssEl = document.getElementById('posSsSec');
     if (ssEl) ssEl.value = tempSettings.pos_screensaver_sec ?? 30;
     const ssUrlEl = document.getElementById('ssImgUrl');

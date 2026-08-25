@@ -9,7 +9,7 @@ try {
 
     if ($storeId) {
         // 店铺管理员：从 stores 表读取店铺级配置
-        $stmt = $pdo->prepare('SELECT name, system_name, logo_path, condition_types, live_display, shipping_fee, actual_shipping_fee, platform_fee_rate, offline_price_ratio, offline_staff_pwd, offline_pay_qr_wx, offline_pay_qr_ali, pos_token FROM stores WHERE id = ?');
+        $stmt = $pdo->prepare('SELECT name, system_name, logo_path, condition_types, live_display, shipping_fee, actual_shipping_fee, platform_fee_rate, offline_price_ratio, offline_staff_pwd, offline_pay_qr_wx, offline_pay_qr_ali, pos_token, pos_enabled, pos_screensaver_img, pos_screensaver_sec, pos_hide_price FROM stores WHERE id = ?');
         $stmt->execute([$storeId]);
         $store = $stmt->fetch();
 
@@ -33,6 +33,10 @@ try {
             $formatted['offline_pay_qr_wx'] = $store['offline_pay_qr_wx'] ?? '';
             $formatted['offline_pay_qr_ali'] = $store['offline_pay_qr_ali'] ?? '';
             $formatted['pos_token'] = $store['pos_token'] ?? '';
+            $formatted['pos_enabled'] = (int)($store['pos_enabled'] ?? 1);
+            $formatted['pos_screensaver_img'] = $store['pos_screensaver_img'] ?? '';
+            $formatted['pos_screensaver_sec'] = (int)($store['pos_screensaver_sec'] ?? 30);
+            $formatted['pos_hide_price'] = (int)($store['pos_hide_price'] ?? 0);
         }
 
         // 填充默认值
