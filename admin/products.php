@@ -441,6 +441,7 @@ let currentTab = 'inv';
 let systemSettings = {};
 let conditionTypes = [];
 let selectedIds = new Set();
+let currentFiltered = []; // 当前筛选可见的商品（全选只作用于这些）
 
 const $ = id => document.getElementById(id);
 
@@ -625,6 +626,7 @@ function getTotalStock(inventory) {
 }
 
 function renderProducts(products) {
+    currentFiltered = products; // 记录当前筛选可见的商品
     const tbody = $('productList');
     if (!products.length) {
         tbody.innerHTML = '';
@@ -1210,7 +1212,8 @@ function toggleSelectAll(checked) {
     document.querySelectorAll('.pm-cb').forEach(cb => cb.checked = checked);
     selectedIds.clear();
     if (checked) {
-        allProducts.forEach(p => { if (getTotalStock(p.inventory_summary) >= 0) selectedIds.add(p.id); });
+        // 只全选当前筛选可见的商品（不选被筛选掉的）
+        currentFiltered.forEach(p => selectedIds.add(p.id));
     }
     updateBatchDeleteButton();
 }
