@@ -142,7 +142,8 @@ $qrAli = posAssetUrl($qrAli);
   }
   .mask{position:fixed;inset:0;background:rgba(15,20,40,.5);display:none;align-items:flex-end;justify-content:center;z-index:50}
   .mask.show{display:flex}
-  .sheet{background:var(--surface);width:100%;max-width:760px;border-radius:20px 20px 0 0;max-height:82vh;display:flex;flex-direction:column;animation:up .2s ease}
+  .sheet{background:var(--surface);width:100%;max-width:760px;border-radius:20px;max-height:82vh;display:flex;flex-direction:column;animation:pop .25s ease;box-shadow:0 18px 50px rgba(15,20,40,.35)}
+  @keyframes pop{from{transform:scale(.96) translateY(14px);opacity:.5}to{transform:none;opacity:1}}
   @keyframes up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
   .sheet-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
   .sheet-head .st{font-size:17px;font-weight:800}
@@ -246,11 +247,14 @@ $qrAli = posAssetUrl($qrAli);
 </div>
 
 <!-- 品相选择 -->
-<div class="mask" id="skuMask" onclick="if(event.target===this)closeSku()">
+<div class="mask" id="skuMask" style="align-items:center;padding-top:4vh" onclick="if(event.target===this)closeSku()">
   <div class="sheet">
     <div class="sheet-head">
       <span class="st" id="skuTitle">选择品相</span>
       <span class="x" onclick="closeSku()">×</span>
+    </div>
+    <div class="sku-img-wrap" id="skuImgWrap" style="display:none;">
+      <img id="skuImg" src="" alt="" style="width:100%;height:150px;object-fit:contain;background:var(--surface-2);">
     </div>
     <div class="scan-hint" id="skuHint">点选品相即可加入购物清单</div>
     <div class="sheet-body" id="skuBody"></div>
@@ -496,6 +500,10 @@ function openSku(pid) {
   $('skuTitle').textContent = p.name;
   const requested = wishRequested(pid);
   $('skuHint').textContent = requested ? '你已为这款商品求过补货' : '点选品相即可加入购物清单';
+  // 商品图
+  const imgWrap = $('skuImgWrap'), imgEl = $('skuImg');
+  if (p.image_url) { imgEl.src = p.image_url; imgWrap.style.display = 'block'; }
+  else { imgWrap.style.display = 'none'; }
   $('skuBody').innerHTML = p.skus.length === 0
     ? `<div class="sku-empty">
          <div class="sku-empty-txt">该商品暂未入库，暂无品相可选</div>
