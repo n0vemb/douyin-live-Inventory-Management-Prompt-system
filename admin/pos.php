@@ -119,9 +119,9 @@ $qrAli = posAssetUrl($qrAli);
   /* ===== 竖屏适配（平板竖放 / 窄屏）===== */
   @media (max-width: 820px) {
     .kiosk{min-height:calc(100vh - 56px);height:auto}
-    .topbar{grid-template-columns:1fr auto;padding:10px 14px}
-    .topbar .store{font-size:15px}
-    .search-wrap{max-width:none}
+    .topbar{grid-template-columns:auto minmax(0,1fr) auto;padding:10px 14px;gap:8px}
+    .topbar .store{font-size:14px;max-width:96px;overflow:hidden;text-overflow:ellipsis}
+    .search-wrap{max-width:none;width:100%;min-width:0;padding:7px 12px}
     .cats{padding:10px 12px 2px}
     .series-bar{padding:4px 12px 0}
     .grid{padding:10px 12px 18px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
