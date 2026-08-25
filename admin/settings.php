@@ -349,6 +349,36 @@ input:checked + .toggle-slider:before {
     <h3 class="card-title">线下收银台</h3>
     <div class="form-row">
         <div class="form-group">
+            <label class="form-label">收银台开关</label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:6px;">
+                <input type="checkbox" id="posEnabled" style="width:18px; height:18px;"
+                    onchange="tempSettings.pos_enabled = this.checked ? 1 : 0; markChanged();">
+                <span style="font-size:13.5px; color:var(--text-secondary);">开启线下收银台（关闭后访问收银台提示"暂未开启"）</span>
+            </label>
+        </div>
+        <div class="form-group">
+            <label class="form-label">静止进入屏保（秒）</label>
+            <input type="number" id="posSsSec" class="form-input" step="1" min="5" placeholder="30"
+                onchange="tempSettings.pos_screensaver_sec = parseInt(this.value) || 30; markChanged();">
+            <span style="font-size:11px; color:var(--text-tertiary);">顾客触摸屏静止 N 秒后自动进入屏保，0 或未设图片则不启用</span>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group" style="flex:1">
+            <label class="form-label">屏保图片（竖屏建议 9:16，撑满整个屏幕）</label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input type="file" id="ssImgFile" accept="image/*" style="display:none;">
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ssImgFile').click()">上传</button>
+                <input type="text" id="ssImgUrl" class="form-input" placeholder="或输入图片URL" style="flex:1; min-width:120px;"
+                    onchange="tempSettings.pos_screensaver_img = this.value; markChanged();">
+                <button class="btn btn-secondary btn-sm" onclick="tempSettings.pos_screensaver_img=''; document.getElementById('ssImgUrl').value=''; document.getElementById('ssImgPreview').style.display='none'; markChanged();">清除</button>
+                <img id="ssImgPreview" style="max-height:48px; border-radius:6px; display:none;">
+            </div>
+            <span style="font-size:11px; color:var(--text-tertiary);">设置了图片后，进入收银台页面自动进入屏保，点击图片进入收银台</span>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
             <label class="form-label">加价比例（售价 = 最高在库进价 × 比例）</label>
             <input type="number" id="offlineRatio" class="form-input" step="0.01" min="1" placeholder="1.80"
                 onchange="tempSettings.offline_price_ratio = parseFloat(this.value) || 1.8; markChanged();">
@@ -556,6 +586,9 @@ const defaultSettings = {
     offline_staff_pwd_set: false,
     offline_pay_qr_wx: '',
     offline_pay_qr_ali: '',
+    pos_enabled: 1,
+    pos_screensaver_img: '',
+    pos_screensaver_sec: 30,
     pos_token: ''
 };
 
@@ -645,6 +678,14 @@ function applySettings() {
     if (asfEl) asfEl.value = parseFloat(tempSettings.actual_shipping_fee ?? 3).toFixed(2);
     if (pfrEl) pfrEl.value = parseFloat(tempSettings.platform_fee_rate ?? 0.05).toFixed(4);
     // 线下收银台
+    const peEl = document.getElementById('posEnabled');
+    if (peEl) peEl.checked = (tempSettings.pos_enabled ?? 1) == 1;
+    const ssEl = document.getElementById('posSsSec');
+    if (ssEl) ssEl.value = tempSettings.pos_screensaver_sec ?? 30;
+    const ssUrlEl = document.getElementById('ssImgUrl');
+    if (ssUrlEl) ssUrlEl.value = tempSettings.pos_screensaver_img || '';
+    const ssPrev = document.getElementById('ssImgPreview');
+    if (ssPrev && tempSettings.pos_screensaver_img) { ssPrev.src = assetUrl(tempSettings.pos_screensaver_img); ssPrev.style.display = ''; }
     const orEl = document.getElementById('offlineRatio');
     if (orEl) orEl.value = parseFloat(tempSettings.offline_price_ratio ?? 1.8).toFixed(2);
     const pwdState = document.getElementById('staffPwdState');
@@ -1041,23 +1082,21 @@ function assetUrl(path) {
     if (/^https?:\/\//i.test(path)) return path;
     return location.origin + '/' + path.replace(/^\.\.\//, '');
 }
-function bindQrUpload(inputId, key, previewId) {
+function bindQrUpload(inputId, key, previewId, urlId) {
     const input = document.getElementById(inputId);
     if (!input) return;
-    input.addEventListener('change', function (e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const formData = new FormData();
-        formData.append('image', file);
-        formData.append('type', 'qr');
-        fetch('../api/upload_image.php', { method: 'POST', body: formData })
+    input.addEventListener('change', function () {
+        if (!this.files || !this.files[0]) return;
+        const fd = new FormData();
+        fd.append('image', this.files[0]);
+        fetch('../api/upload_image.php', { method: 'POST', body: fd })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
                     tempSettings[key] = data.data.url;
                     const prev = document.getElementById(previewId);
                     if (prev) { prev.src = assetUrl(data.data.url); prev.style.display = ''; }
-                    const urlEl = document.getElementById(previewId === 'qrWxPreview' ? 'qrWxUrl' : 'qrAliUrl');
+                    const urlEl = document.getElementById(urlId || (previewId === 'qrWxPreview' ? 'qrWxUrl' : 'qrAliUrl'));
                     if (urlEl) urlEl.value = data.data.url;
                     updateSaveStatus(true);
                 } else {
@@ -1069,6 +1108,7 @@ function bindQrUpload(inputId, key, previewId) {
 }
 bindQrUpload('qrWxFile', 'offline_pay_qr_wx', 'qrWxPreview');
 bindQrUpload('qrAliFile', 'offline_pay_qr_ali', 'qrAliPreview');
+bindQrUpload('ssImgFile', 'pos_screensaver_img', 'ssImgPreview', 'ssImgUrl');
 
 function copyPosLink() {
     const el = document.getElementById('posLink');

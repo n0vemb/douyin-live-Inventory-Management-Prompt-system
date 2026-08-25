@@ -20,10 +20,13 @@ function posCatAssetUrl($path) {
 $pdo = getDB();
 
 try {
-    $stmt = $pdo->prepare('SELECT name, offline_price_ratio FROM stores WHERE id = ?');
+    $stmt = $pdo->prepare('SELECT name, offline_price_ratio, pos_enabled, pos_screensaver_img, pos_screensaver_sec FROM stores WHERE id = ?');
     $stmt->execute([$storeId]);
     $store = $stmt->fetch();
     $storeName = $store['name'] ?? '';
+    $posEnabled = (int)($store['pos_enabled'] ?? 1);
+    $ssImg = $store['pos_screensaver_img'] ?? '';
+    $ssSec = (int)($store['pos_screensaver_sec'] ?? 30);
     $ratio = decimal($store['offline_price_ratio'] ?? 1.80);
     if ($ratio <= 0) $ratio = 1.80;
     $condNames = conditionNames($pdo, $storeId);
@@ -70,6 +73,9 @@ try {
 
     success([
         'store_name' => $storeName,
+        'pos_enabled' => $posEnabled,
+        'screensaver_img' => $ssImg ? posCatAssetUrl($ssImg) : '',
+        'screensaver_sec' => $ssSec,
         'products' => array_values($products)
     ]);
 } catch (Exception $e) {

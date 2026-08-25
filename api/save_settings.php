@@ -16,11 +16,11 @@ try {
 
     if ($storeId) {
         // 店铺管理员：保存到 stores 表
-        $allowedFields = ['system_name', 'logo_path', 'condition_types', 'live_display', 'shipping_fee', 'actual_shipping_fee', 'platform_fee_rate', 'offline_price_ratio', 'offline_pay_qr_wx', 'offline_pay_qr_ali'];
+        $allowedFields = ['system_name', 'logo_path', 'condition_types', 'live_display', 'shipping_fee', 'actual_shipping_fee', 'platform_fee_rate', 'offline_price_ratio', 'offline_pay_qr_wx', 'offline_pay_qr_ali', 'pos_enabled', 'pos_screensaver_img', 'pos_screensaver_sec'];
         // store_name 映射到 name 字段
         $fieldMap = ['store_name' => 'name'];
         // 数值字段，不需要 JSON 编码
-        $numericFields = ['shipping_fee', 'platform_fee_rate', 'offline_price_ratio'];
+        $numericFields = ['shipping_fee', 'platform_fee_rate', 'offline_price_ratio', 'pos_enabled', 'pos_screensaver_sec'];
         $updateFields = [];
         $updateParams = [];
 

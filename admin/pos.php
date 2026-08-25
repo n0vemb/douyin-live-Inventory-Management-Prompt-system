@@ -194,6 +194,22 @@ $qrAli = posAssetUrl($qrAli);
 </head>
 <body>
 
+<!-- 收银台未开启遮罩 -->
+<div id="posDisabledMask" style="position:fixed;inset:0;background:#f5f6f8;z-index:10000;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;">
+  <div style="font-size:64px;">🚫</div>
+  <div style="font-size:22px;font-weight:800;color:#2b2230;">线下收银台暂未开启</div>
+  <div style="font-size:14px;color:#7a6b75;">请联系管理员在「店铺设置 → 线下收银台」中开启</div>
+</div>
+
+<!-- 屏保覆盖层 -->
+<div id="screensaver" style="position:fixed;inset:0;z-index:9999;display:none;cursor:pointer;background:#000;">
+  <img id="ssImg" src="" alt="" style="width:100%;height:100%;" onclick="exitScreensaver()">
+</div>
+<style>
+#screensaver img{object-fit:contain}
+@media (orientation:portrait){#screensaver img{object-fit:cover}}
+</style>
+
 <div class="topbar">
   <div class="store" id="storeName"><?= htmlspecialchars($storeName) ?></div>
   <div class="search-wrap">
@@ -345,9 +361,52 @@ async function loadCatalog(keepFilter) {
       kw = '';
     }
     renderBrands(); renderSeries(); renderGrid(); renderCart();
+    handlePosState();
   } catch (e) {
     toast(e.message, true);
   }
+}
+
+// ===== 开关 + 屏保 =====
+let ssTimer = null;
+function handlePosState() {
+  // 开关检查
+  if (CATALOG.pos_enabled === 0) {
+    document.getElementById('posDisabledMask').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    return;
+  }
+  document.getElementById('posDisabledMask').style.display = 'none';
+  document.body.style.overflow = '';
+  // 屏保：设置了图片 + 时长>0 才启用
+  const ssImg = CATALOG.screensaver_img || '';
+  const ssSec = (CATALOG.screensaver_sec || 0);
+  if (ssImg && ssSec > 0) {
+    document.getElementById('ssImg').src = ssImg;
+    resetSsTimer(ssSec);
+    document.addEventListener('pointerdown', () => resetSsTimer(ssSec), true);
+    document.addEventListener('keydown', () => resetSsTimer(ssSec), true);
+    // 首次加载直接进入屏保（需求：设置有图片时进入页面自动屏保状态）
+    showScreensaver();
+  } else {
+    clearTimeout(ssTimer);
+  }
+}
+function resetSsTimer(sec) {
+  clearTimeout(ssTimer);
+  ssTimer = setTimeout(showScreensaver, sec * 1000);
+}
+function showScreensaver() {
+  const ss = document.getElementById('screensaver');
+  if (ss && document.getElementById('ssImg').src) {
+    ss.style.display = 'flex';
+  }
+}
+function exitScreensaver() {
+  document.getElementById('screensaver').style.display = 'none';
+  // 退出屏保后重新计时
+  const ssSec = (CATALOG.screensaver_sec || 0);
+  if (ssSec > 0) resetSsTimer(ssSec);
 }
 
 // ===== 品牌 / 系列 =====
