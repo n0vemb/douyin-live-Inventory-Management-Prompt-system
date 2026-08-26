@@ -60,7 +60,16 @@ try {
     }
 
     if (empty($purchaseMap)) {
-        throw new Exception('没有购买商品，无法出库');
+        // 空场次（无客户/无购买商品）：允许直接结束，跳过出库，仅标记 ended
+        $stmt = $pdo->prepare("UPDATE live_ledger_session SET status = 'ended', ended_at = NOW(), total_customers = ?, total_qty = 0, total_gmv = 0, total_cost = 0, total_shipping = 0, total_platform_fee = 0, total_packing = 0, total_profit_base = 0, total_gift_cost = 0, total_profit_with_gift = 0, total_reduce_amount = 0, total_profit_with_reduce = 0, total_profit_both = 0, snapshot_json = ?, outbound_batch_no = NULL WHERE id = ?");
+        $stmt->execute([count($customers), json_encode([
+            'settings' => $settings,
+            'outbound_batch_no' => null,
+            'customers' => [],
+            'totals' => ['customers' => count($customers), 'qty' => 0, 'gmv' => 0, 'cost' => 0, 'shipping' => 0, 'platform_fee' => 0, 'packing' => 0, 'profit_base' => 0, 'gift_cost' => 0, 'profit_with_gift' => 0, 'reduce_amount' => 0, 'profit_with_reduce' => 0, 'profit_both' => 0]
+        ], JSON_UNESCAPED_UNICODE), $sessionId]);
+        $pdo->commit();
+        success(['message' => '场次已结束（无购买商品，未执行出库）', 'data' => ['outbound_batch_no' => null, 'total_qty' => 0, 'total_gmv' => 0]]);
     }
 
     $outboundBatchNo = 'LL' . date('YmdHis');
