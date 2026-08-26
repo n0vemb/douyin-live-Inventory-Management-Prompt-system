@@ -1302,12 +1302,24 @@ function positionDropdown() {
     const input = document.getElementById('productSearchInput');
     const dd = document.getElementById('obSearchDropdown');
     const rect = input.getBoundingClientRect();
+    const vh = window.innerHeight;
     dd.style.position = 'fixed';
-    dd.style.top = (rect.bottom + 4) + 'px';
     dd.style.left = rect.left + 'px';
     dd.style.right = 'auto';
     dd.style.width = rect.width + 'px';
     dd.style.zIndex = '9999';
+    // 空间自适应：下方不够（<40vh）就向上展开，高度不超过剩余空间
+    const spaceBelow = vh - rect.bottom;
+    if (spaceBelow < vh * 0.4) {
+        // 向上展开
+        dd.style.top = 'auto';
+        dd.style.bottom = (vh - rect.top + 4) + 'px';
+        dd.style.maxHeight = Math.max(120, rect.top - 8) + 'px';
+    } else {
+        dd.style.top = (rect.bottom + 4) + 'px';
+        dd.style.bottom = 'auto';
+        dd.style.maxHeight = Math.max(120, spaceBelow - 8) + 'px';
+    }
 }
 
 window.addEventListener('scroll', () => {
