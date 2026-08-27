@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/condition_common.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 $barcode = trim($input['barcode'] ?? '');
@@ -37,48 +38,9 @@ if (empty($liveInventory)) {
 }
 
 $inventoryData = [];
-$conditionMap = [];
 $purchasePriceData = [];
-try {
-    if ($storeId) {
-        $stmt = $pdo->prepare("SELECT condition_types FROM stores WHERE id = ?");
-        $stmt->execute([$storeId]);
-        $result = $stmt->fetch();
-        if ($result && $result['condition_types']) {
-            $conditionTypes = json_decode($result['condition_types'], true);
-            if ($conditionTypes && is_array($conditionTypes)) {
-                foreach ($conditionTypes as $ct) {
-                    $conditionMap[$ct['key']] = $ct['name'];
-                }
-            }
-        }
-    } else {
-        $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'condition_types' AND store_id IS NULL");
-        $stmt->execute();
-        $result = $stmt->fetch();
-        if ($result && $result['setting_value']) {
-            $conditionTypes = json_decode($result['setting_value'], true);
-            if ($conditionTypes && is_array($conditionTypes)) {
-                foreach ($conditionTypes as $ct) {
-                    $conditionMap[$ct['key']] = $ct['name'];
-                }
-            }
-        }
-    }
-} catch (Exception $e) {}
-
-if (empty($conditionMap)) {
-    $conditionMap = [
-        'sealed' => '原盒未拆',
-        'opened' => '拆盒无瑕',
-        'boxless' => '无盒无瑕',
-        'flawed' => '微瑕'
-    ];
-}
-
-if (empty($conditionMap)) {
-    $conditionMap = CONDITION_TYPES;
-}
+// 品相中文名：统一来源（店铺配置 → 全局配置 → 默认兜底）
+$conditionMap = conditionNames($pdo, $storeId);
 
 // 查询各状态的进货价（去重）
 try {

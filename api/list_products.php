@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/condition_common.php';
 
 $keyword = $_GET['keyword'] ?? '';
 $series = $_GET['series'] ?? '';
@@ -9,12 +10,7 @@ $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
 $canSeeProfit = !isOperator();
 
-$conditionTypes = [
-    'sealed' => '原盒未拆',
-    'opened' => '拆盒无瑕',
-    'boxless' => '无盒无瑕',
-    'flawed' => '微瑕'
-];
+$conditionTypes = conditionNames($pdo, $storeId);
 
 $sql = "SELECT p.* FROM products p";
 $params = [];
