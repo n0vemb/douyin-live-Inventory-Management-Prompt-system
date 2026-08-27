@@ -32,6 +32,15 @@ try {
     if ($ratio < 0) $ratio = 1.80;
     $condNames = conditionNames($pdo, $storeId);
 
+    // 线下售价配置（SKU级手动定价，仅店长/超管可设；收银台始终生效）
+    $offlinePrices = [];
+    $opStmt = $pdo->query('SELECT product_id, condition_type, offline_price FROM product_offline_prices');
+    if ($opStmt) {
+        foreach ($opStmt->fetchAll() as $op) {
+            $offlinePrices[$op['product_id'] . '|' . $op['condition_type']] = round(floatval($op['offline_price']), 2);
+        }
+    }
+
     // 商品 + 品相聚合：可用库存 = Σ(remaining-locked)，售价 = MAX(可用批次的进价)×ratio
     $sql = "SELECT p.id, p.name, p.series, p.brand, p.image_url,
                    b.condition_type,
@@ -63,7 +72,11 @@ try {
         $cond = $r['condition_type'];
         if (!$cond) continue;
         $avail = max(0, (int)$r['avail_stock']);
-        $price = $avail > 0 ? round($r['max_cost'] * $ratio, 2) : 0;
+        // 售价：优先 SKU 级手动线下售价（product_offline_prices）；未配置则 最高在库进价 × 加价比例
+        $manual = $offlinePrices[$pid . '|' . $cond] ?? 0;
+        $price = $avail > 0
+            ? ($manual > 0 ? $manual : round($r['max_cost'] * $ratio, 2))
+            : 0;
         $products[$pid]['skus'][] = [
             'condition_type' => $cond,
             'cond_name' => $condNames[$cond] ?? $cond,

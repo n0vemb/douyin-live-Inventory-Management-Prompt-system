@@ -121,9 +121,16 @@ $isOperator = ($currentUser['role'] === 'operator');
             </div>
             <div class="form-row">
                 <div class="form-group">
+                    <label class="form-label">线下售价</label>
+                    <input type="number" step="0.01" min="0" class="form-input" id="offlinePrice" placeholder="留空自动=最高进价×加价比例">
+                    <span style="font-size:11px; color:var(--text-tertiary);">线下收银台优先使用此价格；留空则自动按店铺加价比例计算</span>
+                </div>
+                <div class="form-group">
                     <label class="form-label">参考价</label>
                     <input type="number" step="0.01" class="form-input" id="qiandaoPrice">
                 </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">品牌</label>
                     <input type="text" class="form-input" id="productBrand">
@@ -265,6 +272,11 @@ $isOperator = ($currentUser['role'] === 'operator');
                 <input type="number" step="0.01" class="form-input" id="priceSuggested" placeholder="留空不改">
             </div>
             <div style="font-size:12px; color:var(--text-tertiary); margin-top:6px;">仅统一售价，不影响各批次进价。</div>
+            <div class="form-group" id="offlinePriceGroup" style="display:none;">
+                <label class="form-label">线下售价（收银台专用，按品相设置）</label>
+                <div id="offlinePriceRows" style="display:flex;flex-direction:column;gap:8px;"></div>
+                <div style="font-size:12px; color:var(--text-tertiary); margin-top:6px;">留空 = 自动（进价×加价比例）；配置后入库不覆盖。</div>
+            </div>
             <div style="display:flex; gap:15px; margin-top:20px; justify-content:flex-end;">
                 <button type="button" class="btn btn-secondary" onclick="closeModal('priceModal')">取消</button>
                 <button type="submit" class="btn btn-primary">应用改价</button>
@@ -940,6 +952,7 @@ async function openEditModal(id) {
         $('productSeries').value = p.series || '';
         $('productBarcode').value = p.barcode;
         $('qiandaoPrice').value = p.qiandao_price || '';
+        $('offlinePrice').value = p.offline_price || '';
         $('productBrand').value = p.brand || '';
         $('releaseDate').value = p.release_date || '';
         $('productDescription').value = p.product_description || '';
@@ -987,6 +1000,7 @@ async function saveProduct(event) {
         series: $('productSeries').value || null,
         barcode: $('productBarcode').value || null,
         qiandao_price: $('qiandaoPrice').value ? parseFloat($('qiandaoPrice').value) : null,
+        offline_price: $('offlinePrice').value !== '' ? parseFloat($('offlinePrice').value) : null,
         brand: $('productBrand').value || null,
         release_date: $('releaseDate').value || null,
         product_description: $('productDescription').value || null,
@@ -1142,6 +1156,7 @@ async function saveConvert(e) {
 
 /* ---------- 批量改价 ---------- */
 let priceProductId = null;
+let offlinePriceConfig = {}; // 商品品相 → 线下售价配置（仅店长/超管加载）
 function openPriceModal(productId) {
     if (!requireStore()) return;
     priceProductId = productId;
@@ -1152,6 +1167,34 @@ function openPriceModal(productId) {
     const sel = $('priceCondition');
     sel.innerHTML = '<option value="all">全部状态</option>' + getConditionKeys().map(k => `<option value="${k}">${escapeHtml(getCN(k))}</option>`).join('');
     $('priceSuggested').value = '';
+    // 线下售价：运营不可见
+    const og = $('offlinePriceGroup');
+    if (og) {
+        if (IS_OPERATOR) { og.style.display = 'none'; }
+        else {
+            og.style.display = 'block';
+            // 动态生成品相行（来自店铺配置，非写死）
+            const rows = $('offlinePriceRows');
+            rows.innerHTML = getConditionKeys().map(k => `
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="flex:0 0 90px;font-size:13px;font-weight:600;">${escapeHtml(getCN(k))}</span>
+                    <input type="number" step="0.01" min="0" class="form-input" data-cond="${k}" placeholder="留空自动" style="max-width:150px;">
+                </div>`).join('');
+            // 加载已配置的线下售价并回显
+            fetch('../api/get_offline_prices.php?product_id=' + productId)
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success && d.configured) {
+                        offlinePriceConfig = d.configured || {};
+                        rows.querySelectorAll('input[data-cond]').forEach(inp => {
+                            const c = inp.dataset.cond;
+                            if (offlinePriceConfig[c]) inp.value = offlinePriceConfig[c];
+                        });
+                    }
+                })
+                .catch(() => {});
+        }
+    }
     showModal('priceModal');
 }
 async function savePrice(e) {
@@ -1172,6 +1215,23 @@ async function savePrice(e) {
         const data = await res.json();
         if (!data.success) { showErrorToast('改价失败: ' + data.error); return; }
     } catch (err) { showErrorToast('改价失败: ' + err.message); return; }
+    // 线下售价：仅店长/超管；逐品相保存（空值=恢复自动）
+    if (!IS_OPERATOR && !$('offlinePriceGroup').classList.contains('hidden')) {
+        const rows = $('offlinePriceRows');
+        for (const inp of rows.querySelectorAll('input[data-cond]')) {
+            const cond = inp.dataset.cond;
+            const v = inp.value;
+            try {
+                const olRes = await fetch('../api/save_offline_price.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ product_id: productId, condition_type: cond, offline_price: v !== '' ? parseFloat(v) : null })
+                });
+                const olData = await olRes.json();
+                if (!olData.success) { showErrorToast('线下售价保存失败(' + getCN(cond) + '): ' + olData.error); return; }
+            } catch (err) { showErrorToast('线下售价保存失败(' + getCN(cond) + '): ' + err.message); return; }
+        }
+    }
     showToast('改价已应用');
     closeModal('priceModal');
     await loadProducts();
