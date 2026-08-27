@@ -121,9 +121,16 @@ $isOperator = ($currentUser['role'] === 'operator');
             </div>
             <div class="form-row">
                 <div class="form-group">
+                    <label class="form-label">线下售价</label>
+                    <input type="number" step="0.01" min="0" class="form-input" id="offlinePrice" placeholder="留空自动=最高进价×加价比例">
+                    <span style="font-size:11px; color:var(--text-tertiary);">线下收银台优先使用此价格；留空则自动按店铺加价比例计算</span>
+                </div>
+                <div class="form-group">
                     <label class="form-label">参考价</label>
                     <input type="number" step="0.01" class="form-input" id="qiandaoPrice">
                 </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">品牌</label>
                     <input type="text" class="form-input" id="productBrand">
@@ -940,6 +947,7 @@ async function openEditModal(id) {
         $('productSeries').value = p.series || '';
         $('productBarcode').value = p.barcode;
         $('qiandaoPrice').value = p.qiandao_price || '';
+        $('offlinePrice').value = p.offline_price || '';
         $('productBrand').value = p.brand || '';
         $('releaseDate').value = p.release_date || '';
         $('productDescription').value = p.product_description || '';
@@ -987,6 +995,7 @@ async function saveProduct(event) {
         series: $('productSeries').value || null,
         barcode: $('productBarcode').value || null,
         qiandao_price: $('qiandaoPrice').value ? parseFloat($('qiandaoPrice').value) : null,
+        offline_price: $('offlinePrice').value !== '' ? parseFloat($('offlinePrice').value) : null,
         brand: $('productBrand').value || null,
         release_date: $('releaseDate').value || null,
         product_description: $('productDescription').value || null,

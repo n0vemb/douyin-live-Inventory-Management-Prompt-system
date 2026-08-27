@@ -12,6 +12,7 @@ $series = $input['series'] ?? null;
 $brand = $input['brand'] ?? null;
 $barcode = $input['barcode'] ?? '';
 $qiandaoPrice = $input['qiandao_price'] ?? null;
+$offlinePrice = isset($input['offline_price']) && $input['offline_price'] !== '' ? floatval($input['offline_price']) : null;
 $releaseDate = $input['release_date'] ?? null;
 $productDescription = $input['product_description'] ?? null;
 $imageUrl = $input['image_url'] ?? null;
@@ -38,8 +39,8 @@ if ($stmt->fetch()) {
 
 $pinyinInitials = generatePinyinInitials($name);
 
-$stmt = $pdo->prepare('UPDATE products SET name = ?, pinyin_initials = ?, common_name = ?, series = ?, brand = ?, barcode = ?, qiandao_price = ?, release_date = ?, product_description = ?, image_url = ?, remark = ? WHERE id = ? AND store_id = ?');
-$stmt->execute([$name, $pinyinInitials, $commonName, $series, $brand, $barcode, $qiandaoPrice, $releaseDate, $productDescription, $imageUrl, $remark, $productId, $storeId]);
+$stmt = $pdo->prepare('UPDATE products SET name = ?, pinyin_initials = ?, common_name = ?, series = ?, brand = ?, barcode = ?, qiandao_price = ?, offline_price = ?, release_date = ?, product_description = ?, image_url = ?, remark = ? WHERE id = ? AND store_id = ?');
+$stmt->execute([$name, $pinyinInitials, $commonName, $series, $brand, $barcode, $qiandaoPrice, $offlinePrice, $releaseDate, $productDescription, $imageUrl, $remark, $productId, $storeId]);
 
 // 清理旧图片：如果 image_url 发生变化且旧图片是本地上传的
 if ($oldImageUrl !== null && $oldImageUrl !== $imageUrl) {

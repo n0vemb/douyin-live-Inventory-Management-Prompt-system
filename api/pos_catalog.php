@@ -33,7 +33,7 @@ try {
     $condNames = conditionNames($pdo, $storeId);
 
     // 商品 + 品相聚合：可用库存 = Σ(remaining-locked)，售价 = MAX(可用批次的进价)×ratio
-    $sql = "SELECT p.id, p.name, p.series, p.brand, p.image_url,
+    $sql = "SELECT p.id, p.name, p.series, p.brand, p.image_url, p.offline_price,
                    b.condition_type,
                    SUM(b.remaining_qty - b.locked_qty) AS avail_stock,
                    MAX(CASE WHEN b.remaining_qty - b.locked_qty > 0 THEN b.purchase_price ELSE 0 END) AS max_cost
@@ -41,7 +41,7 @@ try {
             LEFT JOIN inventory_batches b
                    ON b.product_id = p.id AND b.store_id = p.store_id
             WHERE p.store_id = ?
-            GROUP BY p.id, p.name, p.series, p.brand, p.image_url, b.condition_type
+            GROUP BY p.id, p.name, p.series, p.brand, p.image_url, p.offline_price, b.condition_type
             ORDER BY p.series, p.id";
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$storeId]);
@@ -63,7 +63,11 @@ try {
         $cond = $r['condition_type'];
         if (!$cond) continue;
         $avail = max(0, (int)$r['avail_stock']);
-        $price = $avail > 0 ? round($r['max_cost'] * $ratio, 2) : 0;
+        // 售价：优先商品手动线下售价 offline_price；留空则 最高在库进价 × 加价比例
+        $offlinePrice = $r['offline_price'] !== null ? round(floatval($r['offline_price']), 2) : 0;
+        $price = $avail > 0
+            ? ($offlinePrice > 0 ? $offlinePrice : round($r['max_cost'] * $ratio, 2))
+            : 0;
         $products[$pid]['skus'][] = [
             'condition_type' => $cond,
             'cond_name' => $condNames[$cond] ?? $cond,
