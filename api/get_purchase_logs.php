@@ -37,6 +37,7 @@ try {
             COALESCE(ib.purchased_at, ib.created_at) as purchased_at,
             p.name as product_name,
             p.common_name,
+            p.series,
             p.barcode
         FROM inventory_batches ib
         LEFT JOIN products p ON ib.product_id = p.id
@@ -88,6 +89,7 @@ try {
                 "condition_type"=> $row["condition_type"],
                 "product_name"  => $row["product_name"],
                 "common_name"   => $row["common_name"],
+                "series"        => $row["series"] ?? "",
                 "barcode"       => $row["barcode"],
                 "qty"           => 0,
                 // 最新批次的信息
