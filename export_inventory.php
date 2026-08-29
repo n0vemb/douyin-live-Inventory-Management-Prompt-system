@@ -5,6 +5,9 @@ require_once __DIR__ . '/../auth.php';
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
 
+// 运营角色不可导出库存（导出含进价等成本数据）
+requireNonOperator();
+
 // 获取状态类型
 $conditionTypes = [
     ['name' => '原盒未拆', 'key' => 'sealed'],
@@ -31,8 +34,8 @@ try {
     }
 } catch (Exception $e) {}
 
-// 查询所有商品
-$productSql = "SELECT p.* FROM products p";
+// 只查有库存的商品
+$productSql = "SELECT DISTINCT p.* FROM products p JOIN inventory_batches ib ON ib.product_id = p.id AND ib.remaining_qty > 0";
 $productParams = [];
 if ($storeId) {
     $productSql .= " WHERE p.store_id = ?";
@@ -90,7 +93,7 @@ header('Content-Disposition: attachment; filename="inventory_export_' . date('Ym
 $output = fopen('php://output', 'w');
 fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF)); // UTF-8 BOM
 
-fputcsv($output, $headers);
+fputcsv($output, $headers, ',', '"', '\\');
 
 foreach ($products as $p) {
     $row = [
@@ -116,7 +119,7 @@ foreach ($products as $p) {
     $row[] = ''; // 供应商
     $row[] = ''; // 备注
 
-    fputcsv($output, $row);
+    fputcsv($output, $row, ',', '"', '\\');
 }
 
 fclose($output);
