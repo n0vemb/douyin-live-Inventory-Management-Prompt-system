@@ -452,7 +452,7 @@ function render(newIds = null) {
         card.innerHTML = `
           <div class="done-main">
             <div class="done-name">${escapeHtml(t.product_name)} <span class="tc-kind" style="font-size:11px;${t.type === 'return' ? 'background:var(--warning);color:#000' : ''}">${t.type === 'return' ? '回库' : '出库'}</span>${t.sell_price !== null && t.sell_price !== undefined && t.sell_price !== '' ? `<span class="tc-price">${fmtPrice(t.sell_price)}</span>` : ''}</div>
-            <div class="done-meta">${escapeHtml(t.session_name)} · ${escapeHtml(t.vip_no || t.nickname || '新客户')} · ${escapeHtml(condCN(t.condition_type))}${t.is_gift ? ' · 赠品' : ''} · ${fmtTime(t.done_at)} 处理</div>
+            <div class="done-meta">${escapeHtml(t.session_name)} · ${escapeHtml(t.vip_no ? (t.vip_no + (t.nickname ? ' ' + t.nickname : '')) : (t.nickname || '新客户'))} · ${escapeHtml(condCN(t.condition_type))}${t.is_gift ? ' · 赠品' : ''} · ${fmtTime(t.done_at)} 处理</div>
           </div>
           <div class="done-qty">×1</div>
           <button class="btn-undo" onclick="undoTask(${t.id})">撤销</button>

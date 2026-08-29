@@ -424,7 +424,8 @@ function updateCount(){
 
 // ---------- 模板 ----------
 const EL_TOOLS=[
-  {type:'name',label:'商品名称'},{type:'common',label:'常用名'},{type:'barcode',label:'条码'},
+  {type:'name',label:'商品名称'},{type:'common',label:'常用名'},{type:'series',label:'系列'},
+  {type:'barcode',label:'条码'},
   {type:'barcodeText',label:'条码数字'},{type:'price',label:'售价'},{type:'condition',label:'SKU'},
   {type:'batch',label:'批次号'},{type:'date',label:'入库日期'}
 ];
@@ -434,6 +435,7 @@ function defaultElSize(type){
     barcodeText:{width:50,height:4,fontSize:2.5},
     name:{width:50,height:6,fontSize:4.5,fontWeight:'bold',color:'#000000'},
     common:{width:50,height:4,fontSize:3},
+    series:{width:50,height:4,fontSize:3},
     price:{width:50,height:6,fontSize:5,fontWeight:'bold',color:'#e53e3e'},
     condition:{width:50,height:4,fontSize:2.5},
     batch:{width:50,height:4,fontSize:2.5},
@@ -444,7 +446,7 @@ function defaultElSize(type){
 function sampleItem(){
   const hit=records.find(r=>(copies[r.batch_id]||0)>0);
   const r=hit||records[0]||{};
-  return {barcode:r.barcode||'',productName:r.product_name||r.common_name||'',commonName:r.common_name||'',price:parseFloat(r.suggested_price||0),conditionType:r.condition_type||'sealed',batchNo:r.batch_no||'',date:r.purchased_at||''};
+  return {barcode:r.barcode||'',productName:r.product_name||r.common_name||'',commonName:r.common_name||'',series:r.series||'',price:parseFloat(r.suggested_price||0),conditionType:r.condition_type||'sealed',batchNo:r.batch_no||'',date:r.purchased_at||''};
 }
 // elHTML：fsPx=字号(px)、bhPx=条码高度(px)——编辑器/预览/浏览器打印按各自 scale 传入，缩放元素时字号/条码真实变化
 // elHTML：fsPx=字号(px)、bhPx=条码高度(px)、align=对齐——编辑器/预览/浏览器打印按各自 scale 传入
@@ -455,6 +457,7 @@ function elHTML(type,item,fsPx,bhPx,align){
   const base=(pct,nowrap)=>`${alignStyle}width:100%;${nowrap?'white-space:nowrap;':''}font-size:${Math.round(fsPx*pct)}px;line-height:1.2`;
   if(type==='name')return `<div style="${base(1,false)};font-weight:700">${esc(item.productName)}</div>`;
   if(type==='common')return `<div style="${base(0.75,true)};color:#5b6478">${esc(item.commonName||'')}</div>`;
+  if(type==='series')return `<div style="${base(0.8,true)};color:#5b6478">${esc(item.series||'')}</div>`;
   if(type==='barcode')return `<div class="barcode" style="height:${bhPx||26}px;width:100%">${barcodeBars(item.barcode,bhPx)}</div>`;
   if(type==='barcodeText')return `<div style="${alignStyle}font-family:ui-monospace,monospace;font-size:${Math.round(fsPx*0.8)}px;color:#1d2330">${esc(item.barcode)}</div>`;
   if(type==='price')return `<div style="${base(1,true)};font-weight:700;color:#d92d20">¥${(+item.price||0).toFixed(2)}</div>`;
