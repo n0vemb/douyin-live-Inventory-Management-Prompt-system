@@ -17,6 +17,7 @@ register_shutdown_function(function() {
 try {
     require_once __DIR__ . '/../config.php';
     require_once __DIR__ . '/../auth.php';
+    require_once __DIR__ . '/condition_common.php';
 
     // 检查 GD 库
     if (!function_exists('imagecreatetruecolor')) {
@@ -35,7 +36,7 @@ requireAuth(); $storeId = getStoreId();
         $placeholders = implode(',', array_fill(0, count($input['batch_ids']), '?'));
         $stmt = $pdo->prepare("
             SELECT ib.id AS batch_id, ib.batch_no, ib.remaining_qty, ib.suggested_price, ib.condition_type,
-                   p.barcode, COALESCE(p.common_name, p.name) AS product_name, p.common_name,
+                   p.barcode, COALESCE(p.common_name, p.name) AS product_name, p.common_name, p.series,
                    COALESCE(ib.purchased_at, ib.created_at) AS purchased_at
             FROM inventory_batches ib
             JOIN products p ON ib.product_id = p.id
@@ -46,6 +47,8 @@ requireAuth(); $storeId = getStoreId();
         $stmt->execute($params);
         $batchRows = $stmt->fetchAll();
 
+        $condMap = conditionNames($pdo, $storeId);
+
         $batchQtyMap = isset($input['batch_qty']) ? $input['batch_qty'] : array();
         $labels = array();
         foreach ($batchRows as $row) {
@@ -53,6 +56,7 @@ requireAuth(); $storeId = getStoreId();
                 'barcode'       => $row['barcode'],
                 'productName'   => $row['product_name'],
                 'commonName'    => $row['common_name'],
+                'series'        => $row['series'] ?? '',
                 'batchNo'       => $row['batch_no'],
                 'purchasedAt'   => $row['purchased_at'],
                 'price'         => $row['suggested_price'],
@@ -62,6 +66,7 @@ requireAuth(); $storeId = getStoreId();
         }
     } else {
         $labels = $input['labels'];
+        $condMap = CONDITION_TYPES;
     }
     $template = $input['template'];
     $printer = isset($input['printer']) ? $input['printer'] : '';
@@ -77,17 +82,46 @@ requireAuth(); $storeId = getStoreId();
     $imageWidth = (int)round($canvasWidth * $pxPerMm);
     $imageHeight = (int)round($canvasHeight * $pxPerMm);
 
-    // 尝试系统字体
+    // 字体：优先项目内置 CJK 字体（fonts/ 目录，Windows/macOS/Linux 通用，常规+真粗体）。
+    // 粗体一律用真粗体字库渲染（不用描边模拟）；内置缺失时按平台回退系统字体。
+    $fontsDir = __DIR__ . '/../fonts';
     $fontPath = '';
-    $fontCandidates = array(
-        '/System/Library/Fonts/Helvetica.ttc',
-        '/System/Library/Fonts/HelveticaNeue.ttc',
-        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-        '/usr/share/fonts/TTF/DejaVuSans.ttf',
-        '/usr/share/fonts/dejavu/DejaVuSans.ttf',
-    );
-    foreach ($fontCandidates as $f) {
-        if (file_exists($f)) { $fontPath = $f; break; }
+    $fontBoldPath = '';
+    $bundledRegular = $fontsDir . '/NotoSansSC-Regular.otf';
+    $bundledBold = $fontsDir . '/NotoSansSC-Bold.otf';
+    if (file_exists($bundledRegular)) { $fontPath = $bundledRegular; }
+    if (file_exists($bundledBold)) { $fontBoldPath = $bundledBold; }
+
+    if ($fontPath === '') {
+        // 系统字体回退：中文字体在前，纯拉丁字体兜底（无法渲染中文，仅保证英文标签可用）
+        $regularCandidates = array(
+            'C:/Windows/Fonts/msyh.ttc',
+            'C:/Windows/Fonts/simhei.ttf',
+            '/System/Library/Fonts/PingFang.ttc',
+            '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+            '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc',
+            '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+            '/System/Library/Fonts/Helvetica.ttc',
+            '/System/Library/Fonts/HelveticaNeue.ttc',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            '/usr/share/fonts/TTF/DejaVuSans.ttf',
+            '/usr/share/fonts/dejavu/DejaVuSans.ttf',
+        );
+        foreach ($regularCandidates as $f) {
+            if (file_exists($f)) { $fontPath = $f; break; }
+        }
+    }
+    if ($fontBoldPath === '') {
+        // 真粗体系统字体（Windows 微软雅黑 Bold / 黑体 / Noto Bold）；macOS 无独立粗体文件可用
+        $boldCandidates = array(
+            'C:/Windows/Fonts/msyhbd.ttc',
+            'C:/Windows/Fonts/simhei.ttf',
+            '/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc',
+            '/usr/share/fonts/noto-cjk/NotoSansCJK-Bold.ttc',
+        );
+        foreach ($boldCandidates as $f) {
+            if (file_exists($f)) { $fontBoldPath = $f; break; }
+        }
     }
 
     $tempFiles = array();
@@ -103,7 +137,7 @@ requireAuth(); $storeId = getStoreId();
 
             foreach ($elements as $el) {
                 $type = isset($el['type']) ? $el['type'] : '';
-                $content = getElementContent($type, $item);
+                $content = getElementContent($type, $item, $condMap);
                 $ex = (int)round(floatval(isset($el['x']) ? $el['x'] : 0) * $pxPerMm);
                 $ey = (int)round(floatval(isset($el['y']) ? $el['y'] : 0) * $pxPerMm);
 
@@ -119,11 +153,61 @@ requireAuth(); $storeId = getStoreId();
                     $col = parseColor($img, $color, $black);
 
                     if ($fontPath) {
+                        // 粗体与浏览器打印路径保持一致：name/price 恒为粗体，其余按元素 fontWeight；
+                        // 只切真粗体字库文件渲染，不做描边/叠加模拟
+                        $fw = strtolower(trim(isset($el['fontWeight']) ? $el['fontWeight'] : ''));
+                        $isBold = ($type === 'name' || $type === 'price'
+                            || $fw === 'bold' || $fw === 'bolder'
+                            || (is_numeric($fw) && (int)$fw >= 600));
+                        $useFont = ($isBold && $fontBoldPath !== '') ? $fontBoldPath : $fontPath;
+
+                        // 超宽自动缩小字号（与前端 fitFontSize / canvas 打印一致）：
+                        // 商品名称下限 50%，系列按 0.8 比例、下限 60%；用实际字库测量，比例换算与测量尺度无关
+                        $ewPx = floatval(isset($el['width']) ? $el['width'] : 50) * $pxPerMm;
+                        // 常用名/条码数字 与前端 elHTML 预览同款比例缩小（0.75 / 0.8），保证打印与预览一致
+                        if ($type === 'series') $fontSizePx *= 0.8;
+                        elseif ($type === 'common') $fontSizePx *= 0.75;
+                        elseif ($type === 'barcodeText') $fontSizePx *= 0.8;
+                        if (($type === 'name' || $type === 'series') && $ewPx > 0) {
+                            $minRatio = ($type === 'name') ? 0.5 : 0.6;
+                            $probe = max(4, $fontSizePx * 72 / $dpi);
+                            $bbox0 = imagettfbbox($probe, 0, $useFont, $content);
+                            $textW = $bbox0[2] - $bbox0[0];
+                            if ($textW > 0 && $textW > $ewPx) {
+                                $fontSizePx = max($fontSizePx * $minRatio, $fontSizePx * $ewPx / $textW);
+                            }
+                        }
+
                         $ptSize = $fontSizePx * 72 / $dpi;
                         if ($ptSize < 4) $ptSize = 4;
-                        $bbox = imagettfbbox($ptSize, 0, $fontPath, $content);
+                        $bbox = imagettfbbox($ptSize, 0, $useFont, $content);
                         $baseline = $ey - $bbox[7];
-                        imagettftext($img, $ptSize, 0, $ex, $baseline, $col, $fontPath, $content);
+                        $textW = $bbox[2] - $bbox[0];
+                        if ($type === 'name' && $ewPx > 0 && $textW > $ewPx * 1.02) {
+                            // 商品名称缩小到下限仍超宽：逐字符换行（行高 1.2，与浏览器 canvas 路径一致）
+                            $lineH = $fontSizePx * 1.2;
+                            $chars = preg_split('//u', $content, -1, PREG_SPLIT_NO_EMPTY);
+                            if ($chars) {
+                                $line = '';
+                                $lineIdx = 0;
+                                foreach ($chars as $ch) {
+                                    $test = $line . $ch;
+                                    $tb = imagettfbbox($ptSize, 0, $useFont, $test);
+                                    if ($line !== '' && ($tb[2] - $tb[0]) > $ewPx) {
+                                        imagettftext($img, $ptSize, 0, $ex, $baseline + $lineIdx * $lineH, $col, $useFont, $line);
+                                        $line = $ch;
+                                        $lineIdx++;
+                                    } else {
+                                        $line = $test;
+                                    }
+                                }
+                                if ($line !== '') {
+                                    imagettftext($img, $ptSize, 0, $ex, $baseline + $lineIdx * $lineH, $col, $useFont, $line);
+                                }
+                            }
+                        } else {
+                            imagettftext($img, $ptSize, 0, $ex, $baseline, $col, $useFont, $content);
+                        }
                     } else {
                         $gdSize = max(1, min(5, (int)($fontSizePx / 8)));
                         imagestring($img, $gdSize, $ex, $ey, $content, $col);
@@ -257,7 +341,7 @@ requireAuth(); $storeId = getStoreId();
 
 // ---------- 辅助函数 ----------
 
-function getElementContent($type, $item) {
+function getElementContent($type, $item, $condMap = null) {
     switch ($type) {
         case 'barcode':
         case 'barcodeText':
@@ -266,6 +350,8 @@ function getElementContent($type, $item) {
             return isset($item['productName']) ? $item['productName'] : '';
         case 'common':
             return isset($item['commonName']) ? $item['commonName'] : '';
+        case 'series':
+            return isset($item['series']) ? $item['series'] : '';
         case 'batch':
             return isset($item['batchNo']) ? $item['batchNo'] : '';
         case 'date':
@@ -273,8 +359,10 @@ function getElementContent($type, $item) {
             return $t !== '' ? substr($t, 0, 10) : '';
         case 'condition':
             $ct = isset($item['conditionType']) ? $item['conditionType'] : '';
+            // 品相来源与前端一致：优先店铺配置（condition_common.php），回退默认常量
+            $map = (is_array($condMap) && $condMap) ? $condMap : CONDITION_TYPES;
             $parts = array();
-            foreach (CONDITION_TYPES as $key => $name) {
+            foreach ($map as $key => $name) {
                 $parts[] = ($key === $ct ? '☑' : '□') . ' ' . $name;
             }
             return implode('  ', $parts);

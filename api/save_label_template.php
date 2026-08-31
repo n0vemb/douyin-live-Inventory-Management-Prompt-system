@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/label_template_table.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     error('请使用POST方法');
@@ -20,17 +21,8 @@ try {
     $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
 
-    // 确保表存在
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS label_templates (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(255) NOT NULL,
-            config TEXT NOT NULL COMMENT 'JSON格式的模板配置',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_name (name)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    ");
+    // 确保表存在且带 store_id 列（幂等）
+    ensureLabelTemplatesTable($pdo);
 
     $name = trim($input['name']);
     $config = json_encode([
@@ -41,13 +33,34 @@ requireAuth(); $storeId = getStoreId();
         'elements' => $input['config']['elements'] ?? []
     ], JSON_UNESCAPED_UNICODE);
 
-    // 使用 INSERT ... ON DUPLICATE KEY UPDATE 来实现 upsert
-    $stmt = $pdo->prepare("
-        INSERT INTO label_templates (name, config, store_id)
-        VALUES (?, ?, ?)
-        ON DUPLICATE KEY UPDATE config = ?, updated_at = CURRENT_TIMESTAMP
-    ");
-    $stmt->execute([$name, $config, $storeId, $config]);
+    // 先按 (name, store_id) 更新本店记录；没有则插入。
+    // 不用 INSERT ... ON DUPLICATE KEY UPDATE：老表的全局 unique_name(name)
+    // 会命中别店同名模板并误改其配置，这里按店铺定位避免跨店串改。
+    // 注意：不能依赖 UPDATE 的 rowCount 判断存在性（MySQL 值未变化时 affected=0）。
+    $stmt = $pdo->prepare('SELECT id FROM label_templates WHERE name = ?' . ($storeId ? ' AND store_id = ?' : ''));
+    $stmt->execute($storeId ? [$name, $storeId] : [$name]);
+    $exists = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($exists) {
+        $stmt = $pdo->prepare('UPDATE label_templates SET config = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+        $stmt->execute([$config, $exists['id']]);
+    } else {
+        try {
+            $stmt = $pdo->prepare('INSERT INTO label_templates (name, config, store_id) VALUES (?, ?, ?)');
+            $stmt->execute([$name, $config, $storeId]);
+        } catch (PDOException $e) {
+            if ($e->getCode() == 23000) {
+                $errno = (int)($e->errorInfo[1] ?? 0);
+                // 1062=唯一键冲突（名称重复）；1048=NOT NULL 约束（超管无店铺，列不允许 NULL）
+                if ($errno === 1062) {
+                    error('模板名称「' . $name . '」已被占用，请换一个名称');
+                }
+                if ($errno === 1048) {
+                    error('当前账号未绑定店铺，无法保存模板；请使用店铺管理员账号操作');
+                }
+            }
+            throw $e;
+        }
+    }
 
     // 获取刚插入或更新的记录
     $stmt = $pdo->prepare('SELECT id, name, config, created_at, updated_at FROM label_templates WHERE name = ?' . ($storeId ? ' AND store_id = ?' : ''));

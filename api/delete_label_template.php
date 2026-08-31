@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/label_template_table.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     error('请使用POST方法');
@@ -15,6 +16,8 @@ if (!isset($input['id']) && !isset($input['name'])) {
 try {
     $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
+
+    ensureLabelTemplatesTable($pdo);
 
     if (isset($input['id'])) {
         $stmt = $pdo->prepare('DELETE FROM label_templates WHERE id = ?' . ($storeId ? ' AND store_id = ?' : ''));
