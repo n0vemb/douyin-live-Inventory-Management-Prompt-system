@@ -114,6 +114,34 @@ try {
             success(['message' => '已拆分为两格（商品保留在第 ' . $pos . ' 格）']);
         }
 
+        case 'replace': {
+            // 拖拽替换：目标格已有商品则替换（保持原格 span），返回被替换的 product_id
+            $code = trim((string)($input['rack'] ?? ''));
+            $row = (int)($input['row'] ?? 0);
+            $pos = (int)($input['pos'] ?? 0);
+            $productId = (int)($input['product_id'] ?? 0);
+            if ($code === '' || $row < 1 || $row > $layout['rows'] || $pos < 1 || $pos > $maxPos) error('参数错误');
+            if ($productId <= 0) error('请选择商品');
+            $stmt = $pdo->prepare('SELECT id FROM products WHERE id = ?' . ($storeId ? ' AND store_id = ?' : ''));
+            $stmt->execute($storeId ? [$productId, $storeId] : [$productId]);
+            if (!$stmt->fetch()) error('商品不存在或不属于本店铺');
+            $rackId = $getRackId($code);
+
+            $stmt = $pdo->prepare('SELECT id, product_id FROM warehouse_rack_cells WHERE rack_id = ? AND row_no = ? AND pos_no = ?');
+            $stmt->execute([$rackId, $row, $pos]);
+            $cell = $stmt->fetch();
+            $replaced = $cell ? (int)$cell['product_id'] : null;
+            if ($cell) {
+                // 保持原格 span，替换商品
+                $stmt = $pdo->prepare('UPDATE warehouse_rack_cells SET product_id = ?, note = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+                $stmt->execute([$productId, $cell['id']]);
+            } else {
+                $stmt = $pdo->prepare('INSERT INTO warehouse_rack_cells (store_id, rack_id, row_no, pos_no, span, product_id) VALUES (?,?,?,?,1,?)');
+                $stmt->execute([$storeId, $rackId, $row, $pos, $productId]);
+            }
+            success(['message' => '已放入' . ($replaced ? '（原商品已移出货架）' : ''), 'replaced' => $replaced]);
+        }
+
         default:
             error('未知操作');
     }
