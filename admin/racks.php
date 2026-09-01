@@ -20,8 +20,8 @@ $isAdmin = in_array($currentUser['role'] ?? '', ['store_admin', 'super_admin']);
 .rk-hit .where{color:var(--primary);font-weight:700;white-space:nowrap}
 .rk-hit .note{color:var(--text-tertiary);font-size:12px}
 .rk-empty{padding:40px 20px;text-align:center;color:var(--text-tertiary);font-size:13px}
-/* 货架区：等宽网格（宽度一致，占主区全部） */
-.rk-racks{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px;margin-top:12px}
+/* 货架区：一行一个货架（等宽占满主区，宽度一致） */
+.rk-racks{display:grid;grid-template-columns:1fr;gap:16px;margin-top:12px}
 /* 货架卡片 */
 .rk-rack{background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;padding:14px;min-width:0}
 .rk-rack-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
@@ -68,6 +68,13 @@ $isAdmin = in_array($currentUser['role'] ?? '', ['store_admin', 'super_admin']);
 .rk-msg{font-size:12.5px;margin-top:10px;min-height:18px}
 .rk-msg.err{color:var(--danger)}
 .rk-msg.ok{color:var(--success)}
+/* 弹窗内部（参考出库记账页：label + form-input + 底部右对齐按钮） */
+.rk-modal-body label{display:block;font-size:13px;color:var(--text-secondary);margin-bottom:6px}
+.rk-modal-body .form-input{width:100%;font-size:14px}
+.rk-modal-body .rk-flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.rk-modal-body .rk-flex.right{justify-content:flex-end}
+.rk-modal-body .rk-kv{display:flex;justify-content:space-between;font-size:13px;padding:7px 0;border-bottom:1px dashed var(--border);color:var(--text-secondary)}
+.rk-modal-body .rk-kv b{font-weight:600;color:var(--text)}
 /* 右侧浮窗：未在货架商品（可收起，拖拽到货架格子放置/替换） */
 .rk-panel{width:24%;flex:0 0 24%;min-width:220px;position:sticky;top:14px;max-height:calc(100vh - 28px);display:flex;flex-direction:column;background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:flex-basis .2s,width .2s,min-width .2s}
 .rk-panel.collapsed{width:0;flex-basis:0;min-width:0;border:none}
@@ -113,14 +120,14 @@ $isAdmin = in_array($currentUser['role'] ?? '', ['store_admin', 'super_admin']);
   </div>
 </div>
 
-<!-- 录入/详情弹窗 -->
-<div class="modal" id="rkModal" style="display:none">
-  <div class="modal-content rk-modal">
+<!-- 录入/详情弹窗（全局 .modal 体系，参考出库记账页弹窗） -->
+<div class="modal" id="rkModal">
+  <div class="modal-content" style="width:min(460px,94vw);max-width:460px">
     <div class="modal-header">
-      <span class="modal-title" id="rkMTitle">录入商品</span>
-      <button class="modal-close" onclick="rkClose()">×</button>
+      <h3 class="modal-title" id="rkMTitle">录入商品</h3>
+      <button class="modal-close" onclick="rkClose()">&times;</button>
     </div>
-    <div style="padding:16px 18px" id="rkMBody"></div>
+    <div style="padding:16px 18px" id="rkMBody" class="rk-modal-body"></div>
   </div>
 </div>
 
@@ -233,9 +240,9 @@ function rkSearch(){
   }).join('');
 }
 
-// ---------- 弹窗 ----------
-function rkOpen(title,html){ $id('rkMTitle').textContent=title; $id('rkMBody').innerHTML=html; $id('rkModal').style.display='flex'; }
-function rkClose(){ $id('rkModal').style.display='none'; }
+// ---------- 弹窗（全局 .modal 体系） ----------
+function rkOpen(title,html){ $id('rkMTitle').textContent=title; $id('rkMBody').innerHTML=html; $id('rkModal').classList.add('show'); }
+function rkClose(){ $id('rkModal').classList.remove('show'); }
 
 // 商品搜索选择（录入）
 let rkPickProduct=null, rkPickTimer=null;
@@ -270,12 +277,14 @@ function rkPickSel(id,el){
 }
 // 录入
 function rkPut(rack,row,pos){
-  rkOpen('录入商品 · '+rack+' 第'+row+'层', 
-    '<div class="rk-ps"><input id="rkPick" placeholder="输入名称/拼音/条码搜索商品…" autocomplete="off"><div class="rk-ps-list" id="rkPickList"></div></div>'+
-    '<div style="display:flex;gap:10px;margin-top:12px"><div style="flex:1"><label style="font-size:11px;color:var(--text-tertiary)">起始格</label><input id="rkPos" type="number" value="'+pos+'" min="1" max="10" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:7px;background:var(--bg-body);color:var(--text)"></div>'+
-    '<div style="flex:1"><label style="font-size:11px;color:var(--text-tertiary)">占格</label><select id="rkSpan" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:7px;background:var(--bg-body);color:var(--text)"><option value="1">半大格（1小格）</option><option value="2">整大格（2小格）</option></select></div></div>'+
-    '<div style="margin-top:10px"><label style="font-size:11px;color:var(--text-tertiary)">备注（选填）</label><input id="rkNote" type="text" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:7px;background:var(--bg-body);color:var(--text)" placeholder="如：第一批"></div>'+
-    '<div style="display:flex;gap:10px;margin-top:14px"><button class="btn btn-primary btn-sm" style="flex:1" onclick="rkPutSave(\''+esc(rack)+'\','+row+')">保存</button><button class="btn btn-secondary btn-sm" style="flex:1" onclick="rkClose()">取消</button></div>'+
+  rkOpen('录入商品 · '+rack+' 第'+row+'层',
+    '<div class="rk-ps" style="margin-bottom:12px;"><input id="rkPick" class="form-input" placeholder="输入名称/拼音/条码搜索商品…" autocomplete="off"><div class="rk-ps-list" id="rkPickList"></div></div>'+
+    '<div class="rk-flex" style="margin-bottom:12px;">'+
+      '<div style="flex:1;min-width:120px;"><label>起始格</label><input id="rkPos" class="form-input" type="number" value="'+pos+'" min="1" max="10"></div>'+
+      '<div style="flex:1;min-width:150px;"><label>占格</label><select id="rkSpan" class="form-input"><option value="1">半大格（1小格）</option><option value="2">整大格（2小格）</option></select></div>'+
+    '</div>'+
+    '<div style="margin-bottom:14px;"><label>备注（选填）</label><input id="rkNote" class="form-input" type="text" placeholder="如：第一批"></div>'+
+    '<div class="rk-flex right"><button class="btn btn-outline" onclick="rkClose()">取消</button><button class="btn btn-primary" onclick="rkPutSave(\''+esc(rack)+'\','+row+')">保存</button></div>'+
     '<div class="rk-msg" id="rkMsg"></div>');
   rkPickInit();
 }
@@ -300,7 +309,7 @@ function rkInfo(rack,row,pos){
   if(!c||!c.product)return;
   const p=c.product;
   const spanTxt=c.span>1?'第 '+pos+'-'+(pos+1)+' 格':'第 '+pos+' 格';
-  const splitBtn=c.span>1&&rkAdmin?'<button class="btn btn-secondary btn-sm" style="width:100%;margin-top:10px" onclick="rkSplit(\''+esc(rack)+'\','+row+','+pos+')">拆分为两格</button>':'';
+  const splitBtn=c.span>1&&rkAdmin?'<button class="btn btn-outline" style="width:100%;margin-top:12px" onclick="rkSplit(\''+esc(rack)+'\','+row+','+pos+')">拆分为两格</button>':'';
   rkOpen('商品详情',
     '<div class="rk-kv"><span>商品</span><b>'+esc(p.name)+(p.common_name?'（'+esc(p.common_name)+'）':'')+'</b></div>'+
     '<div class="rk-kv"><span>条码</span><b>'+esc(p.barcode||'-')+'</b></div>'+
@@ -308,7 +317,9 @@ function rkInfo(rack,row,pos){
     '<div class="rk-kv"><span>当前库存</span><b style="'+(p.stock===0?'color:var(--danger)':'')+'">'+p.stock+' 件</b></div>'+
     (c.note?'<div class="rk-kv"><span>备注</span><b>'+esc(c.note)+'</b></div>':'')+
     splitBtn+
-    (rkAdmin?'<div style="display:flex;gap:10px;margin-top:14px"><button class="btn btn-secondary btn-sm" style="flex:1" onclick="rkRemove(\''+esc(rack)+'\','+row+','+pos+')">移除此商品</button><button class="btn btn-secondary btn-sm" style="flex:1" onclick="rkClose()">关闭</button></div>':'<div style="margin-top:14px"><button class="btn btn-secondary btn-sm" style="width:100%" onclick="rkClose()">关闭</button></div>'));
+    '<div class="rk-flex right" style="margin-top:14px;">'+
+      (rkAdmin?'<button class="btn btn-outline" style="color:var(--danger);border-color:rgba(248,113,113,.4)" onclick="rkRemove(\''+esc(rack)+'\','+row+','+pos+')">移除此商品</button>':'')+
+      '<button class="btn btn-outline" onclick="rkClose()">关闭</button></div>');
 }
 async function rkRemove(rack,row,pos){
   if(!confirm('确定移除「'+(rkRacks[rack]&&rkRacks[rack][String(row)]&&rkRacks[rack][String(row)][String(pos)].product.name)+'」？'))return;
@@ -330,10 +341,12 @@ function addRack(){
 // 布局设置（每店铺可不同，不写死 5×5）
 function rkLayoutSet(){
   rkOpen('货架布局设置',
-    '<div style="display:flex;gap:10px"><div style="flex:1"><label style="font-size:11px;color:var(--text-tertiary)">层数</label><input id="rkRows" type="number" value="'+rkLayout.rows+'" min="1" max="10" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:7px;background:var(--bg-body);color:var(--text)"></div>'+
-    '<div style="flex:1"><label style="font-size:11px;color:var(--text-tertiary)">每层大格数</label><input id="rkBig" type="number" value="'+rkLayout.big_cols+'" min="1" max="10" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:7px;background:var(--bg-body);color:var(--text)"></div></div>'+
-    '<div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;line-height:1.6">每大格可放 1 个整格商品（占 2 小格）或 2 个半格商品（各占 1 小格）。修改布局后超出范围的格子不会显示，需重新录入。</div>'+
-    '<div style="display:flex;gap:10px;margin-top:14px"><button class="btn btn-primary btn-sm" style="flex:1" onclick="rkLayoutSave()">保存</button><button class="btn btn-secondary btn-sm" style="flex:1" onclick="rkClose()">取消</button></div>'+
+    '<div class="rk-flex" style="margin-bottom:12px;">'+
+      '<div style="flex:1;min-width:120px;"><label>层数</label><input id="rkRows" class="form-input" type="number" value="'+rkLayout.rows+'" min="1" max="10"></div>'+
+      '<div style="flex:1;min-width:140px;"><label>每层大格数</label><input id="rkBig" class="form-input" type="number" value="'+rkLayout.big_cols+'" min="1" max="10"></div>'+
+    '</div>'+
+    '<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:14px;line-height:1.6">每大格可放 1 个整格商品（占 2 小格）或 2 个半格商品（各占 1 小格）。修改布局后超出范围的格子不会显示，需重新录入。</div>'+
+    '<div class="rk-flex right"><button class="btn btn-outline" onclick="rkClose()">取消</button><button class="btn btn-primary" onclick="rkLayoutSave()">保存</button></div>'+
     '<div class="rk-msg" id="rkMsg"></div>');
 }
 async function rkLayoutSave(){
