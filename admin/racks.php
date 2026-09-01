@@ -279,8 +279,10 @@ async function rkPickSearch(kw){
   try{
     const res=await fetch('../api/list_products.php?keyword='+encodeURIComponent(kw));
     const d=await res.json();
+    // list_products.php 返回 {success, data:{products:[...]}}；兼容部分接口直接返回 products 数组
+    const raw=(d.data&&Array.isArray(d.data.products))?d.data.products:(Array.isArray(d.products)?d.products:[]);
     // 有库存的优先（总库存降序），再按原顺序
-    const ps=((d.products||d.data)||[])
+    const ps=raw
       .map(p=>({p,stock:Object.values(p.inventory_summary||{}).reduce((a,s)=>a+(s.total_stock||0),0)}))
       .sort((a,b)=>(b.stock-a.stock)||0)
       .slice(0,15)
