@@ -275,11 +275,18 @@ async function rkPickSearch(kw){
   try{
     const res=await fetch('../api/list_products.php?keyword='+encodeURIComponent(kw));
     const d=await res.json();
-    const ps=(d.products||d.data||[]).slice(0,15);
-    list.innerHTML=ps.length?ps.map(p=>
-      '<div class="rk-ps-item" onclick="rkPickSel('+p.id+',this)" data-id="'+p.id+'"><b>'+esc(p.name)+'</b>'+
-      (p.common_name?'<span class="sub2">'+esc(p.common_name)+'</span>':'')+
-      (p.barcode?'<span class="sub2">'+esc(p.barcode)+'</span>':'')+'</div>').join('')
+    // 有库存的优先（总库存降序），再按原顺序
+    const ps=((d.products||d.data)||[])
+      .map(p=>({p,stock:Object.values(p.inventory_summary||{}).reduce((a,s)=>a+(s.total_stock||0),0)}))
+      .sort((a,b)=>(b.stock-a.stock)||0)
+      .slice(0,15)
+      .map(x=>x.p);
+    list.innerHTML=ps.length?ps.map(p=>{
+      const st=Object.values(p.inventory_summary||{}).reduce((a,s)=>a+(s.total_stock||0),0);
+      return '<div class="rk-ps-item" onclick="rkPickSel('+p.id+',this)" data-id="'+p.id+'"><b>'+esc(p.name)+'</b>'+
+        (p.common_name?'<span class="sub2">'+esc(p.common_name)+'</span>':'')+
+        '<span class="sub2">库存 '+st+'</span></div>';
+    }).join('')
       :'<div class="rk-ps-item" style="cursor:default">无匹配商品</div>';
     list.classList.add('show');
   }catch(e){ list.innerHTML='<div class="rk-ps-item" style="cursor:default">搜索失败</div>'; list.classList.add('show'); }

@@ -15,7 +15,9 @@ try {
                (SELECT COALESCE(SUM(ib.remaining_qty),0) FROM inventory_batches ib WHERE ib.product_id = p.id{$sf}) AS stock
         FROM products p
         WHERE p.id NOT IN (SELECT product_id FROM warehouse_rack_cells WHERE product_id IS NOT NULL{$sf}){$sf}
-        ORDER BY (SELECT MAX(ib.purchased_at) FROM inventory_batches ib WHERE ib.product_id = p.id{$sf}) DESC, p.id DESC
+        ORDER BY (SELECT COALESCE(SUM(ib.remaining_qty),0) FROM inventory_batches ib WHERE ib.product_id = p.id{$sf}) DESC,
+                 (SELECT MAX(ib.purchased_at) FROM inventory_batches ib WHERE ib.product_id = p.id{$sf}) DESC,
+                 p.id DESC
     ";
     $items = $pdo->query($sql)->fetchAll();
 
