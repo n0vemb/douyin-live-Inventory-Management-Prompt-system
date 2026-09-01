@@ -150,8 +150,8 @@ function rkRender(){
         const c1=rowData[String(p1)],c2=rowData[String(p2)];
         if(c1&&c1.span===2) bigs+=rkBigFull(rack,row,p1,c1);
         else if(c1&&c2) bigs+=rkBigTwo(rack,row,p1,p2,c1,c2);
-        else if(c1) bigs+=rkBigHalf(rack,row,p1,c1);
-        else if(c2) bigs+=rkBigHalf(rack,row,p2,c2);
+        else if(c1) bigs+=rkBigHalf(rack,row,p1,p2,c1);   // 左半有商品，右半空（可点录入）
+        else if(c2) bigs+=rkBigHalf(rack,row,p2,p1,c2);   // 右半有商品，左半空（可点录入）
         else bigs+='<div class="rk-big'+(rkAdmin?' hoverable':'')+'" data-rack="'+esc(rack)+'" data-row="'+row+'" data-pos="'+p1+'"'+(rkAdmin?' onclick="rkPut(\''+esc(rack)+'\','+row+','+p1+')"':'')+'><span class="rk-add">+</span></div>';
       }
       rowsHtml+='<div class="rk-row"><div class="rk-row-lbl">第'+row+'层</div><div class="rk-bigs">'+bigs+'</div></div>';
@@ -167,7 +167,14 @@ function rkCellHtml(c,posCls){
 }
 function rkBigFull(rack,row,pos,c){ c._rack=rack;c._row=row;c._pos=pos; return '<div class="rk-big">'+rkCellHtml(c,'')+'</div>'; }
 function rkBigTwo(rack,row,p1,p2,c1,c2){ c1._rack=rack;c1._row=row;c1._pos=p1; c2._rack=rack;c2._row=row;c2._pos=p2; return '<div class="rk-big">'+rkCellHtml(c1,'half')+rkCellHtml(c2,'half')+'</div>'; }
-function rkBigHalf(rack,row,pos,c){ c._rack=rack;c._row=row;c._pos=pos; return '<div class="rk-big">'+rkCellHtml(c,'half')+'<div class="rk-cell" style="background:transparent;cursor:default"></div></div>'; }
+function rkBigHalf(rack,row,occPos,emptyPos,c){
+  c._rack=rack;c._row=row;c._pos=occPos;
+  // 空半格可点击录入（span1 到该格），非管理员不显示
+  const emptyHalf=rkAdmin
+    ? '<div class="rk-cell" style="background:transparent" onclick="rkPut(\''+esc(rack)+'\','+row+','+emptyPos+')" title="点击录入"><span style="color:var(--text-tertiary);opacity:.5;font-size:18px">+</span></div>'
+    : '<div class="rk-cell" style="background:transparent;cursor:default"></div>';
+  return '<div class="rk-big">'+rkCellHtml(c,'half')+emptyHalf+'</div>';
+}
 
 // ---------- 搜索 ----------
 function rkSearch(){
