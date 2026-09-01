@@ -9,7 +9,9 @@ $isAdmin = in_array($currentUser['role'] ?? '', ['store_admin', 'super_admin']);
 <style>
 /* ===== 仓库货架 局部样式（对齐全局暗黑主题） ===== */
 .rk-layout{display:flex;gap:14px;align-items:flex-start}
-.rk-main{flex:1;min-width:0}
+/* 主区：面板展开时让出右侧 330px（不被覆盖），收起时占满 */
+.rk-main{flex:1;min-width:0;transition:width .25s ease;width:100%}
+body.rk-panel-open .rk-main{width:calc(100% - 330px)}
 .rk-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}
 .rk-search{flex:1;min-width:260px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-body);color:var(--text)}
 .rk-search:focus{outline:none;border-color:var(--primary)}
@@ -437,8 +439,11 @@ function renderUnplaced(){
   });
 }
 function rkTogglePanel(){
-  // 面板开合：收起时右侧 tab 露出可点击展开（参考 live_ledger sideTabs/ps-panel）
-  $id('rkPanel').classList.toggle('open');
+  // 面板开合：收起时右侧 tab 露出可点击展开（参考 live_ledger sideTabs/ps-panel）；
+  // 展开时货架区让出右侧面板宽度（不被覆盖）
+  const p=$id('rkPanel');
+  p.classList.toggle('open');
+  document.body.classList.toggle('rk-panel-open', p.classList.contains('open'));
 }
 // 拖放：格子 dragover 高亮 + drop 放置/替换
 document.addEventListener('dragover',e=>{ if(e.target.closest('.rk-droppable'))e.preventDefault(); });
@@ -461,5 +466,6 @@ document.addEventListener('dragleave',e=>{ const c=e.target.closest('.rk-droppab
 document.addEventListener('drop',e=>{ document.querySelectorAll('.rk-droppable.drag-over').forEach(x=>x.classList.remove('drag-over')); });
 
 document.addEventListener('click',e=>{ const list=$id('rkPickList'); if(list&&!e.target.closest('.rk-ps'))list.classList.remove('show'); });
+document.body.classList.add('rk-panel-open'); // 面板默认展开，货架区让出右侧面板宽度
 rkLoad();
 </script>
