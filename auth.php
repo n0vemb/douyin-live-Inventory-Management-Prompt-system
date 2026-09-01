@@ -38,12 +38,13 @@ function requireAuth(): ?int {
         exit;
     }
 
-    // 仓库角色：只能访问仓库出库台页面 + 仓库API，其余一律拦截
+    // 仓库角色：只能访问仓库出库台页面 + 仓库API + 货架分布查询（拣货位置），其余一律拦截
     if (($_SESSION['role'] ?? '') === 'warehouse') {
         $scriptPath = $_SERVER['SCRIPT_FILENAME'] ?? '';
         $allowed = (
             strpos($scriptPath, '/admin/warehouse.php') !== false
             || strpos($scriptPath, '/api/warehouse_') !== false
+            || strpos($scriptPath, '/api/get_racks.php') !== false
             || strpos($scriptPath, '/login.php') !== false
             || strpos($scriptPath, '/logout') !== false
         );
