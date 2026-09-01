@@ -264,15 +264,37 @@ function rkSearch(){
 function rkOpen(title,html){ $id('rkMTitle').textContent=title; $id('rkMBody').innerHTML=html; $id('rkDrawer').classList.add('open'); }
 function rkClose(){ $id('rkDrawer').classList.remove('open'); }
 
-// 商品搜索选择（录入）
+// 商品搜索选择（录入）——借鉴系统其他页面（出库记账页）的搜索体验：防抖 + 下拉 fixed 跟随输入框 + 空间自适应
 let rkPickProduct=null, rkPickTimer=null;
 function rkPickInit(){
   const inp=$id('rkPick');
   const list=$id('rkPickList');
   rkPickProduct=null; list.classList.remove('show');
-  inp.oninput=()=>{ clearTimeout(rkPickTimer); rkPickTimer=setTimeout(()=>rkPickSearch(inp.value.trim()),200); };
+  inp.oninput=()=>{ clearTimeout(rkPickTimer); rkPickTimer=setTimeout(()=>rkPickSearch(inp.value.trim()),300); };
   inp.onfocus=()=>{ if(inp.value.trim())rkPickSearch(inp.value.trim()); };
 }
+// 下拉 fixed 定位（跟随输入框），避免被抽屉 overflow 裁剪，空间不足向上展开
+function rkPickPos(){
+  const inp=$id('rkPick'), list=$id('rkPickList');
+  if(!inp||!list)return;
+  const rect=inp.getBoundingClientRect();
+  const vh=window.innerHeight;
+  list.style.position='fixed';
+  list.style.left=rect.left+'px';
+  list.style.width=rect.width+'px';
+  list.style.zIndex='9999';
+  const spaceBelow=vh-rect.bottom;
+  if(spaceBelow<vh*0.4){
+    list.style.top='auto';
+    list.style.bottom=(vh-rect.top+4)+'px';
+    list.style.maxHeight=Math.max(120,rect.top-8)+'px';
+  }else{
+    list.style.top=(rect.bottom+4)+'px';
+    list.style.bottom='auto';
+    list.style.maxHeight=Math.max(120,spaceBelow-8)+'px';
+  }
+}
+window.addEventListener('scroll',()=>{ const l=$id('rkPickList'); if(l&&l.classList.contains('show'))rkPickPos(); },true);
 async function rkPickSearch(kw){
   const list=$id('rkPickList');
   if(!kw){list.classList.remove('show');return;}
@@ -295,7 +317,8 @@ async function rkPickSearch(kw){
     }).join('')
       :'<div class="rk-ps-item" style="cursor:default">无匹配商品</div>';
     list.classList.add('show');
-  }catch(e){ list.innerHTML='<div class="rk-ps-item" style="cursor:default">搜索失败</div>'; list.classList.add('show'); }
+    rkPickPos();
+  }catch(e){ list.innerHTML='<div class="rk-ps-item" style="cursor:default">搜索失败</div>'; list.classList.add('show'); rkPickPos(); }
 }
 function rkPickSel(id,el){
   rkPickProduct=+id;
