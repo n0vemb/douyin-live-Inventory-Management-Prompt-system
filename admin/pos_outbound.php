@@ -67,6 +67,7 @@ $IS_OPERATOR = isOperator(); // 运营：隐藏成本列，不可删订单
 .order-table td { padding: 8px 10px; border-bottom: 1px dashed var(--border, #e5e7eb); }
 .order-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .cond-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 9px; margin-left: 6px; }
+.rack-tag { display: inline-block; font-size: 11px; font-weight: 700; color: #4f46e5; background: #eef2ff; padding: 1px 8px; border-radius: 9px; margin-left: 6px; border: 1px solid #c7d2fe; }
 .cond-sealed { background: #e8f0ff; color: #2f6fed; }
 .cond-opened { background: #eafaf0; color: #16a34a; }
 .cond-boxless { background: #fff4e0; color: #b45309; }
@@ -85,14 +86,36 @@ $IS_OPERATOR = isOperator(); // 运营：隐藏成本列，不可删订单
 <script>
 const IS_OPERATOR = <?= $IS_OPERATOR ? 'true' : 'false' ?>;
 let filter = 'pending';
+let posMap = {}; // product_id -> 货架位置 label（货架分布加载）
 const STATUS_BADGE = { pending: ['待出库', '#6366f1', '#fff'], done: ['已出库', '#10b981', '#fff'], voided: ['已作废', '#dc2626', '#fff'] };
 const PAY_NAMES = { cash: '现金', scan: '扫码' };
 
 function $(id) { return document.getElementById(id); }
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
+// 加载货架分布 → product_id 位置映射（拣货提示）
+async function loadRacks() {
+    try {
+        const res = await fetch('../api/get_racks.php', { cache: 'no-store' });
+        const d = await res.json();
+        if (!d.success) return;
+        posMap = {};
+        Object.keys(d.racks).forEach(rack => {
+            Object.keys(d.racks[rack]).forEach(row => {
+                Object.keys(d.racks[rack][row]).forEach(pos => {
+                    const c = d.racks[rack][row][pos];
+                    if (c && c.product) {
+                        posMap[c.product.id] = esc(rack) + ' · 第' + row + '层 · 第' + pos + (c.span > 1 ? '-' + (+pos + 1) : '') + '格';
+                    }
+                });
+            });
+        });
+    } catch (e) { /* 货架未配置时不阻塞 */ }
+}
+
 async function load() {
     try {
+        await loadRacks();
         const res = await fetch('../api/pos_orders.php?outbound_status=' + filter, { cache: 'no-store' });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || '加载失败');
@@ -130,7 +153,7 @@ function render(d) {
         const costCol = IS_OPERATOR ? '' : `<th class="num">${o.outbound_status === 'pending' ? '操作' : '成本/操作'}</th>`;
         const rows = o.items.map(it => `
             <tr>
-                <td>${esc(it.name)}<span class="cond-tag cond-${esc(it.condition_type)}">${esc(it.cond_name || it.condition_type)}</span></td>
+                <td>${esc(it.name)}<span class="cond-tag cond-${esc(it.condition_type)}">${esc(it.cond_name || it.condition_type)}</span>${posMap[it.product_id] ? `<span class="rack-tag" title="货架位置">${posMap[it.product_id]}</span>` : ''}</td>
                 <td class="num">¥${it.unit_price.toFixed(2)}</td>
                 <td class="num">${it.qty}</td>
                 <td class="num">¥${it.line_total.toFixed(2)}</td>

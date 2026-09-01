@@ -152,6 +152,10 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
                     <span class="nav-label">门店待出库</span>
                 </a>
+                <a href="racks.php" class="nav-item <?= ($currentPage ?? '') === 'racks' ? 'active' : '' ?>">
+                    <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><line x1="3.3" y1="7" x2="20.7" y2="7"/><line x1="3.3" y1="12" x2="20.7" y2="12"/><line x1="3.3" y1="17" x2="20.7" y2="17"/></svg></span>
+                    <span class="nav-label">仓库货架</span>
+                </a>
             </div>
             <div class="nav-section">
                 <div class="nav-section-title">直播</div>

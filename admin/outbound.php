@@ -44,7 +44,9 @@ require_once __DIR__ . '/layout.php';
         </div>
 
                 <div class="card">
-                    <div class="card-title">🛒 待出库商品</div>
+                    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">🛒 待出库商品
+                        <button class="btn btn-sm btn-outline" onclick="openPicking()">拣货清单</button>
+                    </div>
                     <table id="outboundTable">
                         <thead>
                             <tr>
@@ -2032,6 +2034,62 @@ require_once __DIR__ . '/layout.php';
 
         document.getElementById('vtConfirm').textContent = '✅ ' + name + ' ' + bestMatch.condition_name + ' ×' + qty + ' 已添加';
     }
+
+    // ===== 拣货清单（按货架位置排序，仓库拣货用）=====
+    async function openPicking() {
+        const modal = document.getElementById('pickingModal');
+        const body = document.getElementById('pickingBody');
+        modal.style.display = 'flex';
+        body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-tertiary)">加载中…</div>';
+        try {
+            const res = await fetch('../api/picking_list.php', { cache: 'no-store' });
+            const d = await res.json();
+            if (!d.success) throw new Error(d.error || '加载失败');
+            renderPicking(d, body);
+        } catch (e) {
+            body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--danger)">加载失败：' + escapeHtml(e.message) + '</div>';
+        }
+    }
+    function closePicking() { document.getElementById('pickingModal').style.display = 'none'; }
+    function renderPicking(d, body) {
+        const items = d.items || [], unlocated = d.unlocated || [];
+        if (!items.length && !unlocated.length) {
+            body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-tertiary)">当前没有待出库商品</div>';
+            return;
+        }
+        let html = '<div style="font-size:12.5px;color:var(--text-tertiary);margin-bottom:10px">共 ' + (d.orders_count || 0) + ' 单待出库 · 按货架顺序拣货（高层优先，一次走完）</div>';
+        let curRack = '';
+        items.forEach(function (it) {
+            if (it.loc.rack !== curRack) {
+                curRack = it.loc.rack;
+                html += '<div style="margin:12px 0 6px;font-weight:800;color:var(--primary);font-size:14px">货架 ' + escapeHtml(curRack) + '</div>';
+            }
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg-surface)">' +
+                '<span><b>' + escapeHtml(it.name) + '</b>' + (it.common_name ? ' <span style="color:var(--text-tertiary);font-size:12px">(' + escapeHtml(it.common_name) + ')</span>' : '') +
+                ' <span style="color:var(--primary);font-weight:700">×' + it.qty + '</span></span>' +
+                '<span style="color:var(--primary);font-weight:700;font-size:12.5px;white-space:nowrap">第' + it.loc.row + '层 · 第' + it.loc.pos + (it.loc.span > 1 ? '-' + (it.loc.pos + 1) : '') + '格</span></div>';
+        });
+        if (unlocated.length) {
+            html += '<div style="margin:14px 0 6px;font-weight:800;color:var(--warn)">未录入货架位置（请到「仓库货架」补录）</div>';
+            unlocated.forEach(function (it) {
+                html += '<div style="display:flex;justify-content:space-between;padding:8px 10px;border:1px dashed var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg-hover)">' +
+                    '<span><b>' + escapeHtml(it.name) + '</b> <span style="color:var(--text-tertiary);font-size:12px">×' + it.qty + '</span></span>' +
+                    '<span style="color:var(--text-tertiary);font-size:11.5px">' + escapeHtml((it.orders || []).join('、')) + '</span></div>';
+            });
+        }
+        body.innerHTML = html;
+    }
     </script>
+
+<!-- 拣货清单弹窗 -->
+<div class="modal" id="pickingModal" style="display:none">
+    <div class="modal-content" style="width:min(720px,94vw);max-width:720px">
+        <div class="modal-header">
+            <span class="modal-title">拣货清单</span>
+            <button class="modal-close" onclick="closePicking()">×</button>
+        </div>
+        <div style="padding:16px 18px;max-height:70vh;overflow:auto" id="pickingBody"></div>
+    </div>
+</div>
 </body>
 </html>
