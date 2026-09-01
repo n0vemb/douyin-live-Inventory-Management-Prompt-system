@@ -1572,9 +1572,9 @@ function renderAuditTable() {
 
     let html = '<table style="font-size:13px; min-width:100%; border-collapse:collapse;">';
     html += '<thead><tr style="position:sticky; top:0; background:var(--bg-surface); z-index:2;">';
-    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:150px; cursor:pointer;" onclick="auditSort('name')">商品' + (auditSortKey === 'name' ? (auditSortAsc ? ' ▲' : ' ▼') : '') + '</th>';
-    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:80px; cursor:pointer;" onclick="auditSort('series')">系列' + (auditSortKey === 'series' ? (auditSortAsc ? ' ▲' : ' ▼') : '') + '</th>';
-    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:70px; cursor:pointer;" onclick="auditSort('brand')">品牌' + (auditSortKey === 'brand' ? (auditSortAsc ? ' ▲' : ' ▼') : '') + '</th>';
+    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:150px; cursor:pointer;" onclick="auditSort(&#39;name&#39;)">商品' + (auditSortKey === 'name' ? (auditSortAsc ? ' ▲' : ' ▼') : '') + '</th>';
+    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:80px; cursor:pointer;" onclick="auditSort(&#39;series&#39;)">系列' + (auditSortKey === 'series' ? (auditSortAsc ? ' ▲' : ' ▼') : '') + '</th>';
+    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:70px; cursor:pointer;" onclick="auditSort(&#39;brand&#39;)">品牌' + (auditSortKey === 'brand' ? (auditSortAsc ? ' ▲' : ' ▼') : '') + '</th>';
     html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:90px;">条码</th>';
     auditConditionTypes.forEach(ct => {
         html += '<th style="text-align:center; padding:8px 4px; border-bottom:2px solid var(--border); color:var(--text-secondary); font-size:12px; min-width:80px;">线上/' + escapeHtml(ct.name) + '</th>';
@@ -1618,7 +1618,7 @@ function renderAuditTable() {
             html += '<tr class="audit-checks-row"><td colspan="' + (4 + auditConditionTypes.length + 2) + '">' +
                 diffs.map(x => {
                     const k = p.product_id + '|' + x.t.key;
-                    return '<label><input type="checkbox" ' + (auditSelOf(k) ? 'checked' : '') + ' onchange="auditToggleSel('' + k + '',this.checked)"> ' + escapeHtml(x.t.name) + ' ' + (x.delta > 0 ? '+' : '') + x.delta + '</label>';
+                    return '<label><input type="checkbox" ' + (auditSelOf(k) ? 'checked' : '') + ' onchange="auditToggleSel(&#39;' + k + '&#39;,this.checked)"> ' + escapeHtml(x.t.name) + ' ' + (x.delta > 0 ? '+' : '') + x.delta + '</label>';
                 }).join('') + '</td></tr>';
         }
     });
@@ -1747,11 +1747,9 @@ function auditExportCSV() {
     });
     const csv = rows.map(r => r.map(c => {
         const s = String(c == null ? '' : c);
-        return /[",
-]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-    }).join(',')).join('
-');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',')).join('\r\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     const d = new Date(), pad = n => String(n).padStart(2, '0');
