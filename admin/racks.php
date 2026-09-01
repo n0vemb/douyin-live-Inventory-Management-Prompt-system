@@ -91,10 +91,10 @@ body.rk-panel-open .rk-main{width:calc(100% - 330px)}
 .rk-panel .rk-head .rk-title .rk-up-cnt{font-size:11.5px;color:var(--text-tertiary);font-weight:500}
 .rk-panel .rk-close{border:none;background:none;font-size:18px;cursor:pointer;color:var(--text-tertiary);line-height:1}
 .rk-panel .rk-close:hover{color:var(--text)}
-.rk-panel .rk-search{padding:12px 16px 9px;border-bottom:1px solid var(--border)}
-.rk-panel .rk-search input{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;background:var(--bg-elevated);color:var(--text)}
-.rk-panel .rk-search input::placeholder{color:var(--text-tertiary)}
-.rk-panel .rk-search input:focus{border-color:var(--primary)}
+/* 面板搜索框：直接作为面板子项（无容器包裹），与商品列表间隔约15px */
+.rk-panel > input#rkUpQ{display:block;width:calc(100% - 32px);margin:12px 16px 9px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;background:var(--bg-elevated);color:var(--text);box-sizing:border-box}
+.rk-panel > input#rkUpQ::placeholder{color:var(--text-tertiary)}
+.rk-panel > input#rkUpQ:focus{border-color:var(--primary)}
 .rk-panel .rk-body{flex:1;overflow-y:auto;padding:5px 12px 10px}
 .rk-panel .rk-empty{color:var(--text-tertiary);font-size:13px;text-align:center;padding:30px 10px}
 .rk-up-item{background:var(--bg-hover);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:7px;cursor:grab;transition:all .15s}
@@ -138,7 +138,7 @@ body.rk-panel-open .rk-main{width:calc(100% - 330px)}
     <span class="rk-title">未在货架商品 <span class="rk-up-cnt" id="rkUpCnt"></span></span>
     <button class="rk-close" onclick="rkTogglePanel()">&times;</button>
   </div>
-  <div class="rk-search"><input id="rkUpQ" placeholder="搜索商品…" oninput="renderUnplaced()"></div>
+  <input id="rkUpQ" placeholder="搜索商品…" oninput="renderUnplaced()">
   <div class="rk-body" id="rkUpList"><div class="rk-empty">加载中…</div></div>
 </div>
 
