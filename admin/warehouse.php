@@ -179,9 +179,11 @@ body {
 .tc-body { display:flex; align-items:center; gap:12px; }
 .tc-name {
   flex:1; min-width:0;
+  display:flex; align-items:center; gap:8px;
   font-size:26px; font-weight:700;
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  overflow:hidden;
 }
+.tc-name .tn-txt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
 /* 商品名右侧价格 */
 .tc-price {
   font-size:20px; font-weight:700;
@@ -220,6 +222,13 @@ body {
   font-size:13px; font-weight:700; color:#fff;
   background: var(--success);
   padding:2px 10px; border-radius:8px;
+}
+.tc-rack {
+  font-size:12.5px; font-weight:700; color:#7b79f0;
+  background: var(--primary-light);
+  border:1px solid rgba(123,121,240,.4);
+  padding:2px 10px; border-radius:8px;
+  flex-shrink:0; white-space:nowrap;
 }
 
 /* 操作按钮 */
@@ -272,7 +281,10 @@ body {
   opacity:.85;
 }
 .done-card .done-main { flex:1; min-width:0; }
-.done-card .done-name { font-size:18px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.done-card .done-name { font-size:18px; font-weight:600; display:flex; align-items:center; gap:6px; overflow:hidden; }
+.done-card .done-name .dn-txt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.done-card .done-name .tc-rack { font-size:11px; padding:1px 7px; flex-shrink:0; }
+.done-card .done-name .tc-kind, .done-card .done-name .tc-price { flex-shrink:0; }
 .done-card .done-meta { font-size:12px; color:var(--text-tertiary); margin-top:3px; }
 .done-card .done-qty { font-size:20px; font-weight:700; color:var(--text-secondary); flex-shrink:0; }
 .btn-undo {
@@ -357,6 +369,7 @@ let knownIds = new Set();   // 已渲染 id（用于检测新单）
 let currentTab = 'todo';
 let loading = false;
 let condMap = {};           // condition_type key → 中文名（从店铺设置加载）
+let posMap = {};            // product_id → 货架位置（拣货/归位提示）
 
 // 默认映射（设置未加载时兜底）
 const COND_FALLBACK = { sealed: '未拆袋', opened: '已拆无瑕', boxless: '无盒无瑕', flawed: '微瑕' };
@@ -380,6 +393,26 @@ async function loadSettings() {
 function fmtPrice(v) {
   if (v === null || v === undefined || v === '') return '';
   return '¥' + (parseFloat(v) || 0).toFixed(2);
+}
+
+// 加载货架分布 → product_id 位置映射（拣货/归位提示）
+async function loadRacks() {
+  try {
+    const res = await fetch('../api/get_racks.php', { cache: 'no-store' });
+    const d = await res.json();
+    if (!d.success) return;
+    posMap = {};
+    Object.keys(d.racks).forEach(rack => {
+      Object.keys(d.racks[rack]).forEach(row => {
+        Object.keys(d.racks[rack][row]).forEach(pos => {
+          const c = d.racks[rack][row][pos];
+          if (c && c.product) {
+            posMap[c.product.id] = escapeHtml(rack) + ' · 第' + row + '层 · 第' + pos + (c.span > 1 ? '-' + (+pos + 1) : '') + '格';
+          }
+        });
+      });
+    });
+  } catch (e) { /* 货架未配置时不阻塞 */ }
 }
 
 // ============ 渲染 ============
@@ -452,7 +485,7 @@ function render(newIds = null) {
         card.className = 'done-card';
         card.innerHTML = `
           <div class="done-main">
-            <div class="done-name">${escapeHtml(t.product_name)} <span class="tc-kind" style="font-size:11px;${t.type === 'return' ? 'background:var(--warning);color:#000' : ''}">${t.type === 'return' ? '回库' : '出库'}</span>${t.sell_price !== null && t.sell_price !== undefined && t.sell_price !== '' ? `<span class="tc-price">${fmtPrice(t.sell_price)}</span>` : ''}</div>
+            <div class="done-name"><span class="dn-txt">${escapeHtml(t.product_name)}</span>${posMap[t.product_id] ? `<span class="tc-rack">${posMap[t.product_id]}</span>` : ''} <span class="tc-kind" style="font-size:11px;${t.type === 'return' ? 'background:var(--warning);color:#000' : ''}">${t.type === 'return' ? '回库' : '出库'}</span>${t.sell_price !== null && t.sell_price !== undefined && t.sell_price !== '' ? `<span class="tc-price">${fmtPrice(t.sell_price)}</span>` : ''}</div>
             <div class="done-meta">${escapeHtml(t.session_name)} · ${escapeHtml(t.vip_no ? (t.vip_no + (t.nickname ? ' ' + t.nickname : '')) : (t.nickname || '新客户'))} · ${escapeHtml(condCN(t.condition_type))}${t.is_gift ? ' · 赠品' : ''} · ${fmtTime(t.done_at)} 处理</div>
           </div>
           <div class="done-qty">×1</div>
@@ -476,7 +509,7 @@ function buildCard(t) {
       <span class="tc-time">${fmtTime(t.created_at)}</span>
     </div>
     <div class="tc-body">
-      <div class="tc-name">${escapeHtml(t.product_name)} ${t.sell_price !== null && t.sell_price !== undefined && t.sell_price !== '' ? `<span class="tc-price">${fmtPrice(t.sell_price)}</span>` : ''}</div>
+      <div class="tc-name"><span class="tn-txt">${escapeHtml(t.product_name)}</span>${posMap[t.product_id] ? `<span class="tc-rack">${posMap[t.product_id]}</span>` : ''} ${t.sell_price !== null && t.sell_price !== undefined && t.sell_price !== '' ? `<span class="tc-price">${fmtPrice(t.sell_price)}</span>` : ''}</div>
       <div class="tc-qty">×1</div>
     </div>
     <div class="tc-meta">
@@ -496,6 +529,7 @@ async function load() {
   if (loading) return;
   loading = true;
   try {
+    await loadRacks(); // 顺带刷新货架位置映射
     const res = await fetch('../api/warehouse_list.php', { cache: 'no-store' });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || '加载失败');
