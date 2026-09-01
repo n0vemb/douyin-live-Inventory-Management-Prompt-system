@@ -9,8 +9,8 @@ $isAdmin = in_array($currentUser['role'] ?? '', ['store_admin', 'super_admin']);
 <style>
 /* ===== 仓库货架 局部样式（对齐全局暗黑主题） ===== */
 .rk-layout{display:flex;gap:14px;align-items:flex-start}
-/* 主区：面板展开时让出右侧 330px（不被覆盖），收起时占满 */
-.rk-main{flex:1;min-width:0;transition:width .25s ease;width:100%}
+/* 主区：展开时让出右侧面板 330px（不被覆盖）；收起时也不占满（约78%），右侧留白 */
+.rk-main{flex:0 1 auto;min-width:0;transition:width .25s ease;width:78%}
 body.rk-panel-open .rk-main{width:calc(100% - 330px)}
 .rk-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}
 .rk-search{flex:1;min-width:260px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-body);color:var(--text)}
