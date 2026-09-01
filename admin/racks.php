@@ -15,7 +15,7 @@ $isAdmin = in_array($currentUser['role'] ?? '', ['store_admin', 'super_admin']);
 .rk-main{flex:0 1 auto;min-width:0;transition:width .25s ease;width:78%}
 body.rk-panel-open .rk-main{width:calc(100% - 330px)}
 .rk-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;margin-bottom:6px}
-.rk-search{flex:1;min-width:200px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-body);color:var(--text);height:34px}
+.rk-search{flex:0 1 auto;width:100%;height:34px!important;min-height:34px!important;max-height:34px!important;padding:0 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;line-height:32px;background:var(--bg-body);color:var(--text);box-sizing:border-box!important}
 .rk-search:focus{outline:none;border-color:var(--primary)}
 .rk-result{display:none;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:10px 0;font-size:13px}
 .rk-result .rk-hit{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed var(--border)}
