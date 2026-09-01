@@ -312,21 +312,102 @@ $isOperator = ($currentUser['role'] === 'operator');
 
 <!-- ============ 库存盘点 ============ -->
 <div class="modal" id="auditModal">
-    <div class="modal-content modal-wide" style="max-width:95vw; max-height:90vh; overflow-y:auto;">
+    <div class="modal-content modal-wide" style="max-width:96vw; max-height:94vh; display:flex; flex-direction:column; overflow:hidden;">
         <div class="modal-header">
             <h3 class="modal-title">库存盘点</h3>
             <button class="modal-close" onclick="closeAuditModal()">&times;</button>
         </div>
-        <div id="auditContent">
-            <div style="text-align:center; padding:40px; color:var(--text-tertiary);">加载中...</div>
+        <div style="padding:12px 16px; border-bottom:1px solid var(--border); display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <input type="text" id="auditSearch" placeholder="搜商品名/系列/品牌/条码/拼音" style="flex:1; min-width:200px; padding:8px 12px; border:1px solid var(--border); border-radius:8px; background:var(--bg-elevated); color:var(--text); font-size:14px;" oninput="auditOnSearch(this.value)">
+            <div id="auditSegs" style="display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+                <button data-f="all" class="audit-seg on">全部</button>
+                <button data-f="unc" class="audit-seg">未盘完</button>
+                <button data-f="trans" class="audit-seg">已转变</button>
+                <button data-f="diff" class="audit-seg">有差异</button>
+                <button data-f="same" class="audit-seg">一致</button>
+                <button data-f="stock" class="audit-seg">仅线上有货</button>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="auditExportCSV()">导出CSV</button>
+            <button class="btn btn-secondary btn-sm" onclick="auditClearAll()">清空</button>
+            <button class="btn btn-secondary btn-sm" onclick="openAuditModal()">刷新</button>
         </div>
-        <div style="display:flex; gap:15px; justify-content:flex-end; margin-top:20px; padding-top:15px; border-top:1px solid var(--border);">
-            <button class="btn btn-primary" onclick="saveAuditChanges()">保存修改</button>
-            <button class="btn btn-secondary" onclick="closeAuditModal()">取消</button>
+        <div id="auditStats" style="padding:8px 16px; display:flex; gap:10px; flex-wrap:wrap; font-size:13px; border-bottom:1px solid var(--border);"></div>
+        <div id="auditContent" style="flex:1; overflow:auto; min-height:200px;"></div>
+        <div style="padding:12px 16px; border-top:1px solid var(--border); display:flex; gap:10px; align-items:center;">
+            <span id="auditFootTip" style="font-size:12px; color:var(--text-tertiary);">—</span>
+            <span style="flex:1"></span>
+            <button class="btn btn-primary" id="auditAdjBtn" onclick="auditOpenConfirm()" disabled>批量调整（0）</button>
+            <button class="btn btn-secondary" onclick="closeAuditModal()">关闭</button>
         </div>
     </div>
 </div>
 
+<!-- 盘点调整确认 -->
+<div class="modal" id="auditConfirmModal">
+    <div class="modal-content" style="width:560px; max-width:94vw; max-height:88vh; overflow:auto;">
+        <div class="modal-header">
+            <h3 class="modal-title">确认调整线上库存</h3>
+            <button class="modal-close" onclick="closeModal('auditConfirmModal')">&times;</button>
+        </div>
+        <div style="padding:16px 18px;">
+            <div id="auditCfList" style="max-height:300px; overflow:auto; border:1px solid var(--border); border-radius:8px; margin-bottom:12px; background:var(--bg-elevated);"></div>
+            <div style="margin-bottom:12px;">
+                <label style="display:block; font-size:12px; color:var(--text-secondary); margin-bottom:4px;">调整备注（写入库存流水，便于追溯）</label>
+                <input type="text" id="auditCfRemark" class="form-input" placeholder="如：月度盘点">
+            </div>
+            <div style="font-size:12px; color:var(--warning); margin-bottom:12px;">调整会真实改动线上库存且不可撤销，请确认现场已盘点完毕。</div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeModal('auditConfirmModal')">取消</button>
+                <button class="btn btn-primary" id="auditCfOk" onclick="auditDoAdjust()">确认调整</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 盘点结果 -->
+<div class="modal" id="auditResultModal">
+    <div class="modal-content" style="width:560px; max-width:94vw; max-height:80vh; overflow:auto;">
+        <div class="modal-header">
+            <h3 class="modal-title" id="auditRsTitle">调整结果</h3>
+            <button class="modal-close" onclick="closeModal('auditResultModal')">&times;</button>
+        </div>
+        <div style="padding:16px 18px;">
+            <div id="auditRsList" style="max-height:340px; overflow:auto;"></div>
+            <div style="display:flex; justify-content:flex-end; margin-top:12px;">
+                <button class="btn btn-primary" onclick="closeModal('auditResultModal')">知道了</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 盘点专用样式 -->
+<style>
+.audit-seg { padding:7px 11px; font-size:12px; border:none; background:transparent; color:var(--text-secondary); cursor:pointer; }
+.audit-seg + .audit-seg { border-left:1px solid var(--border); }
+.audit-seg.on { background:var(--primary); color:#fff; }
+.audit-on { font-size:11px; color:var(--text-tertiary); line-height:1.2; }
+.audit-qty { width:58px; padding:5px 6px; border:1px solid var(--border); border-radius:6px; background:var(--bg-elevated); color:var(--text); text-align:center; font-size:13px; }
+.audit-qty:focus { outline:none; border-color:var(--primary); }
+.audit-badge { font-size:12px; border-radius:6px; padding:3px 9px; white-space:nowrap; }
+.audit-badge-same { background:rgba(52,211,153,.15); color:var(--success); }
+.audit-badge-diff { background:rgba(248,113,113,.15); color:var(--danger); }
+.audit-badge-part, .audit-badge-unc { background:var(--bg-hover); color:var(--text-tertiary); }
+.audit-badge-trans { background:rgba(251,191,36,.15); color:var(--warning); }
+.audit-stat b { font-size:15px; margin-right:4px; }
+.audit-stat.diff b { color:var(--danger); }
+.audit-stat.trans b { color:var(--warning); }
+.audit-stat.same b { color:var(--success); }
+.audit-stat.unc b { color:var(--text-tertiary); }
+.audit-checks-row td { padding:4px 10px; font-size:11.5px; color:var(--text-tertiary); background:var(--bg-hover); }
+.audit-checks-row label { margin-right:12px; cursor:pointer; }
+.audit-trans-note { font-size:11.5px; color:var(--warning); }
+.audit-cf-item { padding:7px 10px; border-bottom:1px solid var(--border); font-size:13px; }
+.audit-cf-item:last-child { border-bottom:none; }
+.audit-plus { color:var(--success); font-weight:700; }
+.audit-minus { color:var(--danger); font-weight:700; }
+.audit-res-item { padding:6px 10px; font-size:12.5px; border-bottom:1px solid var(--border); }
+.audit-res-item:last-child { border-bottom:none; }
+</style>
 <!-- 删除确认框 -->
 <div class="modal" id="confirmModal">
     <div class="modal-content">
@@ -1332,8 +1413,73 @@ async function performDelete(ids) {
 }
 
 /* ---------- 盘点 ---------- */
+const AUDIT_LS_KEY = 'ppmart_audit_draft_v1';
 let auditProducts = [];
 let auditConditionTypes = [];
+let auditDraft = {};     // pid -> { condKey: number|null }
+let auditSel = {};       // "pid|condKey" -> bool
+let auditFilter = 'all';
+let auditSortKey = 'name';
+let auditSortAsc = true;
+let auditSearchTimer = null;
+
+function auditIsFilled(v) { return v !== null && v !== undefined && v !== ''; }
+function auditOnlineQty(p, key) { return (p.conditions && p.conditions[key]) ? (p.conditions[key].qty || 0) : 0; }
+function auditOnlineTotal(p) { let t = 0; auditConditionTypes.forEach(ct => { t += auditOnlineQty(p, ct.key); }); return t; }
+
+/* 状态判定：unc未盘 / part待盘完 / same一致 / trans已转变(总数守恒) / diff有差异 */
+function auditStatusOf(p) {
+    const d = auditDraft[p.product_id] || {};
+    let all = true, any = false, diff = false;
+    let onTot = 0, realTot = 0;
+    for (const ct of auditConditionTypes) {
+        const v = d[ct.key];
+        if (!auditIsFilled(v)) { all = false; continue; }
+        any = true;
+        const on = auditOnlineQty(p, ct.key);
+        const real = +v;
+        onTot += on; realTot += real;
+        if (real !== on) diff = true;
+    }
+    if (!any) return 'unc';
+    if (!all) return 'part';
+    if (diff && onTot === realTot) return 'trans';
+    return diff ? 'diff' : 'same';
+}
+function auditBadgeText(st) { return { same: '一致', diff: '有差异', part: '待盘完', unc: '未盘', trans: '已转变' }[st] || st; }
+function auditDiffEntries(p) {
+    if (auditStatusOf(p) !== 'diff') return [];
+    const d = auditDraft[p.product_id] || {};
+    const out = [];
+    for (const ct of auditConditionTypes) {
+        const v = +d[ct.key], on = auditOnlineQty(p, ct.key);
+        if (v - on !== 0) out.push({ t: ct, online: on, real: v, delta: v - on });
+    }
+    return out;
+}
+function auditTransformDetail(p) {
+    const d = auditDraft[p.product_id] || {};
+    const from = [], to = [];
+    for (const ct of auditConditionTypes) {
+        const v = d[ct.key];
+        if (!auditIsFilled(v)) continue;
+        const delta = +v - auditOnlineQty(p, ct.key);
+        if (delta < 0) from.push({ t: ct, n: -delta });
+        else if (delta > 0) to.push({ t: ct, n: delta });
+    }
+    const pairs = [];
+    let fi = 0, ti = 0;
+    while (fi < from.length && ti < to.length) {
+        const n = Math.min(from[fi].n, to[ti].n);
+        pairs.push({ from: from[fi].t, to: to[ti].t, n: n });
+        from[fi].n -= n; to[ti].n -= n;
+        if (from[fi].n === 0) fi++;
+        if (to[ti].n === 0) ti++;
+    }
+    return pairs;
+}
+function auditSelOf(k) { return auditSel[k] === undefined ? true : !!auditSel[k]; }
+
 async function openAuditModal() {
     showModal('auditModal');
     $('auditContent').innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-tertiary);">加载中...</div>';
@@ -1343,6 +1489,10 @@ async function openAuditModal() {
         if (data.success) {
             auditProducts = data.data.products;
             auditConditionTypes = data.data.condition_types || [];
+            const ts = auditLoadDraft();
+            if (ts) { $('auditFootTip').textContent = '已恢复上次盘点记录（' + new Date(ts).toLocaleString() + '）'; }
+            auditFilter = 'all';
+            auditResetSegs();
             renderAuditTable();
         } else {
             $('auditContent').innerHTML = '<div style="text-align:center; padding:40px; color:var(--danger);">加载失败: ' + escapeHtml(data.error || '') + '</div>';
@@ -1351,139 +1501,264 @@ async function openAuditModal() {
         $('auditContent').innerHTML = '<div style="text-align:center; padding:40px; color:var(--danger);">加载失败: ' + escapeHtml(err.message) + '</div>';
     }
 }
-function closeAuditModal() {
-    closeModal('auditModal');
-    loadProducts();
+function closeAuditModal() { closeModal('auditModal'); loadProducts(); }
+
+function auditSaveDraft() { try { localStorage.setItem(AUDIT_LS_KEY, JSON.stringify({ ts: Date.now(), draft: auditDraft, sel: auditSel })); } catch (e) {} }
+function auditLoadDraft() {
+    try {
+        const o = JSON.parse(localStorage.getItem(AUDIT_LS_KEY) || 'null');
+        if (o && o.draft) { auditDraft = o.draft; auditSel = o.sel || {}; return o.ts; }
+    } catch (e) {}
+    return 0;
 }
-let auditSortKey = 'name';
-let auditSortAsc = true;
+
+function auditMatchKW(p) {
+    const kw = ($('auditSearch').value || '').trim().toLowerCase();
+    if (!kw) return true;
+    return [p.product_name, p.official_name, p.series, p.brand, p.barcode].some(v => String(v || '').toLowerCase().indexOf(kw) >= 0);
+}
+function auditOnSearch(v) { clearTimeout(auditSearchTimer); auditSearchTimer = setTimeout(() => renderAuditTable(), 200); }
+function auditResetSegs() { document.querySelectorAll('#auditSegs .audit-seg').forEach(b => b.classList.toggle('on', b.dataset.f === auditFilter)); }
+document.getElementById('auditSegs').addEventListener('click', e => {
+    const b = e.target.closest('.audit-seg'); if (!b) return;
+    auditFilter = b.dataset.f;
+    auditResetSegs();
+    renderAuditTable();
+});
+function auditSort(key) {
+    if (auditSortKey === key) auditSortAsc = !auditSortAsc;
+    else { auditSortKey = key; auditSortAsc = true; }
+    renderAuditTable();
+}
+
+function renderAuditStats() {
+    let nUnc = 0, nSame = 0, nDiff = 0, nTrans = 0;
+    auditProducts.forEach(p => {
+        const s = auditStatusOf(p);
+        if (s === 'diff') nDiff++;
+        else if (s === 'trans') nTrans++;
+        else if (s === 'same') nSame++;
+        else nUnc++;
+    });
+    $('auditStats').innerHTML =
+        '<span class="audit-stat">共 <b>' + auditProducts.length + '</b> 商品</span>' +
+        '<span class="audit-stat diff">有差异 <b>' + nDiff + '</b></span>' +
+        '<span class="audit-stat trans">已转变 <b>' + nTrans + '</b></span>' +
+        '<span class="audit-stat same">一致 <b>' + nSame + '</b></span>' +
+        '<span class="audit-stat unc">未盘完 <b>' + nUnc + '</b></span>';
+}
 
 function renderAuditTable() {
     const content = $('auditContent');
-    let html = '<div style="margin-bottom:12px;">';
-    html += '<input type="text" id="auditSearch" placeholder="搜索商品..." style="padding:8px 14px; border-radius:8px; border:1px solid var(--border); background:var(--bg-elevated); color:var(--text); font-size:14px; width:250px;" oninput="filterAuditTable()">';
-    html += ' <span style="font-size:13px; color:var(--text-secondary); margin-left:8px;">共 ' + auditProducts.length + ' 个商品</span>';
-    html += ' <span style="font-size:12px; color:var(--text-tertiary); margin-left:8px;">点击 商品/系列/品牌 表头排序</span>';
-    html += '</div>';
-    html += '<div style="overflow-x:auto;">';
-    html += '<table style="font-size:13px; white-space:nowrap; min-width:100%; border-collapse:collapse;">';
-    html += '<thead><tr style="position:sticky; top:0; background:var(--bg-surface); z-index:2;">';
-    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:150px; cursor:pointer; user-select:none;" onclick="auditSort(\'name\')">商品名称 ' + (auditSortKey === 'name' ? (auditSortAsc ? '▲' : '▼') : '') + '</th>';
-    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:90px; cursor:pointer; user-select:none;" onclick="auditSort(\'series\')">系列 ' + (auditSortKey === 'series' ? (auditSortAsc ? '▲' : '▼') : '') + '</th>';
-    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:90px; cursor:pointer; user-select:none;" onclick="auditSort(\'brand\')">品牌 ' + (auditSortKey === 'brand' ? (auditSortAsc ? '▲' : '▼') : '') + '</th>';
-    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:80px;">条码</th>';
-    auditConditionTypes.forEach(ct => {
-        html += '<th style="text-align:center; padding:8px 4px; border-bottom:2px solid var(--border); color:var(--text-secondary); font-size:12px; min-width:55px;" colspan="' + (IS_SUPER ? 3 : 1) + '">';
-        html += '<span class="condition-badge condition-' + escapeHtml(ct.key) + '">' + escapeHtml(ct.name) + '</span>';
-        html += '</th>';
-    });
-    html += '</tr>';
-    html += '<tr style="position:sticky; top:36px; background:var(--bg-hover); z-index:2;">';
-    html += '<th style="text-align:left; padding:4px 10px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">-</th>';
-    html += '<th style="text-align:left; padding:4px 10px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">-</th>';
-    html += '<th style="text-align:left; padding:4px 10px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">-</th>';
-    html += '<th style="text-align:left; padding:4px 10px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">-</th>';
-    auditConditionTypes.forEach(() => {
-        html += '<th style="text-align:center; padding:4px 2px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">数量</th>';
-        if (IS_SUPER) {
-            html += '<th style="text-align:center; padding:4px 2px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">进价</th>';
-            html += '<th style="text-align:center; padding:4px 2px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-tertiary);">售价</th>';
-        }
-    });
-    html += '</tr></thead><tbody id="auditTableBody">';
-
-    // 排序（点击表头切换，默认按商品名）
     const sorted = [...auditProducts].sort((a, b) => {
         let va, vb;
-        if (auditSortKey === 'series') { va = (a.series || ''); vb = (b.series || ''); }
-        else if (auditSortKey === 'brand') { va = (a.brand || ''); vb = (b.brand || ''); }
-        else { va = (a.product_name || a.official_name || ''); vb = (b.product_name || b.official_name || ''); }
-        const cmp = va.localeCompare(vb, 'zh-Hans-CN', { numeric: true });
+        if (auditSortKey === 'series') { va = a.series || ''; vb = b.series || ''; }
+        else if (auditSortKey === 'brand') { va = a.brand || ''; vb = b.brand || ''; }
+        else { va = a.product_name || ''; vb = b.product_name || ''; }
+        const cmp = String(va).localeCompare(String(vb), 'zh-Hans-CN', { numeric: true });
         return auditSortAsc ? cmp : -cmp;
     });
+    const view = sorted.filter(p => {
+        if (!auditMatchKW(p)) return false;
+        const s = auditStatusOf(p);
+        if (auditFilter === 'all') return true;
+        if (auditFilter === 'unc') return s === 'unc' || s === 'part';
+        if (auditFilter === 'trans') return s === 'trans';
+        if (auditFilter === 'diff') return s === 'diff';
+        if (auditFilter === 'same') return s === 'same';
+        if (auditFilter === 'stock') return auditOnlineTotal(p) > 0;
+        return true;
+    });
 
-    sorted.forEach(p => {
-        html += '<tr class="audit-row" data-pid="' + p.product_id + '" data-name="' + escapeHtml((p.product_name || p.official_name || '').toLowerCase()) + '" data-barcode="' + escapeHtml(p.barcode) + '" data-series="' + escapeHtml((p.series || '').toLowerCase()) + '" data-brand="' + escapeHtml((p.brand || '').toLowerCase()) + '">';
+    let html = '<table style="font-size:13px; min-width:100%; border-collapse:collapse;">';
+    html += '<thead><tr style="position:sticky; top:0; background:var(--bg-surface); z-index:2;">';
+    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:150px; cursor:pointer;" onclick="auditSort('name')">商品' + (auditSortKey === 'name' ? (auditSortAsc ? ' ▲' : ' ▼') : '') + '</th>';
+    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:80px; cursor:pointer;" onclick="auditSort('series')">系列' + (auditSortKey === 'series' ? (auditSortAsc ? ' ▲' : ' ▼') : '') + '</th>';
+    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:70px; cursor:pointer;" onclick="auditSort('brand')">品牌' + (auditSortKey === 'brand' ? (auditSortAsc ? ' ▲' : ' ▼') : '') + '</th>';
+    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:90px;">条码</th>';
+    auditConditionTypes.forEach(ct => {
+        html += '<th style="text-align:center; padding:8px 4px; border-bottom:2px solid var(--border); color:var(--text-secondary); font-size:12px; min-width:80px;">线上/' + escapeHtml(ct.name) + '</th>';
+    });
+    html += '<th style="text-align:center; padding:8px 10px; border-bottom:2px solid var(--border); min-width:70px;">状态</th>';
+    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:150px;">操作</th>';
+    html += '</tr></thead><tbody>';
+
+    view.forEach(p => {
+        const st = auditStatusOf(p);
+        const d = auditDraft[p.product_id] || {};
+        html += '<tr id="auditRow-' + p.product_id + '" data-pid="' + p.product_id + '">';
         html += '<td style="padding:6px 10px; border-bottom:1px solid var(--border);">';
         html += '<div style="font-weight:600; font-size:13px;">' + escapeHtml(p.product_name) + '</div>';
-        html += '<div style="font-size:11px; color:var(--text-tertiary);">' + escapeHtml(p.official_name || '') + '</div>';
-        html += '</td>';
+        html += (p.official_name && p.official_name !== p.product_name ? '<div style="font-size:11px; color:var(--text-tertiary);">' + escapeHtml(p.official_name) + '</div>' : '') + '</td>';
         html += '<td style="padding:6px 10px; border-bottom:1px solid var(--border); font-size:12px; color:var(--text-secondary);">' + escapeHtml(p.series || '-') + '</td>';
         html += '<td style="padding:6px 10px; border-bottom:1px solid var(--border); font-size:12px; color:var(--text-secondary);">' + escapeHtml(p.brand || '-') + '</td>';
         html += '<td style="padding:6px 10px; border-bottom:1px solid var(--border); font-size:12px; color:var(--text-secondary);">' + escapeHtml(p.barcode || '-') + '</td>';
         auditConditionTypes.forEach(ct => {
-            const c = p.conditions[ct.key] || { qty: 0, purchase_price: null, suggested_price: null };
-            const qty = c.qty || 0;
-            html += '<td style="text-align:center; padding:6px 4px; border-bottom:1px solid var(--border);">';
-            html += `<input type="number" class="audit-qty" data-pid="${p.product_id}" data-cond="${escapeHtml(ct.key)}" data-orig="${qty}" value="${qty}" min="0" style="width:58px; padding:5px 6px; border:1px solid var(--border); border-radius:6px; background:var(--bg-elevated); color:var(--text); text-align:center;" onchange="auditMarkDiff(this)">`;
+            const on = auditOnlineQty(p, ct.key);
+            const v = d[ct.key];
+            const filled = auditIsFilled(v);
+            const chg = filled && (+v !== on);
+            html += '<td style="text-align:center; padding:4px; border-bottom:1px solid var(--border);">';
+            html += '<div class="audit-on">线上 ' + on + '</div>';
+            html += '<input type="number" class="audit-qty" min="0" step="1" inputmode="numeric" data-pid="' + p.product_id + '" data-cond="' + escapeHtml(ct.key) + '" data-orig="' + on + '" value="' + (filled ? escapeHtml(v) : '') + '" placeholder="' + on + '" ' + (chg ? 'style="border-color:var(--warning); background:rgba(240,180,41,.1);"' : '') + ' oninput="auditInputMark(this)" onchange="auditCommit(this)" onfocus="this.select()">';
             html += '</td>';
-            if (IS_SUPER) {
-                html += '<td style="text-align:center; padding:6px 4px; border-bottom:1px solid var(--border); color:var(--text-secondary); font-size:12px;">' + (c.purchase_price != null ? '¥' + parseFloat(c.purchase_price).toFixed(2) : '-') + '</td>';
-            }
-            if (IS_SUPER) {
-                html += '<td style="text-align:center; padding:6px 4px; border-bottom:1px solid var(--border); color:var(--text-secondary); font-size:12px;">' + (c.suggested_price != null ? '¥' + parseFloat(c.suggested_price).toFixed(2) : '-') + '</td>';
-            }
         });
+        html += '<td style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--border);"><span class="audit-badge audit-badge-' + st + '">' + auditBadgeText(st) + '</span></td>';
+        html += '<td style="padding:6px 10px; border-bottom:1px solid var(--border); white-space:nowrap;">';
+        html += '<button class="btn btn-sm btn-outline" style="padding:2px 8px; font-size:11px;" onclick="auditFillOnline(' + p.product_id + ')" title="把线上数量填入现场">按线上</button> ';
+        html += '<button class="btn btn-sm btn-outline" style="padding:2px 8px; font-size:11px;" onclick="auditFillZero(' + p.product_id + ')" title="未填的补0">补0</button> ';
+        html += '<button class="btn btn-sm btn-outline" style="padding:2px 8px; font-size:11px;" onclick="auditClearRow(' + p.product_id + ')">清空</button></td>';
         html += '</tr>';
+        const diffs = auditDiffEntries(p);
+        if (st === 'trans') {
+            const pairs = auditTransformDetail(p);
+            const txt = pairs.map(x => x.n + ' ' + x.from.name + '→' + x.to.name).join('，');
+            html += '<tr class="audit-checks-row"><td colspan="' + (4 + auditConditionTypes.length + 2) + '"><span class="audit-trans-note">状态转变：' + escapeHtml(txt) + '（总数守恒，实物未变）</span></td></tr>';
+        } else if (diffs.length) {
+            html += '<tr class="audit-checks-row"><td colspan="' + (4 + auditConditionTypes.length + 2) + '">' +
+                diffs.map(x => {
+                    const k = p.product_id + '|' + x.t.key;
+                    return '<label><input type="checkbox" ' + (auditSelOf(k) ? 'checked' : '') + ' onchange="auditToggleSel('' + k + '',this.checked)"> ' + escapeHtml(x.t.name) + ' ' + (x.delta > 0 ? '+' : '') + x.delta + '</label>';
+                }).join('') + '</td></tr>';
+        }
     });
-    html += '</tbody></table></div>';
+    html += '</tbody></table>';
+    if (!view.length) html = '<div style="text-align:center; padding:40px; color:var(--text-tertiary);">没有符合条件的商品</div>';
     content.innerHTML = html;
+    renderAuditStats();
+    auditUpdateFooter();
 }
 
-function auditSort(key) {
-    if (auditSortKey === key) {
-        auditSortAsc = !auditSortAsc;
-    } else {
-        auditSortKey = key;
-        auditSortAsc = true;
-    }
-    renderAuditTable();
-}
-function auditMarkDiff(input) {
+function auditInputMark(input) {
     const orig = parseInt(input.dataset.orig);
     const val = parseInt(input.value);
-    if (val === orig) input.style.borderColor = 'var(--border)';
-    else if (val > orig) input.style.borderColor = 'var(--success)';
-    else input.style.borderColor = 'var(--danger)';
+    if (isNaN(val) || val === orig) { input.style.borderColor = 'var(--border)'; input.style.background = 'var(--bg-elevated)'; }
+    else { input.style.borderColor = 'var(--warning)'; input.style.background = 'rgba(240,180,41,.1)'; }
 }
-function filterAuditTable() {
-    const kw = $('auditSearch').value.toLowerCase();
-    document.querySelectorAll('.audit-row').forEach(tr => {
-        const name = tr.dataset.name || '';
-        const bc = tr.dataset.barcode || '';
-        const series = tr.dataset.series || '';
-        const brand = tr.dataset.brand || '';
-        tr.style.display = (!kw || name.includes(kw) || bc.includes(kw) || series.includes(kw) || brand.includes(kw)) ? '' : 'none';
-    });
+function auditCommit(input) {
+    const pid = parseInt(input.dataset.pid);
+    const cond = input.dataset.cond;
+    const d = auditDraft[pid] || (auditDraft[pid] = {});
+    const val = input.value;
+    if (val === '' || val === null) d[cond] = null;
+    else { const n = parseInt(val, 10); d[cond] = isNaN(n) ? null : Math.max(0, n); }
+    auditSaveDraft();
+    renderAuditTable();
 }
-async function saveAuditChanges() {
-    if (!requireStore()) return;
-    const changed = [];
-    document.querySelectorAll('.audit-qty').forEach(input => {
-        const orig = parseInt(input.dataset.orig);
-        const val = parseInt(input.value) || 0;
-        if (val !== orig) {
-            changed.push({ product_id: parseInt(input.dataset.pid), condition_type: input.dataset.cond, qty: val });
-        }
-    });
-    if (!changed.length) { showToast('没有需要保存的修改'); return; }
-    if (!confirm(`保存 ${changed.length} 处库存修改？`)) return;
-    try {
-        const res = await fetch('../api/batch_inventory_update.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items: changed })
-        });
-        const data = await res.json();
-        if (data.success) {
-            showToast('盘点已保存');
-            closeAuditModal();
-        } else {
-            showErrorToast(data.error || '保存失败');
-        }
-    } catch (err) { showErrorToast('保存失败: ' + err.message); }
+function auditToggleSel(k, on) { auditSel[k] = on; auditSaveDraft(); auditUpdateFooter(); }
+
+function auditFillOnline(pid) {
+    const p = auditProducts.find(x => x.product_id === pid); if (!p) return;
+    const d = auditDraft[pid] || (auditDraft[pid] = {});
+    auditConditionTypes.forEach(ct => { d[ct.key] = auditOnlineQty(p, ct.key); });
+    auditSaveDraft(); renderAuditTable();
+}
+function auditFillZero(pid) {
+    const d = auditDraft[pid] || (auditDraft[pid] = {});
+    auditConditionTypes.forEach(ct => { if (!auditIsFilled(d[ct.key])) d[ct.key] = 0; });
+    auditSaveDraft(); renderAuditTable();
+}
+function auditClearRow(pid) { delete auditDraft[pid]; auditSaveDraft(); renderAuditTable(); }
+function auditClearAll() {
+    if (!confirm('确定清空本次所有盘点记录？（线上库存不会被改动）')) return;
+    auditDraft = {}; auditSel = {};
+    try { localStorage.removeItem(AUDIT_LS_KEY); } catch (e) {}
+    $('auditFootTip').textContent = '';
+    renderAuditTable();
 }
 
+function auditAdjustItems() {
+    const out = [];
+    for (const p of auditProducts) {
+        const st = auditStatusOf(p);
+        if (st !== 'diff' && st !== 'trans') continue;
+        const d = auditDraft[p.product_id] || {};
+        for (const ct of auditConditionTypes) {
+            const v = +d[ct.key], on = auditOnlineQty(p, ct.key);
+            const delta = v - on;
+            if (delta === 0) continue;
+            if (!auditSelOf(p.product_id + '|' + ct.key)) continue;
+            out.push({ product_id: p.product_id, condition_type: ct.key, qty: v, name: p.product_name, tname: ct.name, online: on, real: v, delta });
+        }
+    }
+    return out;
+}
+function auditUpdateFooter() {
+    const items = auditAdjustItems();
+    const btn = $('auditAdjBtn');
+    btn.textContent = '批量调整（' + items.length + '）';
+    btn.disabled = !items.length;
+}
+function auditOpenConfirm() {
+    const items = auditAdjustItems();
+    if (!items.length) return;
+    $('auditCfList').innerHTML = items.map(it => {
+        const warn = (it.delta > 0 && it.online === 0) ? ' <span style="color:var(--danger);font-size:11px;">（线上为0，将新建批次）</span>' : '';
+        return '<div class="audit-cf-item"><div><b>' + escapeHtml(it.name) + '</b> · ' + escapeHtml(it.tname) + '</div>' +
+            '<div style="font-size:12px; color:var(--text-tertiary);">线上 ' + it.online + ' → 现场 ' + it.real + '　<span class="' + (it.delta > 0 ? 'audit-plus' : 'audit-minus') + '">' + (it.delta > 0 ? '+' : '') + it.delta + '</span>' + warn + '</div></div>';
+    }).join('');
+    const dd = new Date(), pad = n => String(n).padStart(2, '0');
+    $('auditCfRemark').value = '线下盘点调整 ' + dd.getFullYear() + '-' + pad(dd.getMonth() + 1) + '-' + pad(dd.getDate());
+    showModal('auditConfirmModal');
+}
+async function auditDoAdjust() {
+    const items = auditAdjustItems();
+    if (!items.length) { closeModal('auditConfirmModal'); return; }
+    if (!confirm('将按上述明细真实修改线上库存，确定继续？')) return;
+    const btn = $('auditCfOk');
+    btn.disabled = true; btn.textContent = '调整中…';
+    try {
+        const res = await fetch('../api/batch_inventory_update.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: items.map(i => ({ product_id: i.product_id, condition_type: i.condition_type, qty: i.qty, name: i.name, tname: i.tname })), remark: $('auditCfRemark').value })
+        });
+        const j = await res.json();
+        if (!j.success) throw new Error(j.error || '接口失败');
+        const dd = j.data || {};
+        $('auditRsTitle').textContent = '调整完成：成功 ' + dd.success + ' 项，失败 ' + dd.failed + ' 项';
+        $('auditRsList').innerHTML = (dd.results || []).map(x =>
+            '<div class="audit-res-item">' + (x.ok ? '<span style="color:var(--success);">✓</span> ' : '<span style="color:var(--danger);">✗</span> ') + escapeHtml(x.name) +
+            ' <span style="color:var(--text-tertiary);">(' + escapeHtml(x.condition_type) + ')</span> ' +
+            (x.ok ? '（' + x.before + ' → ' + x.after + '）' : escapeHtml(x.msg || '失败')) + '</div>').join('');
+        closeModal('auditConfirmModal');
+        showModal('auditResultModal');
+        await openAuditModal();
+    } catch (e) {
+        alert('调整失败：' + e.message);
+    }
+    btn.disabled = false; btn.textContent = '确认调整';
+}
+
+function auditExportCSV() {
+    const head = ['商品ID', '商品名称', '系列', '品牌', '条码'];
+    auditConditionTypes.forEach(ct => { head.push('线上-' + ct.name, '现场-' + ct.name, '差异-' + ct.name); });
+    head.push('结论');
+    const rows = [head];
+    auditProducts.forEach(p => {
+        const d = auditDraft[p.product_id] || {};
+        const row = [p.product_id, p.product_name, p.series || '', p.brand || '', p.barcode || ''];
+        auditConditionTypes.forEach(ct => {
+            const on = auditOnlineQty(p, ct.key);
+            const v = auditIsFilled(d[ct.key]) ? +d[ct.key] : '';
+            row.push(on, v, (v === '' ? '' : v - on));
+        });
+        row.push(auditBadgeText(auditStatusOf(p)));
+        rows.push(row);
+    });
+    const csv = rows.map(r => r.map(c => {
+        const s = String(c == null ? '' : c);
+        return /[",
+]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',')).join('
+');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const d = new Date(), pad = n => String(n).padStart(2, '0');
+    a.download = '库存盘点_' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '.csv';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}
 /* ---------- 批量导入 ---------- */
 // 原批量导入流程：选择文件 → 上传后端 bulk_import_products.php（服务端解析，支持 csv/xlsx）
 // 格式与「库存导出」一致：每商品一行，每个 SKU 状态各占 数量/进价/售价 三列

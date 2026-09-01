@@ -1,4 +1,6 @@
 <?php
+// 盘点批量调整：逐条独立处理（成功/失败分别返回），支持自定义备注写入 inventory_log
+// 与工具箱 /api/audit/adjust 行为一致：单条失败不影响其他条目
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../auth.php';
 
@@ -14,22 +16,27 @@ if (empty($storeId)) {
     error('请先选择店铺后再操作');
 }
 $operatorId = $_SESSION['user_id'] ?? null;
-$pdo->beginTransaction();
+$remark = trim((string)($input['remark'] ?? '')) ?: '盘点调整';
 
-try {
-    $updated = 0;
-    $created = 0;
+$results = [];
+$successCount = 0;
+$failedCount = 0;
 
-    foreach ($input['items'] as $item) {
-        $productId = intval($item['product_id'] ?? 0);
-        $conditionType = $item['condition_type'] ?? '';
-        $qty = intval($item['qty'] ?? 0);
-        $purchasePrice = isset($item['purchase_price']) && $item['purchase_price'] !== '' && $item['purchase_price'] !== null ? decimal($item['purchase_price']) : null;
-        $suggestedPrice = isset($item['suggested_price']) && $item['suggested_price'] !== '' && $item['suggested_price'] !== null ? decimal($item['suggested_price']) : null;
+foreach ($input['items'] as $item) {
+    $productId = intval($item['product_id'] ?? 0);
+    $conditionType = (string)($item['condition_type'] ?? '');
+    $qty = intval($item['qty'] ?? 0);
+    $name = (string)($item['name'] ?? '');
+    $tname = (string)($item['tname'] ?? $conditionType);
 
-        if ($productId <= 0 || empty($conditionType)) continue;
+    if ($productId <= 0 || empty($conditionType)) {
+        $failedCount++;
+        $results[] = ['ok' => false, 'name' => $name, 'condition_type' => $conditionType, 'msg' => '参数缺失'];
+        continue;
+    }
 
-        // 该商品该状态的全部批次（可能多个，盘点以「商品+状态」为粒度合并成一条流水）
+    try {
+        // 该商品该状态的全部批次（多个批次合并成一条流水）
         $stmt = $pdo->prepare("
             SELECT id, remaining_qty, purchase_price, suggested_price
             FROM inventory_batches
@@ -39,93 +46,56 @@ try {
         $stmt->execute([$productId, $conditionType, $storeId]);
         $batches = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        if (!empty($batches)) {
-            $main = $batches[0]; // 最新批次
-            $currentTotalQty = 0;
-            foreach ($batches as $b) $currentTotalQty += (int)$b['remaining_qty'];
-            $diff = $qty - $currentTotalQty;
+        $before = 0;
+        foreach ($batches as $b) $before += (int)$b['remaining_qty'];
 
-            // 主批次设为盘点数量
+        if (!empty($batches)) {
+            $main = $batches[0];
+            $diff = $qty - $before;
+
+            // 主批次设为盘点数量，其余批次清零
             $stmt = $pdo->prepare("UPDATE inventory_batches SET remaining_qty = ? WHERE id = ? AND store_id = ?");
             $stmt->execute([$qty, $main['id'], $storeId]);
-
-            // 其余批次清零（不逐批写流水，合并进一条盘点流水，避免一次操作多条流水）
             foreach (array_slice($batches, 1) as $ob) {
                 $stmt = $pdo->prepare("UPDATE inventory_batches SET remaining_qty = 0 WHERE id = ? AND store_id = ?");
                 $stmt->execute([(int)$ob['id'], $storeId]);
             }
 
-            // 数量有变化 → 只写一条盘点调整流水（含操作人）
             if ($diff !== 0) {
                 $stmt = $pdo->prepare("
                     INSERT INTO inventory_log (store_id, user_id, product_id, condition_type, change_type, qty_change, before_qty, after_qty, price, remark)
-                    VALUES (?, ?, ?, ?, 'adjust', ?, ?, ?, ?, '盘点调整')
+                    VALUES (?, ?, ?, ?, 'adjust', ?, ?, ?, ?, ?)
                 ");
-                $stmt->execute([$storeId, $operatorId, $productId, $conditionType, $diff, $currentTotalQty, $qty, $purchasePrice ?? null]);
-                $updated++;
-            }
-
-            // 更新价格（仅超管界面才会传价格；前端盘点保存只传 qty，这里保留能力）
-            $updateFields = [];
-            $updateParams = [];
-            if ($purchasePrice !== null && $purchasePrice != $main['purchase_price']) {
-                $updateFields[] = 'purchase_price = ?';
-                $updateParams[] = $purchasePrice;
-            }
-            if ($suggestedPrice !== null && $suggestedPrice != $main['suggested_price']) {
-                $updateFields[] = 'suggested_price = ?';
-                $updateParams[] = $suggestedPrice;
-            }
-            if (!empty($updateFields)) {
-                $updateParams[] = $main['id'];
-                $updateParams[] = $storeId;
-                $stmt = $pdo->prepare("UPDATE inventory_batches SET " . implode(', ', $updateFields) . " WHERE id = ? AND store_id = ?");
-                $stmt->execute($updateParams);
-                if ($diff === 0) $updated++;
+                $stmt->execute([$storeId, $operatorId, $productId, $conditionType, $diff, $before, $qty, null, $remark]);
             }
         } elseif ($qty > 0) {
-            // 不存在批次但 qty > 0 → 创建新批次（一条入库流水 + 一条采购记录）
+            // 无批次但盘点有货 → 新建批次
             $batchNo = 'PD' . date('Ymd') . strtoupper(substr(uniqid(), -6));
             $stmt = $pdo->prepare("
                 INSERT INTO inventory_batches (product_id, condition_type, batch_no, total_qty, remaining_qty, purchase_price, suggested_price, purchased_at, remark, store_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), '盘点新增', ?)
+                VALUES (?, ?, ?, ?, ?, 0, 0, NOW(), '盘点新增', ?)
             ");
-            $stmt->execute([
-                $productId, $conditionType, $batchNo, $qty, $qty,
-                $purchasePrice ?? 0, $suggestedPrice ?? 0, $storeId
-            ]);
+            $stmt->execute([$productId, $conditionType, $batchNo, $qty, $qty, $storeId]);
 
             $stmt = $pdo->prepare("
                 INSERT INTO inventory_log (store_id, user_id, product_id, condition_type, change_type, qty_change, before_qty, after_qty, price, remark)
-                VALUES (?, ?, ?, ?, 'purchase', ?, 0, ?, ?, '盘点新增')
+                VALUES (?, ?, ?, ?, 'purchase', ?, 0, ?, 0, ?)
             ");
-            $stmt->execute([$storeId, $operatorId, $productId, $conditionType, $qty, $qty, $purchasePrice ?? null]);
-
-            $stmt = $pdo->prepare("
-                INSERT INTO purchase_log (product_id, condition_type, purchase_price, qty, supplier, remark, store_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([$productId, $conditionType, $purchasePrice ?? 0, $qty, null, '盘点新增', $storeId]);
-
-            $created++;
+            $stmt->execute([$storeId, $operatorId, $productId, $conditionType, $qty, $qty, $remark]);
         }
+
+        $successCount++;
+        $results[] = ['ok' => true, 'name' => $name, 'condition_type' => $conditionType, 'before' => $before, 'after' => $qty];
+    } catch (Exception $e) {
+        $failedCount++;
+        $results[] = ['ok' => false, 'name' => $name, 'condition_type' => $conditionType, 'msg' => $e->getMessage()];
     }
-
-    $pdo->commit();
-
-    success([
-        'data' => [
-            'message' => "盘点更新完成：{$updated} 条更新，{$created} 条新增",
-            'updated' => $updated,
-            'created' => $created,
-        ]
-    ]);
-
-} catch (Exception $e) {
-    $pdo->rollBack();
-    // 超管未选店铺时 store_id 为 null，友好提示
-    if (strpos($e->getMessage(), 'store_id') !== false) {
-        error('请先选择店铺后再操作');
-    }
-    error('盘点更新失败: ' . $e->getMessage());
 }
+
+success([
+    'data' => [
+        'results' => $results,
+        'success' => $successCount,
+        'failed' => $failedCount,
+    ]
+]);

@@ -37,16 +37,12 @@ try {
     }
 } catch (Exception $e) {}
 
-// 查询所有有库存的商品
-$productsSql = "
-    SELECT p.id, p.name, p.common_name, p.barcode, p.series, p.brand
-    FROM products p
-    WHERE EXISTS (SELECT 1 FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.remaining_qty > 0";
+// 查询本店全部商品（含无库存，盘点需覆盖"线上0但现场有货"的商品）
+$productsSql = "SELECT p.id, p.name, p.common_name, p.barcode, p.series, p.brand FROM products p";
 if ($storeId) {
-    $productsSql .= " AND ib.store_id = ?";
+    $productsSql .= " WHERE p.store_id = ?";
 }
-$productsSql .= ")
-    ORDER BY p.name";
+$productsSql .= " ORDER BY p.name";
 $stmt = $pdo->prepare($productsSql);
 $stmt->execute($storeId ? [$storeId] : []);
 $products = $stmt->fetchAll();
