@@ -393,6 +393,10 @@ $isOperator = ($currentUser['role'] === 'operator');
 .audit-badge-diff { background:rgba(248,113,113,.15); color:var(--danger); }
 .audit-badge-part, .audit-badge-unc { background:var(--bg-hover); color:var(--text-tertiary); }
 .audit-badge-trans { background:rgba(251,191,36,.15); color:var(--warning); }
+/* 行变色（参考工具箱：一致绿/差异红/已转变黄/未盘灰） */
+.audit-tr-same { background:rgba(52,211,153,.05); }
+.audit-tr-diff { background:rgba(248,113,113,.07); }
+.audit-tr-trans { background:rgba(251,191,36,.07); }
 .audit-stat b { font-size:15px; margin-right:4px; }
 .audit-stat.diff b { color:var(--danger); }
 .audit-stat.trans b { color:var(--warning); }
@@ -1571,22 +1575,29 @@ function renderAuditTable() {
     });
 
     let html = '<table style="font-size:13px; min-width:100%; border-collapse:collapse;">';
-    html += '<thead><tr style="position:sticky; top:0; background:var(--bg-surface); z-index:2;">';
-    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:150px; cursor:pointer;" onclick="auditSort(&#39;name&#39;)">商品' + (auditSortKey === 'name' ? (auditSortAsc ? ' ▲' : ' ▼') : '') + '</th>';
-    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:80px; cursor:pointer;" onclick="auditSort(&#39;series&#39;)">系列' + (auditSortKey === 'series' ? (auditSortAsc ? ' ▲' : ' ▼') : '') + '</th>';
-    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:70px; cursor:pointer;" onclick="auditSort(&#39;brand&#39;)">品牌' + (auditSortKey === 'brand' ? (auditSortAsc ? ' ▲' : ' ▼') : '') + '</th>';
-    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:90px;">条码</th>';
+    html += '<thead>';
+    html += '<tr style="position:sticky; top:0; background:var(--bg-surface); z-index:2;">';
+    html += '<th rowspan="2" style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:150px; cursor:pointer;" onclick="auditSort(&#39;name&#39;)">商品' + (auditSortKey === 'name' ? (auditSortAsc ? ' ▲' : ' ▼') : '') + '</th>';
+    html += '<th rowspan="2" style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:80px; cursor:pointer;" onclick="auditSort(&#39;series&#39;)">系列' + (auditSortKey === 'series' ? (auditSortAsc ? ' ▲' : ' ▼') : '') + '</th>';
+    html += '<th rowspan="2" style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:70px; cursor:pointer;" onclick="auditSort(&#39;brand&#39;)">品牌' + (auditSortKey === 'brand' ? (auditSortAsc ? ' ▲' : ' ▼') : '') + '</th>';
+    html += '<th rowspan="2" style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:90px;">条码</th>';
     auditConditionTypes.forEach(ct => {
-        html += '<th style="text-align:center; padding:8px 4px; border-bottom:2px solid var(--border); color:var(--text-secondary); font-size:12px; min-width:80px;">线上/' + escapeHtml(ct.name) + '</th>';
+        html += '<th colspan="2" style="text-align:center; padding:8px 4px; border-bottom:1px solid var(--border); color:var(--text-secondary); font-size:12px; min-width:120px;">' + escapeHtml(ct.name) + '</th>';
     });
-    html += '<th style="text-align:center; padding:8px 10px; border-bottom:2px solid var(--border); min-width:70px;">状态</th>';
-    html += '<th style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:150px;">操作</th>';
+    html += '<th rowspan="2" style="text-align:center; padding:8px 10px; border-bottom:2px solid var(--border); min-width:70px;">状态</th>';
+    html += '<th rowspan="2" style="text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); min-width:150px;">操作</th>';
+    html += '</tr>';
+    html += '<tr style="position:sticky; top:40px; background:var(--bg-hover); z-index:2;">';
+    auditConditionTypes.forEach(() => {
+        html += '<th style="text-align:center; padding:4px 4px; border-bottom:2px solid var(--border); font-size:11px; color:var(--text-tertiary);">在库</th>';
+        html += '<th style="text-align:center; padding:4px 4px; border-bottom:2px solid var(--border); font-size:11px; color:var(--text-tertiary);">实际</th>';
+    });
     html += '</tr></thead><tbody>';
 
     view.forEach(p => {
         const st = auditStatusOf(p);
         const d = auditDraft[p.product_id] || {};
-        html += '<tr id="auditRow-' + p.product_id + '" data-pid="' + p.product_id + '">';
+        html += '<tr id="auditRow-' + p.product_id + '" data-pid="' + p.product_id + '" class="audit-tr-' + st + '">';
         html += '<td style="padding:6px 10px; border-bottom:1px solid var(--border);">';
         html += '<div style="font-weight:600; font-size:13px;">' + escapeHtml(p.product_name) + '</div>';
         html += (p.official_name && p.official_name !== p.product_name ? '<div style="font-size:11px; color:var(--text-tertiary);">' + escapeHtml(p.official_name) + '</div>' : '') + '</td>';
@@ -1598,14 +1609,16 @@ function renderAuditTable() {
             const v = d[ct.key];
             const filled = auditIsFilled(v);
             const chg = filled && (+v !== on);
+            // 在库库存（只读）
+            html += '<td style="text-align:center; padding:6px 4px; border-bottom:1px solid var(--border); font-size:13px; font-weight:600; color:var(--text);">' + on + '</td>';
+            // 实际库存（手输）
             html += '<td style="text-align:center; padding:4px; border-bottom:1px solid var(--border);">';
-            html += '<div class="audit-on">线上 ' + on + '</div>';
-            html += '<input type="number" class="audit-qty" min="0" step="1" inputmode="numeric" data-pid="' + p.product_id + '" data-cond="' + escapeHtml(ct.key) + '" data-orig="' + on + '" value="' + (filled ? escapeHtml(v) : '') + '" placeholder="' + on + '" ' + (chg ? 'style="border-color:var(--warning); background:rgba(240,180,41,.1);"' : '') + ' oninput="auditInputMark(this)" onchange="auditCommit(this)" onfocus="this.select()">';
+            html += '<input type="number" class="audit-qty" min="0" step="1" inputmode="numeric" data-pid="' + p.product_id + '" data-cond="' + escapeHtml(ct.key) + '" data-orig="' + on + '" value="' + (filled ? escapeHtml(v) : '') + '" placeholder="手输" ' + (chg ? 'style="border-color:var(--warning); background:rgba(240,180,41,.1);"' : '') + ' oninput="auditInputMark(this)" onchange="auditCommit(this)" onfocus="this.select()">';
             html += '</td>';
         });
         html += '<td style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--border);"><span class="audit-badge audit-badge-' + st + '">' + auditBadgeText(st) + '</span></td>';
         html += '<td style="padding:6px 10px; border-bottom:1px solid var(--border); white-space:nowrap;">';
-        html += '<button class="btn btn-sm btn-outline" style="padding:2px 8px; font-size:11px;" onclick="auditFillOnline(' + p.product_id + ')" title="把线上数量填入现场">按线上</button> ';
+        html += '<button class="btn btn-sm btn-outline" style="padding:2px 8px; font-size:11px;" onclick="auditFillOnline(' + p.product_id + ')" title="把在库数量填入实际">按在库</button> ';
         html += '<button class="btn btn-sm btn-outline" style="padding:2px 8px; font-size:11px;" onclick="auditFillZero(' + p.product_id + ')" title="未填的补0">补0</button> ';
         html += '<button class="btn btn-sm btn-outline" style="padding:2px 8px; font-size:11px;" onclick="auditClearRow(' + p.product_id + ')">清空</button></td>';
         html += '</tr>';
@@ -1613,9 +1626,9 @@ function renderAuditTable() {
         if (st === 'trans') {
             const pairs = auditTransformDetail(p);
             const txt = pairs.map(x => x.n + ' ' + x.from.name + '→' + x.to.name).join('，');
-            html += '<tr class="audit-checks-row"><td colspan="' + (4 + auditConditionTypes.length + 2) + '"><span class="audit-trans-note">状态转变：' + escapeHtml(txt) + '（总数守恒，实物未变）</span></td></tr>';
+            html += '<tr class="audit-checks-row"><td colspan="' + (4 + auditConditionTypes.length * 2 + 2) + '"><span class="audit-trans-note">状态转变：' + escapeHtml(txt) + '（总数守恒，实物未变）</span></td></tr>';
         } else if (diffs.length) {
-            html += '<tr class="audit-checks-row"><td colspan="' + (4 + auditConditionTypes.length + 2) + '">' +
+            html += '<tr class="audit-checks-row"><td colspan="' + (4 + auditConditionTypes.length * 2 + 2) + '">' +
                 diffs.map(x => {
                     const k = p.product_id + '|' + x.t.key;
                     return '<label><input type="checkbox" ' + (auditSelOf(k) ? 'checked' : '') + ' onchange="auditToggleSel(&#39;' + k + '&#39;,this.checked)"> ' + escapeHtml(x.t.name) + ' ' + (x.delta > 0 ? '+' : '') + x.delta + '</label>';
