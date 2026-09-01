@@ -91,11 +91,11 @@ body.rk-panel-open .rk-main{width:calc(100% - 330px)}
 .rk-panel .rk-head .rk-title .rk-up-cnt{font-size:11.5px;color:var(--text-tertiary);font-weight:500}
 .rk-panel .rk-close{border:none;background:none;font-size:18px;cursor:pointer;color:var(--text-tertiary);line-height:1}
 .rk-panel .rk-close:hover{color:var(--text)}
-.rk-panel .rk-search{padding:12px 16px;border-bottom:1px solid var(--border)}
+.rk-panel .rk-search{padding:12px 16px 9px;border-bottom:1px solid var(--border)}
 .rk-panel .rk-search input{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;background:var(--bg-elevated);color:var(--text)}
 .rk-panel .rk-search input::placeholder{color:var(--text-tertiary)}
 .rk-panel .rk-search input:focus{border-color:var(--primary)}
-.rk-panel .rk-body{flex:1;overflow-y:auto;padding:10px 12px}
+.rk-panel .rk-body{flex:1;overflow-y:auto;padding:5px 12px 10px}
 .rk-panel .rk-empty{color:var(--text-tertiary);font-size:13px;text-align:center;padding:30px 10px}
 .rk-up-item{background:var(--bg-hover);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:7px;cursor:grab;transition:all .15s}
 .rk-up-item:hover{border-color:var(--primary);background:var(--bg-active)}
