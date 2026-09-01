@@ -397,6 +397,7 @@ function renderProducts(){
         <span class="lp-name">${name}${common?` <i>${common}</i>`:''}</span>
         <span class="lp-meta">
           <code>${esc(r.barcode||'-')}</code>
+          ${r.series?`<span>系列 ${esc(r.series)}</span>`:''}
           <span>批次 ${esc(r.batch_no||'-')}</span>
           <span>入库 ${fmtDate(r.purchased_at)}</span>
         </span>
@@ -469,21 +470,24 @@ function sampleItem(){
   return {barcode:r.barcode||'',productName:r.product_name||r.common_name||'',commonName:r.common_name||'',series:r.series||'',price:parseFloat(r.suggested_price||0),conditionType:r.condition_type||'sealed',batchNo:r.batch_no||'',date:r.purchased_at||''};
 }
 // elHTML：fsPx=字号(px)、bhPx=条码高度(px)——编辑器/预览/浏览器打印按各自 scale 传入，缩放元素时字号/条码真实变化
-// elHTML：fsPx=字号(px)、bhPx=条码高度(px)、align=对齐——编辑器/预览/浏览器打印按各自 scale 传入
-function elHTML(type,item,fsPx,bhPx,align){
+// elHTML：fsPx=字号(px)、bhPx=条码高度(px)、align=水平对齐、fw=fontWeight(编辑器设置)
+// 字号=用户设置的原始值（不再对 常用名/系列/条码数字 打折），粗体按元素配置应用（name/price 恒粗）
+function elHTML(type,item,fsPx,bhPx,align,fw){
   fsPx=fsPx||13;
+  const isBold=type==='name'||type==='price'||fw==='bold'||fw==='700'||fw==='bolder'||(+fw||0)>=600;
+  const boldStyle=isBold?'font-weight:700;':'';
   const alignStyle=align?`text-align:${align};`:'';
   // name 允许换行（width:100% 保证在元素宽度内折行）；其他元素单行（nowrap 不裁剪不换行）
-  const base=(pct,nowrap)=>`${alignStyle}width:100%;${nowrap?'white-space:nowrap;':''}font-size:${Math.round(fsPx*pct)}px;line-height:1.2`;
-  if(type==='name')return `<div style="${base(1,false)};font-weight:700">${esc(item.productName)}</div>`;
-  if(type==='common')return `<div style="${base(0.75,true)};color:#5b6478">${esc(item.commonName||'')}</div>`;
-  if(type==='series')return `<div style="${base(0.8,true)};color:#5b6478">${esc(item.series||'')}</div>`;
+  const base=(pct,nowrap)=>`${alignStyle}width:100%;${nowrap?'white-space:nowrap;':''}font-size:${Math.round(fsPx*pct)}px;line-height:1.2;${boldStyle}`;
+  if(type==='name')return `<div style="${base(1,false)}">${esc(item.productName)}</div>`;
+  if(type==='common')return `<div style="${base(1,true)};color:#5b6478">${esc(item.commonName||'')}</div>`;
+  if(type==='series')return `<div style="${base(1,true)};color:#5b6478">${esc(item.series||'')}</div>`;
   if(type==='barcode')return `<div class="barcode" style="height:${bhPx||26}px;width:100%">${barcodeBars(item.barcode,bhPx)}</div>`;
-  if(type==='barcodeText')return `<div style="${alignStyle}font-family:ui-monospace,monospace;font-size:${Math.round(fsPx*0.8)}px;color:#1d2330">${esc(item.barcode)}</div>`;
-  if(type==='price')return `<div style="${base(1,true)};font-weight:700;color:#d92d20">¥${(+item.price||0).toFixed(2)}</div>`;
-  if(type==='condition')return `<div style="${base(0.8,true)}">${esc(allConditionTypes.map(k=>`${k===item.conditionType?'☑':'□'} ${getCondName(k)}`).join('  '))}</div>`;
-  if(type==='batch')return `<div style="${base(0.8,true)};color:#5b6478">批次 ${esc(item.batchNo)}</div>`;
-  if(type==='date')return `<div style="${base(0.8,true)};color:#5b6478">${esc(item.date?String(item.date).slice(0,10):'')}</div>`;
+  if(type==='barcodeText')return `<div style="${alignStyle}font-family:ui-monospace,monospace;font-size:${Math.round(fsPx)}px;color:#1d2330;${boldStyle}">${esc(item.barcode)}</div>`;
+  if(type==='price')return `<div style="${base(1,true)};color:#d92d20">¥${(+item.price||0).toFixed(2)}</div>`;
+  if(type==='condition')return `<div style="${base(1,true)}">${esc(allConditionTypes.map(k=>`${k===item.conditionType?'☑':'□'} ${getCondName(k)}`).join('  '))}</div>`;
+  if(type==='batch')return `<div style="${base(1,true)};color:#5b6478">批次 ${esc(item.batchNo)}</div>`;
+  if(type==='date')return `<div style="${base(1,true)};color:#5b6478">${esc(item.date?String(item.date).slice(0,10):'')}</div>`;
   return '';
 }
 // fitFontSize：文本超宽时自动缩小字号（商品名称/系列用）。返回缩放后的 px 字号，
@@ -506,13 +510,15 @@ function labelHTML(tpl,item,scale){
   const inner=(tpl.elements||[]).map(e=>{
     const base=defaultElSize(e.type);
     let fs=(e.fontSize||base.fontSize)*scale;
-    // 商品名称/系列 超宽自动缩小字号；系列在 elHTML 里乘 0.8，这里先反算保证最终字号正确
+    // 商品名称/系列 超宽自动缩小字号（名称下限 50%，系列下限 60%）
     if(e.type==='name')fs=fitFontSize(item.productName,(e.width||base.width)*scale,fs);
-    else if(e.type==='series')fs=fitFontSize(item.series,(e.width||base.width)*scale,fs*0.8,0.6)/0.8;
-    // 所有元素都应用宽度（文本元素宽度=配置宽度，超宽裁剪/换行，不再只 barcode/align）
+    else if(e.type==='series')fs=fitFontSize(item.series,(e.width||base.width)*scale,fs,0.6);
+    // 所有元素应用宽度+高度（高度用于 verticalAlign 上下对齐），文本元素内容在框内按对齐方式定位
+    const va=e.verticalAlign||'top';
+    const ai=va==='middle'?'center':va==='bottom'?'flex-end':'flex-start';
     const wStyle=`width:${(e.width||base.width)*scale}px;`;
-    const hStyle=e.type==='barcode'?`height:${(e.height||base.height)*scale}px;`:'';
-    return `<div class="lp-el ${e.type}" style="left:${(e.x||0)*scale}px;top:${(e.y||0)*scale}px;${wStyle}${hStyle}font-size:${fs}px">${elHTML(e.type,item,fs,(e.height||base.height)*scale,e.align)}</div>`;
+    const hStyle=`height:${(e.height||base.height)*scale}px;`;
+    return `<div class="lp-el ${e.type}" style="left:${(e.x||0)*scale}px;top:${(e.y||0)*scale}px;${wStyle}${hStyle}align-items:${ai};font-size:${fs}px">${elHTML(e.type,item,fs,(e.height||base.height)*scale,e.align,e.fontWeight)}</div>`;
   }).join('');
   return `<div style="position:relative;width:${w}px;height:${h}px;background:#fff;border:1px solid #d7dcea">${inner}</div>`;
 }
@@ -524,8 +530,11 @@ function renderPreview(){
   const availW=Math.max(80,wrap.clientWidth-36);
   const availH=Math.max(80,wrap.clientHeight-40);
   const scale=Math.max(1.5,Math.min(SCALE,availW/t.canvasWidth,availH/t.canvasHeight));
-  $('previewLabel').innerHTML=labelHTML(t,sampleItem(),scale);
-  $('previewSub').textContent=`模板：${esc(t.name)} · 物理 ${t.canvasWidth}×${t.canvasHeight}mm`;
+  const it=sampleItem();
+  $('previewLabel').innerHTML=labelHTML(t,it,scale);
+  // 模板含系列元素但当前商品无系列数据时，在预览标题旁提示（避免"没渲染出来"的困惑）
+  const hasSeries=(t.elements||[]).some(e=>e.type==='series');
+  $('previewSub').textContent=`模板：${esc(t.name)} · 物理 ${t.canvasWidth}×${t.canvasHeight}mm${hasSeries&&!it.series?' · 当前商品无系列数据':''}`;
   refreshSetPanel();
 }
 function renderTpls(){
@@ -579,14 +588,44 @@ const ptToMm=v=>+(v/PT_PER_MM).toFixed(2);
 let editingTpl=null,hpTemplate=null,hpScale=1,hpState='idle';
 const hpQueue=[];
 
+// 编辑器 testData 动态化：用当前选中商品的真实数据填充设计器画布（所见即所得），
+// 无选中商品/无数据时回退 EL_META 默认示例；品相按店铺动态配置显示
+// 真实数据为空时显示中性占位（如"（无系列）"），避免示例文字误导（打印用真实数据，空则空白）
+const NO_DATA_LABEL={name:'（无名称）',common:'（无常用名）',series:'（无系列）',barcode:'（无条码）',barcodeText:'（无条码）',price:'（无价格）',batch:'（无批次）',date:'（无日期）'};
+function editorTestData(type,item){
+  const def=(EL_META[type]||{}).testData||'';
+  const nod=NO_DATA_LABEL[type]||def;
+  if(type==='name')return item.productName||nod;
+  if(type==='common')return item.commonName||nod;
+  if(type==='series')return item.series||nod;
+  if(type==='barcode'||type==='barcodeText')return item.barcode||nod;
+  if(type==='price')return (item.price!=null&&item.price!=='')?('¥'+Number(item.price).toFixed(2)):nod;
+  if(type==='condition')return allConditionTypes.length?allConditionTypes.map(k=>`${k===item.conditionType?'☑':'□'} ${getCondName(k)}`).join('  '):def;
+  if(type==='batch')return item.batchNo?('批次 '+item.batchNo):nod;
+  if(type==='date')return item.date?String(item.date).slice(0,10):nod;
+  return def;
+}
+// 供 label-elements.js 拖入新元素时读取的全局示例数据（打开编辑器时注入）
+function editorTestDataMap(){
+  const it=sampleItem();
+  const nod=NO_DATA_LABEL;
+  return {name:it.productName||nod.name,common:it.commonName||nod.common,series:it.series||nod.series,
+    barcode:it.barcode||nod.barcode,barcodeText:it.barcode||nod.barcodeText,
+    price:(it.price!=null&&it.price!=='')?('¥'+Number(it.price).toFixed(2)):nod.price,
+    condition:allConditionTypes.length?allConditionTypes.map(k=>`${k===it.conditionType?'☑':'□'} ${getCondName(k)}`).join('  '):'',
+    batch:it.batchNo?('批次 '+it.batchNo):nod.batch,
+    date:it.date?String(it.date).slice(0,10):nod.date};
+}
+
 // 简单格式 → hiprint 模板 JSON（载入设计器）
 function simpleToHiprint(tpl){
   const printElements=(tpl.elements||[]).map(e=>{
     const meta=EL_META[e.type]||EL_META.name,base=defaultElSize(e.type);
-    const o={field:meta.field,testData:meta.testData,
+    const o={field:meta.field,testData:editorTestData(e.type,sampleItem()),
       left:mmToPt(e.x||0),top:mmToPt(e.y||0),
       width:mmToPt(e.width??base.width),height:mmToPt(e.height??base.height),
       fontSize:mmToPt(e.fontSize??base.fontSize),textAlign:e.align||'left',
+      verticalAlign:e.verticalAlign||'top',
       fontWeight:(e.fontWeight||base.fontWeight)==='bold'?'700':(e.fontWeight||base.fontWeight),
       color:e.color||base.color||'#000000',hideTitle:true};
     if(meta.textType)o.textType=meta.textType;
@@ -618,6 +657,7 @@ function hiprintToSimple(json){
       height:Math.max(1,ptToMm(o.height||mmToPt(base.height))),
       fontSize:Math.max(1,ptToMm(o.fontSize||mmToPt(base.fontSize))),
       align:o.textAlign||'left',
+      verticalAlign:o.verticalAlign||'top',
       color:o.color||base.color,
       fontWeight:o.fontWeight||base.fontWeight});
   });
@@ -772,6 +812,8 @@ function openDesigner(t){
   $('tplH').value=editingTpl.canvasHeight;
   $('hpZoomLabel').textContent='100%';hpScale=1;
   $('hpStatus').textContent='编辑器加载中…';
+  // 注入当前商品真实数据：label-elements.js 首次加载时读取，拖入的元素显示真实商品/品相
+  window.__LABEL_TESTDATA=editorTestDataMap();
   openModal('mEditor');
   ensureHp(()=>{
     $('hpStatus').textContent='从左侧拖入元素 → 拖拽排版 → 选中元素在右侧改属性；点画布空白处可设置纸张。';
@@ -912,9 +954,9 @@ function renderLabelCanvas(tpl,item){
   ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
   (tpl.elements||[]).forEach(e=>{
     const base=defaultElSize(e.type);
-    const fs=(e.fontSize||base.fontSize)*DPI_PX;
     const ex=(e.x||0)*DPI_PX,ey=(e.y||0)*DPI_PX;
     const ew=(e.width||base.width)*DPI_PX,eh=(e.height||base.height)*DPI_PX;
+    let fs=(e.fontSize||base.fontSize)*DPI_PX;
     if(e.type==='barcode'){drawBarcodeCanvas(ctx,item.barcode,ex,ey,ew,eh);return;}
     let text='',color='#111';
     if(e.type==='name'){text=item.productName;color='#111';}
@@ -926,18 +968,24 @@ function renderLabelCanvas(tpl,item){
     else if(e.type==='date'){text=(item.date||'').slice(0,10);color='#5b6478';}
     else if(e.type==='barcodeText'){text=item.barcode||'';color='#1d2330';}
     if(!text)return;
-    // 商品名称/系列 超宽自动缩小字号（与预览 labelHTML、服务端 GD 渲染一致：名称下限 50%，系列 0.8 比例下限 60%）
+    // 商品名称/系列 超宽自动缩小字号（名称下限 50%，系列下限 60%）
     if(e.type==='name')fs=fitFontSize(text,ew,fs);
-    else if(e.type==='series')fs=fitFontSize(text,ew,fs*0.8,0.6);
-    // 常用名/条码数字 按 elHTML 预览同款比例缩小（0.75 / 0.8），保证直连打印与预览一致
-    if(e.type==='common')fs*=0.75;
-    else if(e.type==='barcodeText')fs*=0.8;
+    else if(e.type==='series')fs=fitFontSize(text,ew,fs,0.6);
+    // 粗体按元素配置（name/price 恒粗，其余按编辑器 fontWeight），字号=用户设置值（无隐藏折扣）
+    const fw=e.fontWeight||'';
+    const isBold=e.type==='name'||e.type==='price'||fw==='bold'||fw==='700'||fw==='bolder'||(+fw||0)>=600;
     ctx.fillStyle=color;
-    ctx.font=(e.type==='name'||e.type==='price'?'bold ':'')+Math.round(fs)+'px sans-serif';
+    ctx.font=(isBold?'bold ':'')+Math.round(fs)+'px sans-serif';
     ctx.textBaseline='top';
     const align=e.align||'left';
+    // verticalAlign：文字在元素框内的上下位置（top/middle/bottom）
+    const va=e.verticalAlign||'top';
+    const lineH=fs*1.2;
+    let topY=ey;
+    if(va==='middle')topY=ey+(eh-lineH)/2;
+    else if(va==='bottom')topY=ey+eh-lineH;
     // name 支持多行（超宽换行），其他元素单行不裁剪（溢出即溢出，保持真实）
-    let lineY=ey;
+    let lineY=topY;
     const drawLine=(t,x)=>{
       if(align==='center'){ctx.textAlign='center';ctx.fillText(t,x+ew/2,lineY);}
       else if(align==='right'){ctx.textAlign='right';ctx.fillText(t,x+ew,lineY);}
@@ -1011,9 +1059,12 @@ function browserPrint(){
       labels+=`<div class="plabel">`+
         (t.elements||[]).map(e=>{
           const base=defaultElSize(e.type);
-          // 所有元素应用宽度（mm），name 换行、其他单行不裁剪
+          // 所有元素应用宽度+高度（mm），verticalAlign 控制内容上下位置
+          const va=e.verticalAlign||'top';
+          const ai=va==='middle'?'center':va==='bottom'?'flex-end':'flex-start';
           const wStyle=`width:${e.width||base.width}mm;`;
-          return `<div style="position:absolute;left:${e.x}mm;top:${e.y}mm;${wStyle}">${elHTML(e.type,item,(e.fontSize||base.fontSize)*MM_PX,(e.height||base.height)*MM_PX,e.align)}</div>`;
+          const hStyle=`height:${e.height||base.height}mm;`;
+          return `<div style="position:absolute;left:${e.x}mm;top:${e.y}mm;${wStyle}${hStyle}display:flex;align-items:${ai}">${elHTML(e.type,item,(e.fontSize||base.fontSize)*MM_PX,(e.height||base.height)*MM_PX,e.align,e.fontWeight)}</div>`;
         }).join('')+`</div>`;
     }
   });

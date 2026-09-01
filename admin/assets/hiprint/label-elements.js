@@ -20,6 +20,14 @@
 
   var hiprint = getHiprint();
 
+  // 设计器示例数据：优先取页面注入的真实商品数据（purchase_logs.php 打开编辑器时设置
+  // window.__LABEL_TESTDATA），无则回退内置示例，保证设计器所见即所得
+  function labelTestData(key, fallback) {
+    var m = global.__LABEL_TESTDATA;
+    var v = m && m[key];
+    return (v != null && v !== '') ? v : fallback;
+  }
+
   var LABEL_ELEMENTS = [
     new hiprint.PrintElementTypeGroup("商品信息", [
       {
@@ -28,10 +36,11 @@
         type: "text",
         options: {
           field: "productName",
-          testData: "淘淘圈轮毂 19寸 5x114.3 ET35",
+          testData: labelTestData("name", "淘淘圈轮毂 19寸 5x114.3 ET35"),
           height: 17,
           fontSize: 13,
           fontWeight: "700",
+          verticalAlign: "top",
           hideTitle: true
         }
       },
@@ -41,10 +50,11 @@
         type: "text",
         options: {
           field: "commonName",
-          testData: "19寸改装款",
+          testData: labelTestData("common", "19寸改装款"),
           height: 12.5,
           fontSize: 10,
           color: "#555555",
+          verticalAlign: "top",
           hideTitle: true
         }
       },
@@ -54,10 +64,11 @@
         type: "text",
         options: {
           field: "series",
-          testData: "GT 系列",
+          testData: labelTestData("series", "GT 系列"),
           height: 12.5,
           fontSize: 10,
           color: "#555555",
+          verticalAlign: "top",
           hideTitle: true
         }
       },
@@ -67,11 +78,12 @@
         type: "text",
         options: {
           field: "price",
-          testData: "¥1299.00",
+          testData: labelTestData("price", "¥1299.00"),
           height: 17,
           fontSize: 14,
           fontWeight: "700",
           color: "#d92d20",
+          verticalAlign: "top",
           hideTitle: true
         }
       },
@@ -81,9 +93,10 @@
         type: "text",
         options: {
           field: "conditionType",
-          testData: "☑ 全新   □ 拆封   □ 裸盒   □ 瑕疵",
+          testData: labelTestData("condition", "☑ 全新   □ 拆封   □ 裸盒   □ 瑕疵"),
           height: 12.5,
           fontSize: 9,
+          verticalAlign: "top",
           hideTitle: true
         }
       }
@@ -95,9 +108,10 @@
         type: "text",
         options: {
           field: "barcode",
-          testData: "6901234567890",
+          testData: labelTestData("barcode", "6901234567890"),
           textType: "barcode",
           height: 40,
+          verticalAlign: "top",
           hideTitle: true
         }
       },
@@ -107,10 +121,11 @@
         type: "text",
         options: {
           field: "barcode",
-          testData: "6901234567890",
+          testData: labelTestData("barcodeText", "6901234567890"),
           height: 12.5,
           fontSize: 10,
           textAlign: "center",
+          verticalAlign: "top",
           hideTitle: true
         }
       },
@@ -120,10 +135,11 @@
         type: "text",
         options: {
           field: "batchNo",
-          testData: "批次 B0830-001",
+          testData: labelTestData("batch", "批次 B0830-001"),
           height: 12.5,
           fontSize: 9,
           color: "#555555",
+          verticalAlign: "top",
           hideTitle: true
         }
       },
@@ -133,10 +149,11 @@
         type: "text",
         options: {
           field: "purchasedAt",
-          testData: "2026-08-30",
+          testData: labelTestData("date", "2026-08-30"),
           height: 12.5,
           fontSize: 9,
           color: "#555555",
+          verticalAlign: "top",
           hideTitle: true
         }
       }

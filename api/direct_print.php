@@ -162,12 +162,9 @@ requireAuth(); $storeId = getStoreId();
                         $useFont = ($isBold && $fontBoldPath !== '') ? $fontBoldPath : $fontPath;
 
                         // 超宽自动缩小字号（与前端 fitFontSize / canvas 打印一致）：
-                        // 商品名称下限 50%，系列按 0.8 比例、下限 60%；用实际字库测量，比例换算与测量尺度无关
+                        // 商品名称下限 50%，系列下限 60%；用实际字库测量，比例换算与测量尺度无关
                         $ewPx = floatval(isset($el['width']) ? $el['width'] : 50) * $pxPerMm;
-                        // 常用名/条码数字 与前端 elHTML 预览同款比例缩小（0.75 / 0.8），保证打印与预览一致
-                        if ($type === 'series') $fontSizePx *= 0.8;
-                        elseif ($type === 'common') $fontSizePx *= 0.75;
-                        elseif ($type === 'barcodeText') $fontSizePx *= 0.8;
+                        // 字号=用户设置值（无隐藏折扣），与前端一致
                         if (($type === 'name' || $type === 'series') && $ewPx > 0) {
                             $minRatio = ($type === 'name') ? 0.5 : 0.6;
                             $probe = max(4, $fontSizePx * 72 / $dpi);
@@ -181,7 +178,14 @@ requireAuth(); $storeId = getStoreId();
                         $ptSize = $fontSizePx * 72 / $dpi;
                         if ($ptSize < 4) $ptSize = 4;
                         $bbox = imagettfbbox($ptSize, 0, $useFont, $content);
-                        $baseline = $ey - $bbox[7];
+                        // verticalAlign：文字在元素框内上下位置（top/middle/bottom），与前端三链一致
+                        $ehPx = floatval(isset($el['height']) ? $el['height'] : 4) * $pxPerMm;
+                        $textH = $bbox[1] - $bbox[7];
+                        $va = isset($el['verticalAlign']) ? $el['verticalAlign'] : 'top';
+                        $eyT = $ey;
+                        if ($va === 'middle') $eyT = $ey + ($ehPx - $textH) / 2;
+                        elseif ($va === 'bottom') $eyT = $ey + $ehPx - $textH;
+                        $baseline = $eyT - $bbox[7];
                         $textW = $bbox[2] - $bbox[0];
                         if ($type === 'name' && $ewPx > 0 && $textW > $ewPx * 1.02) {
                             // 商品名称缩小到下限仍超宽：逐字符换行（行高 1.2，与浏览器 canvas 路径一致）
