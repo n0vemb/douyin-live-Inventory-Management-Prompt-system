@@ -9,13 +9,13 @@ $isAdmin = in_array($currentUser['role'] ?? '', ['store_admin', 'super_admin']);
 <style>
 /* ===== 仓库货架 局部样式（对齐全局暗黑主题） ===== */
 /* 顶部紧凑：标题下边距收小，避免搜索框与货架之间太空 */
-.page-title{margin-bottom:12px}
+.page-title{margin-bottom:4px}
 .rk-layout{display:flex;gap:14px;align-items:flex-start}
 /* 主区：展开时让出右侧面板 330px（不被覆盖）；收起时也不占满（约78%），右侧留白 */
 .rk-main{flex:0 1 auto;min-width:0;transition:width .25s ease;width:78%}
 body.rk-panel-open .rk-main{width:calc(100% - 330px)}
-.rk-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
-.rk-search{flex:1;min-width:260px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-body);color:var(--text);height:34px}
+.rk-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;margin-bottom:6px}
+.rk-search{flex:1;min-width:200px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-body);color:var(--text);height:34px}
 .rk-search:focus{outline:none;border-color:var(--primary)}
 .rk-result{display:none;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:10px 0;font-size:13px}
 .rk-result .rk-hit{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed var(--border)}
@@ -25,7 +25,7 @@ body.rk-panel-open .rk-main{width:calc(100% - 330px)}
 .rk-hit .note{color:var(--text-tertiary);font-size:12px}
 .rk-empty{padding:40px 20px;text-align:center;color:var(--text-tertiary);font-size:13px}
 /* 货架区：一行一个货架（等宽占满主区，宽度一致） */
-.rk-racks{display:grid;grid-template-columns:1fr;gap:16px;margin-top:4px}
+.rk-racks{display:grid;grid-template-columns:1fr;gap:12px;margin-top:0}
 /* 货架卡片 */
 .rk-rack{background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;padding:14px;min-width:0}
 .rk-rack-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
