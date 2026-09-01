@@ -75,23 +75,38 @@ $isAdmin = in_array($currentUser['role'] ?? '', ['store_admin', 'super_admin']);
 .rk-modal-body .rk-flex.right{justify-content:flex-end}
 .rk-modal-body .rk-kv{display:flex;justify-content:space-between;font-size:13px;padding:7px 0;border-bottom:1px dashed var(--border);color:var(--text-secondary)}
 .rk-modal-body .rk-kv b{font-weight:600;color:var(--text)}
-/* 右侧浮窗：未在货架商品（可收起，拖拽到货架格子放置/替换） */
-.rk-panel{width:24%;flex:0 0 24%;min-width:220px;position:sticky;top:14px;max-height:calc(100vh - 28px);display:flex;flex-direction:column;background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:flex-basis .2s,width .2s,min-width .2s}
-.rk-panel.collapsed{width:0;flex-basis:0;min-width:0;border:none}
-.rk-panel-head{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--border);font-size:13.5px;font-weight:700;color:var(--text)}
-.rk-panel-head .rk-up-cnt{font-size:11.5px;color:var(--text-tertiary);font-weight:500}
-.rk-panel-head .rk-panel-toggle{margin-left:auto;padding:3px 10px;font-size:12px;border:1px solid var(--border);border-radius:7px;background:var(--bg-hover);color:var(--text-secondary);cursor:pointer}
-.rk-panel-head .rk-panel-toggle:hover{color:var(--text)}
-.rk-panel-search{padding:9px 12px;border-bottom:1px solid var(--border)}
-.rk-panel-search input{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;background:var(--bg-body);color:var(--text)}
-.rk-panel-search input:focus{outline:none;border-color:var(--primary)}
-.rk-panel-list{flex:1;overflow:auto;padding:10px 12px;min-height:0}
+/* ===== 右侧吸附面板/抽屉（完全参考 live_ledger ps-panel 体系：价格库存查询/福袋记录） ===== */
+/* 右侧展开 tab（常驻，面板收起时露出可点） */
+.rk-tab{position:fixed;right:0;top:45%;transform:translateY(-50%);z-index:300;background:var(--primary);color:#fff;border-radius:8px 0 0 8px;padding:12px 6px;cursor:pointer;box-shadow:-2px 2px 10px rgba(0,0,0,.4);writing-mode:vertical-rl;font-size:13px;font-weight:700;letter-spacing:2px;user-select:none;transition:filter .2s;border:none}
+.rk-tab:hover{filter:brightness(1.12)}
+/* 未在货架商品面板 */
+.rk-panel{position:fixed;right:0;top:0;bottom:0;width:330px;z-index:301;background:var(--bg-surface);border-left:1px solid var(--border);box-shadow:-4px 0 24px rgba(0,0,0,.5);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease}
+.rk-panel.open{transform:translateX(0)}
+.rk-panel .rk-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.rk-panel .rk-head .rk-title{font-weight:700;font-size:15px;color:var(--text);display:flex;align-items:center;gap:8px}
+.rk-panel .rk-head .rk-title .rk-up-cnt{font-size:11.5px;color:var(--text-tertiary);font-weight:500}
+.rk-panel .rk-close{border:none;background:none;font-size:18px;cursor:pointer;color:var(--text-tertiary);line-height:1}
+.rk-panel .rk-close:hover{color:var(--text)}
+.rk-panel .rk-search{padding:12px 16px;border-bottom:1px solid var(--border)}
+.rk-panel .rk-search input{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;background:var(--bg-elevated);color:var(--text)}
+.rk-panel .rk-search input::placeholder{color:var(--text-tertiary)}
+.rk-panel .rk-search input:focus{border-color:var(--primary)}
+.rk-panel .rk-body{flex:1;overflow-y:auto;padding:10px 12px}
+.rk-panel .rk-empty{color:var(--text-tertiary);font-size:13px;text-align:center;padding:30px 10px}
 .rk-up-item{background:var(--bg-hover);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:7px;cursor:grab;transition:all .15s}
 .rk-up-item:hover{border-color:var(--primary);background:var(--bg-active)}
 .rk-up-item:active{cursor:grabbing}
 .rk-up-item .rk-up-name{font-size:13px;font-weight:600;color:var(--text);word-break:break-all}
 .rk-up-item .rk-up-meta{font-size:11px;color:var(--text-tertiary);margin-top:2px}
 .rk-up-item.dragging{opacity:.4}
+/* 录入/详情/布局设置 抽屉（同 ps-panel 体系，稍窄） */
+.rk-drawer{position:fixed;right:0;top:0;bottom:0;width:360px;z-index:302;background:var(--bg-surface);border-left:1px solid var(--border);box-shadow:-4px 0 24px rgba(0,0,0,.55);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease}
+.rk-drawer.open{transform:translateX(0)}
+.rk-drawer .rk-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.rk-drawer .rk-head .rk-title{font-weight:700;font-size:15px;color:var(--text)}
+.rk-drawer .rk-close{border:none;background:none;font-size:18px;cursor:pointer;color:var(--text-tertiary);line-height:1}
+.rk-drawer .rk-close:hover{color:var(--text)}
+.rk-drawer .rk-body{padding:16px 18px;overflow-y:auto;flex:1}
 /* 拖拽放置高亮 */
 .rk-droppable.drag-over{border-color:var(--success)!important;box-shadow:0 0 0 2px var(--success)!important;position:relative}
 </style>
@@ -108,27 +123,28 @@ $isAdmin = in_array($currentUser['role'] ?? '', ['store_admin', 'super_admin']);
     <div class="rk-result" id="rkResult"></div>
     <div id="rkList"><div class="rk-empty">加载中…</div></div>
   </div>
-  <!-- 右侧浮窗：未在货架的商品，可拖拽到货架格子放置/替换 -->
-  <div class="rk-panel" id="rkPanel">
-    <div class="rk-panel-head">
-      <span>未在货架商品</span>
-      <span class="rk-up-cnt" id="rkUpCnt"></span>
-      <button class="rk-panel-toggle" id="rkPanelBtn" onclick="rkTogglePanel()">收起</button>
-    </div>
-    <div class="rk-panel-search"><input id="rkUpQ" placeholder="搜索商品…" oninput="renderUnplaced()"></div>
-    <div class="rk-panel-list" id="rkUpList"></div>
-  </div>
 </div>
 
-<!-- 录入/详情弹窗（全局 .modal 体系，参考出库记账页弹窗） -->
-<div class="modal" id="rkModal">
-  <div class="modal-content" style="width:min(460px,94vw);max-width:460px">
-    <div class="modal-header">
-      <h3 class="modal-title" id="rkMTitle">录入商品</h3>
-      <button class="modal-close" onclick="rkClose()">&times;</button>
-    </div>
-    <div style="padding:16px 18px" id="rkMBody" class="rk-modal-body"></div>
+<!-- 右侧展开 tab（常驻，面板收起时露出，参考 live_ledger sideTabs） -->
+<button class="rk-tab" id="rkTab" onclick="rkTogglePanel()">未在货架</button>
+
+<!-- 右侧吸附面板：未在货架商品（参考 live_ledger ps-panel，可拖拽到货架格子放置/替换） -->
+<div class="rk-panel open" id="rkPanel">
+  <div class="rk-head">
+    <span class="rk-title">未在货架商品 <span class="rk-up-cnt" id="rkUpCnt"></span></span>
+    <button class="rk-close" onclick="rkTogglePanel()">&times;</button>
   </div>
+  <div class="rk-search"><input id="rkUpQ" placeholder="搜索商品…" oninput="renderUnplaced()"></div>
+  <div class="rk-body" id="rkUpList"><div class="rk-empty">加载中…</div></div>
+</div>
+
+<!-- 录入/详情/布局设置 抽屉（参考 live_ledger ps-panel，右侧滑入） -->
+<div class="rk-drawer" id="rkDrawer">
+  <div class="rk-head">
+    <span class="rk-title" id="rkMTitle">录入商品</span>
+    <button class="rk-close" onclick="rkClose()">&times;</button>
+  </div>
+  <div class="rk-body rk-modal-body" id="rkMBody"></div>
 </div>
 
 <div id="toast" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg-elevated);color:var(--text);padding:10px 18px;border-radius:10px;font-size:13px;z-index:3000;display:none;border:1px solid var(--border)"></div>
@@ -241,8 +257,8 @@ function rkSearch(){
 }
 
 // ---------- 弹窗（全局 .modal 体系） ----------
-function rkOpen(title,html){ $id('rkMTitle').textContent=title; $id('rkMBody').innerHTML=html; $id('rkModal').classList.add('show'); }
-function rkClose(){ $id('rkModal').classList.remove('show'); }
+function rkOpen(title,html){ $id('rkMTitle').textContent=title; $id('rkMBody').innerHTML=html; $id('rkDrawer').classList.add('open'); }
+function rkClose(){ $id('rkDrawer').classList.remove('open'); }
 
 // 商品搜索选择（录入）
 let rkPickProduct=null, rkPickTimer=null;
@@ -403,7 +419,7 @@ function renderUnplaced(){
     '<div class="rk-up-item" draggable="true" data-pid="'+it.id+'" title="拖到货架格子放置（该格有商品则替换）">'+
     '<div class="rk-up-name">'+esc(it.name)+'</div>'+
     '<div class="rk-up-meta">'+(it.common_name?esc(it.common_name)+' · ':'')+(it.barcode?esc(it.barcode)+' · ':'')+'库存 '+(it.stock||0)+'</div></div>').join('')
-    :'<div class="rk-empty" style="padding:16px">全部商品已在货架</div>';
+    :'<div class="rk-empty">全部商品已在货架</div>';
   document.querySelectorAll('#rkUpList .rk-up-item').forEach(el=>{
     el.addEventListener('dragstart',e=>{
       e.dataTransfer.setData('text/plain',el.dataset.pid);
@@ -414,9 +430,8 @@ function renderUnplaced(){
   });
 }
 function rkTogglePanel(){
-  const p=$id('rkPanel');
-  p.classList.toggle('collapsed');
-  $id('rkPanelBtn').textContent=p.classList.contains('collapsed')?'展开':'收起';
+  // 面板开合：收起时右侧 tab 露出可点击展开（参考 live_ledger sideTabs/ps-panel）
+  $id('rkPanel').classList.toggle('open');
 }
 // 拖放：格子 dragover 高亮 + drop 放置/替换
 document.addEventListener('dragover',e=>{ if(e.target.closest('.rk-droppable'))e.preventDefault(); });
