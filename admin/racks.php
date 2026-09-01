@@ -142,13 +142,24 @@ body.rk-panel-open .rk-main{width:calc(100% - 330px)}
   <div class="rk-body" id="rkUpList"><div class="rk-empty">加载中…</div></div>
 </div>
 
-<!-- 录入/详情/布局设置 抽屉（参考 live_ledger ps-panel，右侧滑入） -->
+<!-- 详情/布局设置 抽屉（右侧滑入） -->
 <div class="rk-drawer" id="rkDrawer">
   <div class="rk-head">
-    <span class="rk-title" id="rkMTitle">录入商品</span>
+    <span class="rk-title" id="rkMTitle">商品详情</span>
     <button class="rk-close" onclick="rkClose()">&times;</button>
   </div>
   <div class="rk-body rk-modal-body" id="rkMBody"></div>
+</div>
+
+<!-- 录入商品：屏幕居中弹窗（与右侧未在货架面板分开，全局 .modal 体系） -->
+<div class="modal" id="rkPutModal">
+  <div class="modal-content" style="width:min(460px,94vw);max-width:460px">
+    <div class="modal-header">
+      <h3 class="modal-title" id="rkPutTitle">录入商品</h3>
+      <button class="modal-close" onclick="rkPutClose()">&times;</button>
+    </div>
+    <div style="padding:16px 18px" id="rkPutBody" class="rk-modal-body"></div>
+  </div>
 </div>
 
 <div id="toast" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg-elevated);color:var(--text);padding:10px 18px;border-radius:10px;font-size:13px;z-index:3000;display:none;border:1px solid var(--border)"></div>
@@ -264,7 +275,7 @@ function rkSearch(){
 function rkOpen(title,html){ $id('rkMTitle').textContent=title; $id('rkMBody').innerHTML=html; $id('rkDrawer').classList.add('open'); }
 function rkClose(){ $id('rkDrawer').classList.remove('open'); }
 
-// 商品搜索选择（录入）——借鉴系统其他页面（出库记账页）的搜索体验：防抖 + 下拉 fixed 跟随输入框 + 空间自适应
+// 商品搜索选择（录入）——防抖 300ms；下拉用 absolute 定位（抽屉有 transform，fixed 会错位）
 let rkPickProduct=null, rkPickTimer=null;
 function rkPickInit(){
   const inp=$id('rkPick');
@@ -273,28 +284,6 @@ function rkPickInit(){
   inp.oninput=()=>{ clearTimeout(rkPickTimer); rkPickTimer=setTimeout(()=>rkPickSearch(inp.value.trim()),300); };
   inp.onfocus=()=>{ if(inp.value.trim())rkPickSearch(inp.value.trim()); };
 }
-// 下拉 fixed 定位（跟随输入框），避免被抽屉 overflow 裁剪，空间不足向上展开
-function rkPickPos(){
-  const inp=$id('rkPick'), list=$id('rkPickList');
-  if(!inp||!list)return;
-  const rect=inp.getBoundingClientRect();
-  const vh=window.innerHeight;
-  list.style.position='fixed';
-  list.style.left=rect.left+'px';
-  list.style.width=rect.width+'px';
-  list.style.zIndex='9999';
-  const spaceBelow=vh-rect.bottom;
-  if(spaceBelow<vh*0.4){
-    list.style.top='auto';
-    list.style.bottom=(vh-rect.top+4)+'px';
-    list.style.maxHeight=Math.max(120,rect.top-8)+'px';
-  }else{
-    list.style.top=(rect.bottom+4)+'px';
-    list.style.bottom='auto';
-    list.style.maxHeight=Math.max(120,spaceBelow-8)+'px';
-  }
-}
-window.addEventListener('scroll',()=>{ const l=$id('rkPickList'); if(l&&l.classList.contains('show'))rkPickPos(); },true);
 async function rkPickSearch(kw){
   const list=$id('rkPickList');
   if(!kw){list.classList.remove('show');return;}
@@ -315,10 +304,9 @@ async function rkPickSearch(kw){
         (p.common_name?'<span class="sub2">'+esc(p.common_name)+'</span>':'')+
         '<span class="sub2">库存 '+st+'</span></div>';
     }).join('')
-      :'<div class="rk-ps-item" style="cursor:default">无匹配商品</div>';
+      :'<div class="rk-ps-item" style="cursor:default">无匹配商品（当前店铺无「'+esc(kw)+'」相关商品）</div>';
     list.classList.add('show');
-    rkPickPos();
-  }catch(e){ list.innerHTML='<div class="rk-ps-item" style="cursor:default">搜索失败</div>'; list.classList.add('show'); rkPickPos(); }
+  }catch(e){ list.innerHTML='<div class="rk-ps-item" style="cursor:default">搜索失败：'+esc(e.message)+'</div>'; list.classList.add('show'); }
 }
 function rkPickSel(id,el){
   rkPickProduct=+id;
@@ -329,17 +317,20 @@ function rkPickSel(id,el){
 }
 // 录入
 function rkPut(rack,row,pos){
-  rkOpen('录入商品 · '+rack+' 第'+row+'层',
+  $id('rkPutTitle').textContent='录入商品 · '+rack+' 第'+row+'层';
+  $id('rkPutBody').innerHTML=
     '<div class="rk-ps" style="margin-bottom:12px;"><input id="rkPick" class="form-input" placeholder="输入名称/拼音/条码搜索商品…" autocomplete="off"><div class="rk-ps-list" id="rkPickList"></div></div>'+
     '<div class="rk-flex" style="margin-bottom:12px;">'+
       '<div style="flex:1;min-width:120px;"><label>起始格</label><input id="rkPos" class="form-input" type="number" value="'+pos+'" min="1" max="10"></div>'+
       '<div style="flex:1;min-width:150px;"><label>占格</label><select id="rkSpan" class="form-input"><option value="1">半大格（1小格）</option><option value="2">整大格（2小格）</option></select></div>'+
     '</div>'+
     '<div style="margin-bottom:14px;"><label>备注（选填）</label><input id="rkNote" class="form-input" type="text" placeholder="如：第一批"></div>'+
-    '<div class="rk-flex right"><button class="btn btn-outline" onclick="rkClose()">取消</button><button class="btn btn-primary" onclick="rkPutSave(\''+esc(rack)+'\','+row+')">保存</button></div>'+
-    '<div class="rk-msg" id="rkMsg"></div>');
+    '<div class="rk-flex right"><button class="btn btn-outline" onclick="rkPutClose()">取消</button><button class="btn btn-primary" onclick="rkPutSave(\''+esc(rack)+'\','+row+')">保存</button></div>'+
+    '<div class="rk-msg" id="rkMsg"></div>';
+  $id('rkPutModal').classList.add('show');
   rkPickInit();
 }
+function rkPutClose(){ $id('rkPutModal').classList.remove('show'); }
 async function rkPutSave(rack,row){
   const msg=$id('rkMsg');
   if(!rkPickProduct){msg.textContent='请先选择商品';msg.className='rk-msg err';return;}
@@ -350,7 +341,7 @@ async function rkPutSave(rack,row){
   try{
     const res=await fetch('../api/rack_cell.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'put',rack,row,pos,span,product_id:rkPickProduct,note})});
     const d=await res.json();
-    if(d.success){rkClose();rkToast(d.message||'已录入');rkLoad();}
+    if(d.success){rkPutClose();rkToast(d.message||'已录入');rkLoad();}
     else{msg.textContent=d.error||'保存失败';msg.className='rk-msg err';}
   }catch(e){msg.textContent='请求失败';msg.className='rk-msg err';}
 }
