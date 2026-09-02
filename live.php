@@ -5,7 +5,8 @@
  * 定位：所有直播间主播共用的大屏，扫码/输入商品 → 实时展示该商品各 SKU 可用库存与价格。
  * 不挂场次、不做售卖/改价/广播，只读展示。
  *
- * 布局（1920×1080 虚拟画布，按窗口等比缩放，任意分辨率不变形）：
+ * 布局（全屏流体自适应：字号随 vmin 缩放、列随屏幕比例自动分配，
+ *       竖屏/方形屏自动切换上下结构，适配电脑/一体机/安卓触摸屏）：
  *   顶部居中：商品名称 - 系列（参考价开关开启时下方显示参考价）
  *   左侧：商品图片
  *   中间：商品简介
@@ -51,12 +52,10 @@ body {
     height: 100vh;
 }
 
-/* ── 虚拟画布：1920×1080，整体等比缩放居中 ── */
+/* ── 全屏流体布局：字号随 vmin 缩放，列随屏幕比例自适应 ── */
+html { font-size: clamp(8px, 1.1vmin, 24px); }
 #stage {
-    position: fixed; top: 50%; left: 50%;
-    width: 1920px; height: 1080px;
-    transform: translate(-50%, -50%) scale(1);
-    transform-origin: center center;
+    position: fixed; inset: 0;
     background: var(--bg);
     overflow: hidden;
 }
@@ -66,47 +65,47 @@ body {
 
 /* ── 初始画面（纯待机） ── */
 #initialView {
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2em;
     z-index: 1;
 }
-#initialView .logo { max-width: 240px; max-height: 240px; border-radius: 24px; object-fit: contain; }
-#initialView .store-name { font-size: 64px; font-weight: 800; letter-spacing: 3px; }
-#initialView .hint { font-size: 30px; color: var(--text-tertiary); letter-spacing: 4px; }
+#initialView .logo { max-width: 20em; max-height: 20em; border-radius: 2em; object-fit: contain; }
+#initialView .store-name { font-size: 5.3em; font-weight: 800; letter-spacing: 0.2em; }
+#initialView .hint { font-size: 2.5em; color: var(--text-tertiary); letter-spacing: 0.3em; }
 
 /* ── 商品展示：固定模板自动布局 ── */
-#productDisplay { display: none; z-index: 2; flex-direction: column; padding: 42px 56px 48px; }
+#productDisplay { display: none; z-index: 2; flex-direction: column; padding: 3.5em 4.6em 4em; }
 #productDisplay.show { display: flex; }
 
 .pd-header {
     flex-shrink: 0; text-align: center;
-    padding-bottom: 22px;
-    border-bottom: 2px solid var(--border);
+    padding-bottom: 1.8em;
+    border-bottom: 0.16em solid var(--border);
 }
-.pd-title { font-size: 68px; font-weight: 800; line-height: 1.25; letter-spacing: 1px; }
-.pd-ref { margin-top: 10px; font-size: 30px; color: var(--text-secondary); }
+.pd-title { font-size: 5.6em; font-weight: 800; line-height: 1.25; letter-spacing: 0.06em; }
+.pd-ref { margin-top: 0.8em; font-size: 2.5em; color: var(--text-secondary); }
 
-.pd-main { flex: 1; display: flex; gap: 40px; min-height: 0; padding-top: 28px; }
+.pd-main { flex: 1; display: flex; gap: 3.3em; min-height: 0; padding-top: 2.3em; }
 
 /* 左：图片 */
 .pd-left {
     flex: 0 0 34%;
     display: flex; align-items: center; justify-content: center;
     background: var(--bg-card);
-    border: 1px solid var(--border); border-radius: 22px;
-    overflow: hidden; padding: 18px;
+    border: 0.08em solid var(--border); border-radius: 1.8em;
+    overflow: hidden; padding: 1.5em;
 }
 .pd-left img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .pd-left .no-image {
-    color: var(--text-tertiary); font-size: 40px;
+    color: var(--text-tertiary); font-size: 3.3em;
     display: flex; align-items: center; justify-content: center;
     width: 100%; height: 100%;
 }
 .pd-main.no-desc .pd-left { flex: 1 1 auto; }
 
 /* 中：简介 */
-.pd-middle { flex: 1; min-width: 0; padding: 12px 8px 0; }
+.pd-middle { flex: 1; min-width: 0; padding: 1em 0.7em 0; }
 #pdDesc {
-    font-size: 36px; line-height: 1.75; color: var(--text);
+    font-size: 3em; line-height: 1.75; color: var(--text);
     overflow: hidden;
     display: -webkit-box; -webkit-line-clamp: 9; -webkit-box-orient: vertical;
     word-break: break-word;
@@ -115,74 +114,90 @@ body {
 /* 右：SKU 列表 */
 .pd-right { flex: 0 0 36%; min-width: 0; display: flex; flex-direction: column; overflow-y: auto; }
 .pd-right::-webkit-scrollbar { display: none; }
-.pd-sku-title { font-size: 30px; color: var(--text-tertiary); margin-bottom: 14px; letter-spacing: 2px; }
+.pd-sku-title { font-size: 2.5em; color: var(--text-tertiary); margin-bottom: 1.2em; letter-spacing: 0.15em; }
 .sku-row {
-    display: flex; align-items: center; gap: 22px;
-    padding: 16px 22px; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 1.8em;
+    padding: 1.3em 1.8em; margin-bottom: 1.2em;
     background: var(--bg-card);
-    border: 1px solid var(--border); border-radius: 16px;
+    border: 0.08em solid var(--border); border-radius: 1.3em;
     flex-shrink: 0;
 }
 .sku-row.out-of-stock { opacity: 0.55; }
 .sku-row.out-of-stock .sku-qty .num { color: var(--danger); }
 .sku-row.low-stock { border-color: rgba(251, 191, 36, 0.5); background: rgba(251, 191, 36, 0.05); }
 .sku-no {
-    flex-shrink: 0; width: 44px; height: 44px; border-radius: 10px;
+    flex-shrink: 0; width: 3.6em; height: 3.6em; border-radius: 0.8em;
     background: var(--primary-light); color: var(--primary);
     display: flex; align-items: center; justify-content: center;
-    font-size: 24px; font-weight: 800;
+    font-size: 2em; font-weight: 800;
 }
-.sku-name { font-size: 34px; font-weight: 600; min-width: 180px; }
+.sku-name { font-size: 2.8em; font-weight: 600; min-width: 14em; }
 .sku-price-box { display: flex; flex-direction: column; }
-.sku-price { font-size: 46px; font-weight: 800; color: var(--success); line-height: 1.1; }
-.sku-cost { font-size: 24px; color: var(--text-tertiary); margin-top: 4px; }
-.sku-qty { margin-left: auto; text-align: center; flex-shrink: 0; min-width: 120px; }
-.sku-qty .num { font-size: 54px; font-weight: 800; color: var(--success); line-height: 1.1; }
-.sku-qty .label { font-size: 24px; color: var(--text-tertiary); }
-.sku-empty { color: var(--text-tertiary); font-size: 34px; padding: 40px 0; text-align: center; }
+.sku-price { font-size: 3.8em; font-weight: 800; color: var(--success); line-height: 1.1; }
+.sku-cost { font-size: 2em; color: var(--text-tertiary); margin-top: 0.3em; }
+.sku-qty { margin-left: auto; text-align: center; flex-shrink: 0; min-width: 9em; }
+.sku-qty .num { font-size: 4.5em; font-weight: 800; color: var(--success); line-height: 1.1; }
+.sku-qty .label { font-size: 2em; color: var(--text-tertiary); }
+.sku-empty { color: var(--text-tertiary); font-size: 2.8em; padding: 3.3em 0; text-align: center; }
+
+/* ── 竖屏 / 方形屏：图片+SKU 上下结构，简介沉底 ── */
+@media (max-aspect-ratio: 1/1) {
+    #productDisplay { padding: 2.6em 2.2em 3.2em; }
+    .pd-main { flex-wrap: wrap; gap: 2.4em; padding-top: 1.8em; }
+    .pd-left { flex: 0 0 46%; }
+    .pd-right { flex: 1 1 48%; }
+    .pd-middle { flex: 1 1 100%; order: 3; padding: 0.8em 0.4em 0; }
+    #pdDesc { -webkit-line-clamp: 4; font-size: 2.6em; }
+    .sku-row { padding: 1em 1.3em; gap: 1.3em; margin-bottom: 0.9em; }
+    .sku-name { min-width: 9em; font-size: 2.4em; }
+    .sku-price { font-size: 3.2em; }
+    .sku-qty { min-width: 7em; }
+    .sku-qty .num { font-size: 3.8em; }
+    .pd-title { font-size: 4.6em; }
+}
 
 /* ── 搜索栏 ── */
 .search-bar-container {
-    position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
-    width: 560px; max-width: 92vw; z-index: 100;
+    position: fixed; bottom: 5vmin; left: 50%; transform: translateX(-50%);
+    width: min(30vw, 640px); max-width: 92vw; z-index: 100;
 }
 .search-bar {
     display: flex; align-items: center;
     background: rgba(30, 30, 50, 0.92);
-    border: 1px solid var(--border); border-radius: 14px;
-    padding: 0 16px; backdrop-filter: blur(12px);
+    border: 0.1em solid var(--border); border-radius: 1.2em;
+    padding: 0 1.4em; backdrop-filter: blur(12px);
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 .search-bar:focus-within { border-color: var(--primary); box-shadow: 0 0 20px var(--primary-glow); }
-.search-bar .search-icon { font-size: 18px; margin-right: 10px; opacity: 0.5; flex-shrink: 0; }
+.search-bar .search-icon { font-size: 1.6em; margin-right: 0.8em; opacity: 0.5; flex-shrink: 0; }
 .search-bar input {
     flex: 1; background: transparent; border: none; outline: none;
-    color: var(--text); font-size: 20px; height: 48px; font-family: inherit;
+    color: var(--text); font-size: clamp(16px, 2.2vmin, 24px); height: clamp(42px, 6vmin, 56px); font-family: inherit;
 }
 .search-bar input::placeholder { color: var(--text-tertiary); }
 .search-results {
-    position: absolute; bottom: calc(100% + 8px); left: 0; right: 0;
-    background: rgba(26, 26, 38, 0.97); border: 1px solid var(--border); border-radius: 12px;
+    position: absolute; bottom: calc(100% + 0.7em); left: 0; right: 0;
+    background: rgba(26, 26, 38, 0.97); border: 0.1em solid var(--border); border-radius: 1em;
     overflow: hidden; display: none; max-height: 320px; overflow-y: auto;
     box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 .search-results.show { display: block; }
 .search-result-item {
-    padding: 12px 16px; cursor: pointer; display: flex; align-items: center; gap: 12px;
+    padding: 1em 1.4em; cursor: pointer; display: flex; align-items: center; gap: 1em;
     border-bottom: 1px solid rgba(42, 42, 58, 0.5);
 }
 .search-result-item:last-child { border-bottom: none; }
 .search-result-item:hover, .search-result-item.active { background: rgba(94, 92, 230, 0.15); }
-.result-name { font-size: 16px; font-weight: 500; }
-.result-barcode { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
-.result-stock { margin-left: auto; font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
-.search-result-empty { padding: 20px; text-align: center; color: var(--text-tertiary); font-size: 14px; }
+.result-name { font-size: 1.4em; font-weight: 500; }
+.result-barcode { font-size: 1.1em; color: var(--text-tertiary); margin-top: 0.2em; }
+.result-stock { margin-left: auto; font-size: 1.2em; color: var(--text-secondary); white-space: nowrap; }
+.search-result-empty { padding: 1.8em; text-align: center; color: var(--text-tertiary); font-size: 1.2em; }
 
 /* ── 提示 ── */
 #toast {
-    position: fixed; top: 30px; left: 50%; transform: translateX(-50%);
-    background: rgba(229, 96, 92, 0.94); color: #fff; padding: 10px 22px;
-    border-radius: 8px; font-size: 16px; display: none; z-index: 200;
+    position: fixed; top: 3vmin; left: 50%; transform: translateX(-50%);
+    background: rgba(229, 96, 92, 0.94); color: #fff; padding: 0.9em 1.8em;
+    border-radius: 0.7em; font-size: clamp(14px, 1.8vmin, 20px); display: none; z-index: 200;
     box-shadow: 0 6px 20px rgba(0,0,0,0.4);
 }
 </style>
@@ -233,7 +248,6 @@ body {
 <script>
 /* ================= 配置 ================= */
 const POLL_INTERVAL = 2500; // 轮询刷新间隔（毫秒）
-const STAGE_W = 1920, STAGE_H = 1080; // 虚拟画布尺寸，整体等比缩放
 let systemSettings = { live_display: { elements: [] }, condition_types: [] };
 let currentProduct = null;
 let searchResults = [];
@@ -241,13 +255,6 @@ let searchSelectedIndex = -1;
 let searchDebounce = null;
 let toastTimer = null;
 let lastConfigHash = '';
-
-/* ================= 自动缩放 ================= */
-function fitStage() {
-    const stage = document.getElementById('stage');
-    const s = Math.min(window.innerWidth / STAGE_W, window.innerHeight / STAGE_H);
-    stage.style.transform = 'translate(-50%, -50%) scale(' + s + ')';
-}
 
 /* ================= 设置加载与实时同步 ================= */
 function loadSettings() {
@@ -571,11 +578,8 @@ document.addEventListener('click', function (e) {
     if (!e.target.closest('.search-bar-container')) hideSearchResults();
 });
 
-window.addEventListener('resize', fitStage);
-
 /* ================= 初始化 ================= */
 loadSettings().then(() => {
-    fitStage();
     document.getElementById('barcodeInput').focus();
     startPolling();
 });
