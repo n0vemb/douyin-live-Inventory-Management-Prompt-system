@@ -86,9 +86,12 @@ html { font-size: clamp(8px, 1.1vmin, 24px); }
 
 .pd-main { flex: 1; display: flex; gap: 3.3em; min-height: 0; padding-top: 2.3em; }
 
-/* 左：图片 */
+/* 左：图片（固定 4:5 比例，尺寸随一屏可用高度自适应，宽度由比例推出） */
 .pd-left {
-    flex: 0 0 34%;
+    flex: none;
+    height: 100%;
+    aspect-ratio: 4 / 5;
+    max-width: 100%;
     display: flex; align-items: center; justify-content: center;
     background: var(--bg-card);
     border: 0.08em solid var(--border); border-radius: 1.8em;
@@ -100,10 +103,9 @@ html { font-size: clamp(8px, 1.1vmin, 24px); }
     display: flex; align-items: center; justify-content: center;
     width: 100%; height: 100%;
 }
-.pd-main.no-desc .pd-left { flex: 1 1 auto; }
 
-/* 中：简介 */
-.pd-middle { flex: 1; min-width: 0; padding: 1em 0.7em 0; }
+/* 中：简介（与 SKU 容器平分剩余宽度，不写死大小） */
+.pd-middle { flex: 1 1 0; min-width: 0; padding: 1em 0.7em 0; }
 #pdDesc {
     font-size: 3em; line-height: 1.75; color: var(--text);
     overflow: hidden;
@@ -111,8 +113,8 @@ html { font-size: clamp(8px, 1.1vmin, 24px); }
     word-break: break-word;
 }
 
-/* 右：SKU 列表 */
-.pd-right { flex: 0 0 36%; min-width: 0; display: flex; flex-direction: column; overflow-y: auto; }
+/* 右：SKU 列表（与简介容器平分剩余宽度，不写死大小） */
+.pd-right { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; overflow-y: auto; }
 .pd-right::-webkit-scrollbar { display: none; }
 .pd-sku-title { font-size: 2.5em; color: var(--text-tertiary); margin-bottom: 1.2em; letter-spacing: 0.15em; }
 .sku-row {
@@ -144,8 +146,9 @@ html { font-size: clamp(8px, 1.1vmin, 24px); }
 @media (max-aspect-ratio: 1/1) {
     #productDisplay { padding: 2.6em 2.2em 3.2em; }
     .pd-main { flex-wrap: wrap; gap: 2.4em; padding-top: 1.8em; }
-    .pd-left { flex: 0 0 46%; }
-    .pd-right { flex: 1 1 48%; }
+    /* 竖屏：图片按宽度 46% 定宽、4:5 推出高度，SKU 占其余宽度 */
+    .pd-left { flex: none; width: 46%; height: auto; align-self: flex-start; }
+    .pd-right { flex: 1 1 0; }
     .pd-middle { flex: 1 1 100%; order: 3; padding: 0.8em 0.4em 0; }
     #pdDesc { -webkit-line-clamp: 4; font-size: 2.6em; }
     .sku-row { padding: 1em 1.3em; gap: 1.3em; margin-bottom: 0.9em; }
