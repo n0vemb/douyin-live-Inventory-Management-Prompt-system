@@ -86,10 +86,11 @@ html { font-size: clamp(8px, 1.1vmin, 24px); }
 
 .pd-main { flex: 1; display: flex; gap: 3.3em; min-height: 0; padding-top: 2.3em; }
 
-/* 左：图片（固定 4:5 比例，尺寸随一屏可用高度自适应，宽度由比例推出） */
+/* 左：图片（固定 4:5 比例，约一屏可用高度的 58%，宽度由比例推出） */
 .pd-left {
     flex: none;
-    height: 100%;
+    height: 58%;
+    align-self: center;
     aspect-ratio: 4 / 5;
     max-width: 100%;
     display: flex; align-items: center; justify-content: center;
@@ -99,7 +100,7 @@ html { font-size: clamp(8px, 1.1vmin, 24px); }
 }
 .pd-left img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .pd-left .no-image {
-    color: var(--text-tertiary); font-size: 3.3em;
+    color: var(--text-tertiary); font-size: clamp(18px, 3vmin, 90px);
     display: flex; align-items: center; justify-content: center;
     width: 100%; height: 100%;
 }
@@ -116,47 +117,46 @@ html { font-size: clamp(8px, 1.1vmin, 24px); }
 /* 右：SKU 列表（与简介容器平分剩余宽度，不写死大小） */
 .pd-right { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; overflow-y: auto; }
 .pd-right::-webkit-scrollbar { display: none; }
-.pd-sku-title { font-size: 2.5em; color: var(--text-tertiary); margin-bottom: 1.2em; letter-spacing: 0.15em; }
+.pd-sku-title { font-size: clamp(15px, 2.4vmin, 70px); color: var(--text-tertiary); margin-bottom: 1em; letter-spacing: 0.15em; }
 .sku-row {
-    display: flex; align-items: center; gap: 1.8em;
-    padding: 1.3em 1.8em; margin-bottom: 1.2em;
+    display: flex; align-items: center; gap: clamp(12px, 2vmin, 60px);
+    padding: clamp(12px, 1.9vmin, 56px) clamp(14px, 2.2vmin, 64px);
+    margin-bottom: clamp(10px, 1.4vmin, 40px);
     background: var(--bg-card);
-    border: 0.08em solid var(--border); border-radius: 1.3em;
+    border: 0.08em solid var(--border); border-radius: clamp(10px, 1.5vmin, 44px);
     flex-shrink: 0;
 }
 .sku-row.out-of-stock { opacity: 0.55; }
 .sku-row.out-of-stock .sku-qty .num { color: var(--danger); }
 .sku-row.low-stock { border-color: rgba(251, 191, 36, 0.5); background: rgba(251, 191, 36, 0.05); }
 .sku-no {
-    flex-shrink: 0; width: 3.6em; height: 3.6em; border-radius: 0.8em;
+    flex-shrink: 0; width: clamp(30px, 4.8vmin, 140px); height: clamp(30px, 4.8vmin, 140px);
+    border-radius: 0.9em;
     background: var(--primary-light); color: var(--primary);
     display: flex; align-items: center; justify-content: center;
-    font-size: 2em; font-weight: 800;
+    font-size: clamp(14px, 2.6vmin, 76px); font-weight: 800;
 }
-.sku-name { font-size: 2.8em; font-weight: 600; min-width: 14em; }
+.sku-name {
+    font-size: clamp(18px, 3.8vmin, 110px); font-weight: 600;
+    min-width: clamp(80px, 15vmin, 430px);
+}
 .sku-price-box { display: flex; flex-direction: column; }
-.sku-price { font-size: 3.8em; font-weight: 800; color: var(--success); line-height: 1.1; }
-.sku-cost { font-size: 2em; color: var(--text-tertiary); margin-top: 0.3em; }
-.sku-qty { margin-left: auto; text-align: center; flex-shrink: 0; min-width: 9em; }
-.sku-qty .num { font-size: 4.5em; font-weight: 800; color: var(--success); line-height: 1.1; }
-.sku-qty .label { font-size: 2em; color: var(--text-tertiary); }
-.sku-empty { color: var(--text-tertiary); font-size: 2.8em; padding: 3.3em 0; text-align: center; }
+.sku-price { font-size: clamp(22px, 5.3vmin, 150px); font-weight: 800; color: var(--success); line-height: 1.1; }
+.sku-cost { font-size: clamp(12px, 2.2vmin, 64px); color: var(--text-tertiary); margin-top: 0.4em; }
+.sku-qty { margin-left: auto; text-align: center; flex-shrink: 0; min-width: clamp(70px, 11vmin, 320px); }
+.sku-qty .num { font-size: clamp(24px, 5.6vmin, 160px); font-weight: 800; color: var(--success); line-height: 1.1; }
+.sku-qty .label { font-size: clamp(12px, 2vmin, 60px); color: var(--text-tertiary); }
+.sku-empty { color: var(--text-tertiary); font-size: clamp(16px, 2.8vmin, 80px); padding: 3em 0; text-align: center; }
 
 /* ── 竖屏 / 方形屏：图片+SKU 上下结构，简介沉底 ── */
 @media (max-aspect-ratio: 1/1) {
     #productDisplay { padding: 2.6em 2.2em 3.2em; }
     .pd-main { flex-wrap: wrap; gap: 2.4em; padding-top: 1.8em; }
-    /* 竖屏：图片按宽度 46% 定宽、4:5 推出高度，SKU 占其余宽度 */
-    .pd-left { flex: none; width: 46%; height: auto; align-self: flex-start; }
+    /* 竖屏：图片按宽度 34% 定宽、4:5 推出高度，SKU 占其余宽度 */
+    .pd-left { flex: none; width: 34%; height: auto; align-self: flex-start; }
     .pd-right { flex: 1 1 0; }
     .pd-middle { flex: 1 1 100%; order: 3; padding: 0.8em 0.4em 0; }
-    #pdDesc { -webkit-line-clamp: 4; font-size: 2.6em; }
-    .sku-row { padding: 1em 1.3em; gap: 1.3em; margin-bottom: 0.9em; }
-    .sku-name { min-width: 9em; font-size: 2.4em; }
-    .sku-price { font-size: 3.2em; }
-    .sku-qty { min-width: 7em; }
-    .sku-qty .num { font-size: 3.8em; }
-    .pd-title { font-size: 4.6em; }
+    #pdDesc { -webkit-line-clamp: 4; }
 }
 
 /* ── 搜索栏 ── */
