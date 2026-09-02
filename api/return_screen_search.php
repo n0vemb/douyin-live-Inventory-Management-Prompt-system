@@ -106,23 +106,37 @@ function rsProductDetail($pdo, $storeId, $productId) {
 
     $inventory = [];
     $allPrices = [];
+    $skuList = [];
+    $rowsByCond = [];
     foreach ($rows as $row) {
-        $cond = $row['condition_type'];
+        $rowsByCond[$row['condition_type']] = $row;
+    }
+    // SKU 行统一从这里构建：顺序 = 店铺配置品相顺序；批次里有但配置未登记的追加到末尾
+    $buildSku = function ($cond, $name, $row) use ($committed, &$inventory, &$allPrices) {
         $available = (int)$row['real_stock'] - ($committed[$cond] ?? 0);
-        $name = $conditionMap[$cond] ?? $cond;
         $info = [
             'stock'           => $available,
             'suggested_price' => $row['suggested_price'] !== null ? (float)$row['suggested_price'] : null,
             'purchase_price'  => $row['purchase_price'] !== null && $row['purchase_price'] !== '' ? $row['purchase_price'] : null,
         ];
-        $inventory[$cond]  = $info;
-        $inventory[$name]  = $info;
+        $inventory[$cond] = $info;
+        $inventory[$name] = $info;
         if ($row['purchase_price']) {
             foreach (explode('/', $row['purchase_price']) as $pp) {
                 $fp = (float)$pp;
                 if ($fp > 0) $allPrices[(string)$fp] = $fp;
             }
         }
+        return ['key' => $cond, 'name' => $name] + $info;
+    };
+    foreach ($conditionMap as $cond => $name) {
+        if (!isset($rowsByCond[$cond])) continue; // 配置了但当前无批次/无库存的品相不展示
+        $skuList[] = $buildSku($cond, $name, $rowsByCond[$cond]);
+    }
+    foreach ($rows as $row) {
+        $cond = $row['condition_type'];
+        if (isset($conditionMap[$cond])) continue; // 已在配置顺序中
+        $skuList[] = $buildSku($cond, $cond, $row);
     }
     ksort($allPrices);
     $overall = !empty($allPrices)
@@ -140,6 +154,7 @@ function rsProductDetail($pdo, $storeId, $productId) {
         'image_url'           => $p['image_url'] ?? '',
         'purchase_prices'     => $overall,
         'inventory'           => $inventory,
+        'sku_list'            => $skuList,
     ];
 }
 

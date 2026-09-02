@@ -473,43 +473,35 @@ function displayProduct(p) {
     rightEl.style.display = showSkus ? 'flex' : 'none';
 
     if (showSkus) {
-        const conditionTypes = (systemSettings.condition_types && systemSettings.condition_types.length)
-            ? systemSettings.condition_types
-            : [
-                { key: 'sealed',  name: '原盒未拆', color: '#10b981' },
-                { key: 'opened',  name: '拆盒无瑕', color: '#3b82f6' },
-                { key: 'boxless', name: '无盒无瑕', color: '#f59e0b' },
-                { key: 'flawed',  name: '微瑕',     color: '#ef4444' }
-              ];
+        // SKU 列表由后端按店铺配置(condition_common)返回，顺序与名称均动态
+        const skus = p.sku_list || [];
         const showCost = elementEnabled('purchasePrice');
         let anySku = false;
 
-        conditionTypes.forEach((condition, index) => {
-            const info = p.inventory[condition.key] || p.inventory[condition.name];
-            if (!info) return;
+        skus.forEach((sku, index) => {
             anySku = true;
 
             const row = document.createElement('div');
             row.className = 'sku-row';
-            if (info.stock <= 0) row.classList.add('out-of-stock');
-            else if (info.stock <= 2) row.classList.add('low-stock');
+            if (sku.stock <= 0) row.classList.add('out-of-stock');
+            else if (sku.stock <= 2) row.classList.add('low-stock');
 
-            const priceText = info.suggested_price != null
-                ? '¥' + parseFloat(info.suggested_price).toFixed(2)
+            const priceText = sku.suggested_price != null
+                ? '¥' + parseFloat(sku.suggested_price).toFixed(2)
                 : '--';
-            const costText = showCost && info.purchase_price
-                ? '进价 ¥' + String(info.purchase_price).split('/').map(x => parseFloat(x).toFixed(2)).join('/¥')
+            const costText = showCost && sku.purchase_price
+                ? '进价 ¥' + String(sku.purchase_price).split('/').map(x => parseFloat(x).toFixed(2)).join('/¥')
                 : '';
 
             row.innerHTML =
                 '<div class="sku-no">' + (index + 1) + '</div>' +
-                '<div class="sku-name">' + escapeHtml(condition.name) + '</div>' +
+                '<div class="sku-name">' + escapeHtml(sku.name) + '</div>' +
                 '<div class="sku-price-box">' +
                     '<div class="sku-price">' + priceText + '</div>' +
                     (costText ? '<div class="sku-cost">' + costText + '</div>' : '') +
                 '</div>' +
                 '<div class="sku-qty">' +
-                    '<div class="num">' + (info.stock > 0 ? info.stock : 0) + '</div>' +
+                    '<div class="num">' + (sku.stock > 0 ? sku.stock : 0) + '</div>' +
                     '<div class="label">可用</div>' +
                 '</div>';
             skuWrap.appendChild(row);
