@@ -178,6 +178,7 @@ let searchResults = [];
 let searchSelectedIndex = -1;
 let searchDebounce = null;
 let toastTimer = null;
+let lastConfigHash = '';
 
 const DEFAULT_ELEMENTS = {
     productName:       { enabled: true, left: 60, top: 60,  width: 900, height: 80,  fontSize: '72px', zIndex: 2 },
@@ -196,6 +197,58 @@ function getElementConfig(type) {
     const list = (systemSettings.live_display && systemSettings.live_display.elements) || [];
     const found = list.find(el => el && el.type === type) || {};
     return Object.assign({}, DEFAULT_ELEMENTS[type] || {}, found);
+}
+
+function simpleHash(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return hash.toString(36);
+}
+
+/**
+ * 店铺设置页调整 live_display 时实时同步：
+ * settings.php 每次调整都会写入 localStorage 'ppmart_temp_config'，
+ * 这里 200ms 轮询检测变化并应用到本页（位置/大小/显隐/字号/颜色等），
+ * 与旧版直播页行为保持一致，无需刷新页面。
+ */
+function checkForConfigUpdates() {
+    try {
+        const tempConfig = localStorage.getItem('ppmart_temp_config');
+        if (!tempConfig) return;
+        const hash = simpleHash(tempConfig);
+        if (hash === lastConfigHash) return;
+        lastConfigHash = hash;
+
+        const newSettings = JSON.parse(tempConfig);
+        if (!newSettings) return;
+        if (newSettings.live_display) {
+            systemSettings.live_display = newSettings.live_display;
+        }
+        if (newSettings.condition_types) {
+            systemSettings.condition_types = newSettings.condition_types;
+        }
+        if (newSettings.store_name) {
+            document.getElementById('storeName').textContent = newSettings.store_name;
+        }
+        if (newSettings.logo_path !== undefined) {
+            const logo = document.getElementById('storeLogo');
+            if (newSettings.logo_path) {
+                logo.src = newSettings.logo_path;
+                logo.style.display = 'block';
+            } else {
+                logo.style.display = 'none';
+            }
+        }
+        if (currentProduct) {
+            displayProduct(currentProduct);
+        }
+    } catch (e) {
+        console.error('checkForConfigUpdates:', e);
+    }
 }
 
 /* ================= 设置加载 ================= */
@@ -504,6 +557,7 @@ loadSettings().then(() => {
     document.getElementById('barcodeInput').focus();
     startPolling();
 });
+setInterval(checkForConfigUpdates, 200);
 </script>
 </body>
 </html>
