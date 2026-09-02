@@ -165,7 +165,7 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
                     <span class="nav-label">销售记录</span>
                 </a>
                 <?php endif; ?>
-                <a href="sessions.php" class="nav-item <?= ($currentPage ?? '') === 'sessions' ? 'active' : '' ?>">
+                <a href="../live.php" class="nav-item" target="_blank" rel="noopener">
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
                     <span class="nav-label">直播返送</span>
                 </a>
