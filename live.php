@@ -539,6 +539,15 @@ function showToast(msg) {
     toastTimer = setTimeout(() => { t.style.display = 'none'; }, 2500);
 }
 
+/* ================= 输入框焦点保持 ================= */
+/* 扫码枪 = 键盘输入：焦点丢失会导致扫码内容不进框，1 秒轮询强制回焦 */
+function keepInputFocus() {
+    const input = document.getElementById('barcodeInput');
+    if (document.activeElement !== input) {
+        input.focus();
+    }
+}
+
 /* ================= 事件 ================= */
 document.getElementById('barcodeInput').addEventListener('input', function () {
     const q = this.value.trim();
@@ -579,6 +588,7 @@ loadSettings().then(() => {
     startPolling();
 });
 setInterval(checkForConfigUpdates, 200);
+setInterval(keepInputFocus, 1000);
 </script>
 </body>
 </html>
