@@ -141,6 +141,16 @@ $isOperator = $user['role'] === 'operator';
   <div id="customerList"></div>
 </div>
 
+<!-- 底部操作栏：客户多、顶部操作栏滚出屏幕时显示在最后一个客户之后 -->
+<div class="card" id="actionBarBottom" style="display:none; padding:16px 24px;">
+  <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
+    <button class="btn btn-success" onclick="openAddCustomerModal()">新增客户</button>
+    <button class="btn btn-primary" onclick="saveAll()">保存</button>
+    <button class="btn btn-danger" onclick="endLive()">结束直播并出库</button>
+    <span class="muted" style="margin-left:auto;">点击客户标题栏可收缩/展开</span>
+  </div>
+</div>
+
 <!-- 新建场次模态框 -->
 <div class="modal" id="newSessionModal">
   <div class="modal-content" style="width:420px;">
@@ -626,6 +636,7 @@ async function switchToSession(id) {
         document.getElementById('statsBar').style.display = 'grid';
         document.getElementById('customerListCard').style.display = 'block';
         render();
+        syncBottomActionBar();
     } catch (e) { toast('加载失败: ' + e.message, true); }
 }
 
@@ -890,19 +901,43 @@ function fmt(v) { return (parseFloat(v) || 0).toFixed(2); }
 function fmtPct(v) { return ((parseFloat(v) || 0) * 100).toFixed(1) + '%'; }
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+/**
+ * 会员编号自然排序：纯数字按数值（33 < 100）；
+ * 字母+数字混合按「字母段字典序 + 数字段数值序」（A1 < A2 < A10 < B1）；
+ * 空编号排最后、保持添加顺序（稳定排序）。
+ */
+function vipNaturalCompare(a, b) {
+    const ea = a === undefined || a === null || String(a).trim() === '';
+    const eb = b === undefined || b === null || String(b).trim() === '';
+    if (ea && eb) return 0;
+    if (ea) return 1;
+    if (eb) return -1;
+
+    const ca = String(a).toLowerCase().match(/\d+|\D+/g) || [];
+    const cb = String(b).toLowerCase().match(/\d+|\D+/g) || [];
+    const n = Math.max(ca.length, cb.length);
+    for (let i = 0; i < n; i++) {
+        if (i >= ca.length) return -1; // a 更短且此前相等 → a 靠前
+        if (i >= cb.length) return 1;
+        const xa = ca[i], xb = cb[i];
+        if (xa === xb) continue;
+        const da = /^\d+$/.test(xa), db = /^\d+$/.test(xb);
+        if (da && db) {
+            const na = parseInt(xa, 10), nb = parseInt(xb, 10);
+            if (na !== nb) return na - nb;
+            continue; // 数值相同（如 001 vs 1）保持稳定
+        }
+        return xa < xb ? -1 : 1;
+    }
+    return 0;
+}
+
 // ===== 渲染 =====
 function render() {
     if (!sessionData) return;
     let customers = sessionData.customers || [];
-    // 按VIP编号自动排序：有编号的按数值升序（33 < 100），无编号的排最后（保持添加顺序）
-    customers = [...customers].sort((a, b) => {
-        const av = a.vip_no === undefined || a.vip_no === null || a.vip_no === '' ? Infinity : parseFloat(a.vip_no);
-        const bv = b.vip_no === undefined || b.vip_no === null || b.vip_no === '' ? Infinity : parseFloat(b.vip_no);
-        if (av === Infinity && bv === Infinity) return 0;
-        if (av === Infinity) return 1;
-        if (bv === Infinity) return -1;
-        return av - bv;
-    });
+    // 按VIP编号自然排序：纯数字按数值（33 < 100），字母+数字混合也正确（A1 < A2 < A10 < B1），无编号排最后
+    customers = [...customers].sort((a, b) => vipNaturalCompare(a.vip_no, b.vip_no));
     const settings = getSettings();
     const act = settings.activity_type;
     const showGift = act === 'full_gift' || act === 'both';
@@ -1024,6 +1059,17 @@ function render() {
     document.getElementById('statTotalGmv').textContent = '¥' + Math.round(tg);
     document.getElementById('statTotalCost').textContent = CAN_SEE_PROFIT ? ('¥' + Math.round(tc)) : '—';
     document.getElementById('statTotalProfit').textContent = CAN_SEE_PROFIT ? ('¥' + Math.round(tp)) : '—';
+    syncBottomActionBar();
+}
+
+// 顶部操作栏滚出屏幕（客户多）→ 在最后一个客户下方显示底部操作栏
+function syncBottomActionBar() {
+    const top = document.getElementById('actionBar');
+    const bottom = document.getElementById('actionBarBottom');
+    if (!top || !bottom) return;
+    if (top.style.display === 'none') { bottom.style.display = 'none'; return; }
+    const r = top.getBoundingClientRect();
+    bottom.style.display = r.bottom <= 0 ? 'flex' : 'none';
 }
 
 // ===== 客户操作 =====
@@ -1088,13 +1134,20 @@ async function reloadSessionData() {
         const res = await fetch('../api/live_ledger_get_session.php?session_id=' + currentSessionId);
         const data = await res.json();
         if (!data.success) { toast(data.error || '加载失败', true); return; }
+        // 折叠状态双键记录：已保存客户用 id；刚新增（负数临时id）客户用 VIP 编号
+        // （场次内 VIP 编号必填且唯一），autoSave 同步真实 id 后仍能对上，不会被打断收起
         const collapsedMap = {};
-        (sessionData.customers || []).forEach(c => { collapsedMap[c.id] = !!c._collapsed; });
+        (sessionData.customers || []).forEach(c => {
+            if (c.id > 0) collapsedMap['id:' + c.id] = !!c._collapsed;
+            if (c.vip_no) collapsedMap['vip:' + c.vip_no] = !!c._collapsed;
+        });
         sessionData = data.data;
         otherReserved = data.data.other_reserved || {};
         (sessionData.customers || []).forEach(c => {
-            // 新数据里同 id 客户保留原折叠状态；新出现的客户默认收起
-            c._collapsed = collapsedMap[c.id] !== undefined ? collapsedMap[c.id] : true;
+            const byId = collapsedMap['id:' + c.id];
+            const byVip = c.vip_no ? collapsedMap['vip:' + c.vip_no] : undefined;
+            // 优先 id 匹配；id 对不上（新增客户刚同步真实 id）时用 VIP 匹配；两者皆无则默认收起
+            c._collapsed = byId !== undefined ? byId : (byVip !== undefined ? byVip : true);
         });
         render();
     } catch (e) { toast('加载失败: ' + e.message, true); }
@@ -1631,16 +1684,23 @@ function scheduleAutoSave() {
 async function saveAll() {
     if (!currentSessionId) { toast('请先选择场次'); return; }
     if (isReadOnly) { toast('已结束场次，不可修改'); return; }
-    // 记录当前折叠状态（保存后重载会丢失，需恢复）
+    // 记录当前折叠状态（保存后重载会丢失，需恢复）：
+    // 已保存客户用 id；刚新增（负数临时id）客户用 VIP 编号，同步真实 id 后仍能对上
     const collapsedMap = {};
-    (sessionData.customers || []).forEach(c => { collapsedMap[c.id] = !!c._collapsed; });
+    (sessionData.customers || []).forEach(c => {
+        if (c.id > 0) collapsedMap['id:' + c.id] = !!c._collapsed;
+        if (c.vip_no) collapsedMap['vip:' + c.vip_no] = !!c._collapsed;
+    });
     try {
         const ok = await doSave();
         if (ok) {
             await switchToSession(currentSessionId);
             // 恢复折叠状态
             (sessionData.customers || []).forEach(c => {
-                if (collapsedMap[c.id] !== undefined) c._collapsed = collapsedMap[c.id];
+                const byId = collapsedMap['id:' + c.id];
+                const byVip = c.vip_no ? collapsedMap['vip:' + c.vip_no] : undefined;
+                if (byId !== undefined) c._collapsed = byId;
+                else if (byVip !== undefined) c._collapsed = byVip;
             });
             render();
             toast('保存成功');
@@ -1747,6 +1807,9 @@ function psSearch() {
         }
     }, 300);
 }
+// 客户多、滚动时实时判断是否显示底部操作栏
+window.addEventListener('scroll', syncBottomActionBar, { passive: true });
+window.addEventListener('resize', syncBottomActionBar);
 </script>
 
 <!-- 右侧快捷查询：价格/库存 + 福袋记录（仅场次内显示） -->
