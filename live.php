@@ -203,9 +203,21 @@ html { font-size: clamp(8px, 1.1vmin, 24px); }
     border-radius: 0.7em; font-size: clamp(14px, 1.8vmin, 20px); display: none; z-index: 200;
     box-shadow: 0 6px 20px rgba(0,0,0,0.4);
 }
+
+/* ── 全屏控制 ── */
+#fsBtn {
+    position: fixed; top: 2vmin; right: 2vmin; z-index: 300;
+    background: rgba(30, 30, 50, 0.85); color: var(--text-secondary);
+    border: 0.1em solid var(--border); border-radius: 0.8em;
+    padding: 0.6em 1.2em; font-size: clamp(14px, 1.8vmin, 20px); cursor: pointer;
+    backdrop-filter: blur(8px); font-family: inherit;
+}
+#fsBtn:hover { color: var(--text); border-color: var(--primary); }
 </style>
 </head>
 <body>
+
+<button id="fsBtn" onclick="toggleFullscreen()" title="全屏">⛶ 全屏</button>
 
 <div id="stage">
     <!-- 初始画面 -->
@@ -351,9 +363,15 @@ function processQuery(raw) {
             if (data.data.mode === 'exact' && data.data.product) {
                 hideSearchResults();
                 displayProduct(data.data.product);
+                // 输入完成后清理输入框，方便下一次扫码
+                document.getElementById('barcodeInput').value = '';
             } else {
                 searchResults = data.data.products || [];
                 showSearchResults();
+                if (!searchResults.length) {
+                    // 无匹配结果也清空，避免残留干扰下一次输入
+                    document.getElementById('barcodeInput').value = '';
+                }
             }
         })
         .catch(() => showToast('❌ 查询失败'));
@@ -539,6 +557,52 @@ function showToast(msg) {
     toastTimer = setTimeout(() => { t.style.display = 'none'; }, 2500);
 }
 
+/* ================= 锁死全屏 ================= */
+let fsLocked = false; // 是否处于锁死全屏模式（Esc/系统退出会立即重进）
+function enterFullscreen() {
+    if (document.fullscreenElement) return;
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (req) req.call(el).catch(() => {});
+}
+function exitFullscreen() {
+    fsLocked = false;
+    const ex = document.exitFullscreen || document.webkitExitFullscreen;
+    if (ex) ex.call(document).catch(() => {});
+}
+function updateFsBtn() {
+    document.getElementById('fsBtn').textContent =
+        document.fullscreenElement ? '⛶ 退出全屏' : '⛶ 全屏';
+}
+function toggleFullscreen() {
+    if (document.fullscreenElement) {
+        exitFullscreen(); // 只有点这个按钮才解除锁死
+    } else {
+        fsLocked = true;
+        enterFullscreen();
+    }
+}
+document.addEventListener('fullscreenchange', function () {
+    updateFsBtn();
+    // 锁死：Esc / 系统手势退出全屏时立即重进
+    if (!document.fullscreenElement && fsLocked) {
+        enterFullscreen();
+    }
+});
+// 浏览器要求用户手势才允许全屏：加载后自动尝试，首次点击/触摸兜底重进
+function lockFullscreen() {
+    fsLocked = true;
+    updateFsBtn();
+    enterFullscreen();
+    const tryOnce = function () {
+        if (!document.fullscreenElement) enterFullscreen();
+        document.removeEventListener('click', tryOnce);
+        document.removeEventListener('touchstart', tryOnce);
+    };
+    document.addEventListener('click', tryOnce);
+    document.addEventListener('touchstart', tryOnce);
+}
+
 /* ================= 输入框焦点保持 ================= */
 /* 扫码枪 = 键盘输入：焦点丢失会导致扫码内容不进框，1 秒轮询强制回焦 */
 function keepInputFocus() {
@@ -587,6 +651,7 @@ loadSettings().then(() => {
     document.getElementById('barcodeInput').focus();
     startPolling();
 });
+lockFullscreen();
 setInterval(checkForConfigUpdates, 200);
 setInterval(keepInputFocus, 1000);
 </script>
