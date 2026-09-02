@@ -213,11 +213,20 @@ html { font-size: clamp(8px, 1.1vmin, 24px); }
     backdrop-filter: blur(8px); font-family: inherit;
 }
 #fsBtn:hover { color: var(--text); border-color: var(--primary); }
+/* 未进入全屏时的提示层（不拦截点击，首次触摸/点击即进全屏） */
+#fsHint {
+    position: fixed; inset: 0; z-index: 400; pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(10, 10, 15, 0.55);
+    font-size: clamp(24px, 4vmin, 48px); color: var(--text);
+    letter-spacing: 0.2em;
+}
 </style>
 </head>
 <body>
 
 <button id="fsBtn" onclick="toggleFullscreen()" title="全屏">⛶ 全屏</button>
+<div id="fsHint">点击屏幕进入全屏</div>
 
 <div id="stage">
     <!-- 初始画面 -->
@@ -570,9 +579,10 @@ function exitFullscreen() {
     const ex = document.exitFullscreen || document.webkitExitFullscreen;
     if (ex) ex.call(document).catch(() => {});
 }
-function updateFsBtn() {
-    document.getElementById('fsBtn').textContent =
-        document.fullscreenElement ? '⛶ 退出全屏' : '⛶ 全屏';
+function updateFsUI() {
+    const inFs = !!document.fullscreenElement;
+    document.getElementById('fsBtn').textContent = inFs ? '⛶ 退出全屏' : '⛶ 全屏';
+    document.getElementById('fsHint').style.display = inFs ? 'none' : 'flex';
 }
 function toggleFullscreen() {
     if (document.fullscreenElement) {
@@ -583,24 +593,25 @@ function toggleFullscreen() {
     }
 }
 document.addEventListener('fullscreenchange', function () {
-    updateFsBtn();
+    updateFsUI();
     // 锁死：Esc / 系统手势退出全屏时立即重进
     if (!document.fullscreenElement && fsLocked) {
         enterFullscreen();
     }
 });
-// 浏览器要求用户手势才允许全屏：加载后自动尝试，首次点击/触摸兜底重进
+// 浏览器强制要求用户手势才允许全屏：
+// 加载即自动尝试；未成功前，任何 pointerdown/touchstart 都重试，直到进入全屏
 function lockFullscreen() {
     fsLocked = true;
-    updateFsBtn();
+    updateFsUI();
     enterFullscreen();
-    const tryOnce = function () {
-        if (!document.fullscreenElement) enterFullscreen();
-        document.removeEventListener('click', tryOnce);
-        document.removeEventListener('touchstart', tryOnce);
+    const retry = function () {
+        if (!document.fullscreenElement) {
+            enterFullscreen();
+        }
     };
-    document.addEventListener('click', tryOnce);
-    document.addEventListener('touchstart', tryOnce);
+    document.addEventListener('pointerdown', retry);
+    document.addEventListener('touchstart', retry);
 }
 
 /* ================= 输入框焦点保持 ================= */
