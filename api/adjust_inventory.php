@@ -34,7 +34,7 @@ try {
         }
 
         $stmt = $pdo->prepare('
-            SELECT id, remaining_qty
+            SELECT id, remaining_qty, purchase_price
             FROM inventory_batches
             WHERE product_id = ? AND condition_type = ? AND remaining_qty > 0 AND store_id = ?
             ORDER BY purchased_at ASC, id ASC
@@ -89,6 +89,29 @@ try {
     $stmt = $pdo->prepare('SELECT SUM(remaining_qty) FROM inventory_batches WHERE product_id = ? AND condition_type = ? AND store_id = ?');
     $stmt->execute([$productId, $conditionType, $storeId]);
     $newStock = (int)$stmt->fetchColumn();
+
+    // 手动库存调整同样写入 inventory_log（正/负都留痕，操作人/备注可追溯）
+    $price = null;
+    if ($adjustQty < 0 && !empty($batches)) {
+        $price = isset($batches[0]['purchase_price']) ? $batches[0]['purchase_price'] : null;
+    } elseif ($adjustQty > 0 && $latest) {
+        $price = $latest['purchase_price'] ?? null;
+    }
+    $logStmt = $pdo->prepare('
+        INSERT INTO inventory_log (store_id, user_id, product_id, condition_type, change_type, qty_change, before_qty, after_qty, price, remark)
+        VALUES (?, ?, ?, ?, \'adjust\', ?, ?, ?, ?, ?)
+    ');
+    $logStmt->execute([
+        $storeId,
+        $_SESSION['user_id'] ?? null,
+        $productId,
+        $conditionType,
+        $adjustQty,
+        $currentStock,
+        $newStock,
+        $price,
+        $remark,
+    ]);
 
     $pdo->commit();
     success([

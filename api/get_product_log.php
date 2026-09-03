@@ -214,41 +214,36 @@ usort($logs, function ($a, $b) {
 });
 
 // 每条流水补「当前库存」= 该SKU（product+condition_type）在该事件发生后的库存
-// 正向累加法（2026-08-10 用户确认）：从有记录的最早事件开始，初始 0，
-// 按时间正序逐条累加，每条事件后的库存 = 累计值（clamp ≥ 0）
-//   —— 入库/调整正：加；出库/清零负：减
-//   —— 这样从有记录开始计算，不会出现负数
-// 2026-08-16 修正：批次入库行 qty_change = remaining + 累计出库（实际承载量，已含历史调整），
-//   因此 inventory_log 的 adjust 行若再累加会双算（编辑+1 → 批次行已含 +1，adjust 行再 +1 = 虚增）。
-//   adjust 行保留展示，当前库存直接用其 after_qty（该次调整后的实际库存），不参与累加；return/convert 仍正常累加。
+// 反向锚定法（2026-09-03 用户确认）：所有事件（入库/调整/出库/转换/退货）都参与加减，
+// 以「当前真实库存」为锚点从最新事件往回逐条还原：
+//   每条事件后的库存 = 锚点 + 其后所有事件数量变更之和
+//   调整不再特殊跳过，界面加减法自洽，最后一行必然等于数据库当前库存
 $byCond = [];
 foreach ($logs as $i => $log) {
     $byCond[$log['condition_type']][] = $i;
 }
 foreach ($byCond as $cond => $idxList) {
+    // 当前真实库存（该商品该状态全部批次 remaining 合计）作为锚点
+    $stmt = $pdo->prepare('SELECT COALESCE(SUM(remaining_qty),0) FROM inventory_batches WHERE product_id = ? AND condition_type = ?' . $storeCond);
+    $curParams = array_merge([$productId, $cond], $storeParams);
+    $stmt->execute($curParams);
+    $nowQty = (int)$stmt->fetchColumn();
+
     $evts = [];
     foreach ($idxList as $i) {
-        $isAdjust = ($logs[$i]['source'] ?? '') === 'inventory_log' && ($logs[$i]['change_type'] ?? '') === 'adjust';
-        if ($isAdjust) {
-            // adjust 行：当前库存 = after_qty（该次调整后的实际库存），不参与累加
-            $logs[$i]['current_stock'] = isset($logs[$i]['after_qty']) ? max((int)$logs[$i]['after_qty'], 0) : null;
-            continue;
-        }
         $evts[] = ['idx' => $i, 'time' => $logs[$i]['created_at'] ?? '', 'delta' => (int)$logs[$i]['qty_change']];
     }
-    // 时间正序；同时刻按业务顺序：先负（出库/清零）后正（入库/调整）
+    // 时间正序（同一时刻保持展示顺序稳定）
     usort($evts, function ($a, $b) {
         $c = strcmp($a['time'], $b['time']);
         if ($c !== 0) return $c;
-        $da = $a['delta'] <=> 0;
-        $db = $b['delta'] <=> 0;
-        if ($da !== $db) return $da < $db ? -1 : 1; // 负(-1) 排在 正(1) 前
         return $a['idx'] <=> $b['idx'];
     });
-    $running = 0;
-    foreach ($evts as $evt) {
-        $running += $evt['delta'];
-        $logs[$evt['idx']]['current_stock'] = max($running, 0);
+    // 从最新往回还原：每条事件后的库存 = 当前锚点 + 其后所有事件的变更和
+    $running = $nowQty;
+    for ($k = count($evts) - 1; $k >= 0; $k--) {
+        $logs[$evts[$k]['idx']]['current_stock'] = $running;
+        $running -= $evts[$k]['delta'];
     }
 }
 
