@@ -50,10 +50,16 @@ try {
     }
 
     $out = ['order' => [], 'racks' => []];
+    $meta = [];
     foreach ($racks as $r) {
         $out['order'][] = $r['code'];
         $out['racks'][$r['code']] = $cells[$r['id']] ?? [];
+        $meta[$r['code']] = [
+            'rows'     => max(1, min(10, (int)($r['row_count'] ?? 5))),
+            'big_cols' => max(1, min(10, (int)($r['big_col_count'] ?? 5))),
+        ];
     }
+    $out['meta'] = $meta;
     $out['admin'] = in_array($_SESSION['role'] ?? '', ['store_admin', 'super_admin']);
 
     // 店铺货架布局（不写死 5×5）：stores.rack_layout JSON {rows, big_cols}，NULL=默认

@@ -22,13 +22,18 @@ try {
             $code = trim((string)($input['code'] ?? ''));
             if ($code === '') error('请输入货架号');
             if (mb_strlen($code) > 50) error('货架号过长（最多50字符）');
+            // 每架独立布局：层数 / 每层大格数（1-10，默认 5）
+            $rows = (int)($input['rows'] ?? 5);
+            $bigCols = (int)($input['big_cols'] ?? 5);
+            if ($rows < 1 || $rows > 10) $rows = 5;
+            if ($bigCols < 1 || $bigCols > 10) $bigCols = 5;
             $stmt = $pdo->prepare('SELECT id FROM warehouse_racks WHERE code = ?' . ($storeId ? ' AND store_id = ?' : ''));
             $stmt->execute($storeId ? [$code, $storeId] : [$code]);
             if ($stmt->fetch()) error('货架「' . $code . '」已存在');
             $max = (int)$pdo->query('SELECT COALESCE(MAX(sort_order),0) FROM warehouse_racks' . ($storeId ? ' WHERE store_id = ' . (int)$storeId : ''))->fetchColumn();
-            $stmt = $pdo->prepare('INSERT INTO warehouse_racks (store_id, code, sort_order) VALUES (?,?,?)');
-            $stmt->execute([$storeId, $code, $max + 1]);
-            success(['message' => '货架「' . $code . '」已创建']);
+            $stmt = $pdo->prepare('INSERT INTO warehouse_racks (store_id, code, sort_order, row_count, big_col_count) VALUES (?,?,?,?,?)');
+            $stmt->execute([$storeId, $code, $max + 1, $rows, $bigCols]);
+            success(['message' => '货架「' . $code . '」已创建（' . $rows . '层 × ' . $bigCols . '大格）']);
         }
 
         case 'rename': {

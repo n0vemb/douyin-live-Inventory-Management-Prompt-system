@@ -121,7 +121,6 @@ body.rk-panel-open .rk-main{width:calc(100% - 330px)}
       <input class="rk-search" id="rkQ" placeholder="搜索商品名称 / 常用名 / 条码 / 拼音（如 kbs → 卡比兽）…" autocomplete="off">
       <?php if ($isAdmin): ?>
         <button class="btn btn-primary btn-sm" onclick="addRack()">+ 新增货架</button>
-        <button class="btn btn-secondary btn-sm" onclick="rkLayoutSet()">布局设置</button>
       <?php endif; ?>
     </div>
     <div class="rk-result" id="rkResult"></div>
@@ -165,7 +164,7 @@ body.rk-panel-open .rk-main{width:calc(100% - 330px)}
 <div id="toast" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg-elevated);color:var(--text);padding:10px 18px;border-radius:10px;font-size:13px;z-index:3000;display:none;border:1px solid var(--border)"></div>
 
 <script>
-let rkRacks={}, rkOrder=[], rkAdmin=false, rkIdx=[], rkLayout={rows:5,big_cols:5}, upItems=[];
+let rkRacks={}, rkOrder=[], rkAdmin=false, rkIdx=[], rkLayout={rows:5,big_cols:5}, rkMeta={}, upItems=[];
 const $id=id=>document.getElementById(id);
 let rkToastT;
 function rkToast(m){const t=$id('toast');t.textContent=m;t.style.display='block';clearTimeout(rkToastT);rkToastT=setTimeout(()=>t.style.display='none',2200);}
@@ -178,9 +177,15 @@ async function rkLoad(){
     const d=await res.json();
     if(!d.success)throw new Error(d.error||'加载失败');
     rkRacks=d.racks||{}; rkOrder=(d.order||[]).slice(); rkAdmin=!!d.admin;
+    rkMeta=d.meta||{};
     rkLayout=(d.layout&&d.layout.rows&&d.layout.big_cols)?d.layout:{rows:5,big_cols:5};
     buildIdx(); rkRender(); rkSearch(); loadUnplaced();
   }catch(e){ $id('rkList').innerHTML='<div class="rk-empty">加载失败：'+esc(e.message)+'</div>'; }
+}
+// 某货架的独立布局（新建时手动设置；无数据回退店铺默认）
+function rackLayoutOf(rack){
+  const m=rkMeta[rack];
+  return (m&&m.rows&&m.big_cols)?{rows:m.rows,big_cols:m.big_cols}:rkLayout;
 }
 
 // ---------- 渲染 ----------
@@ -213,10 +218,11 @@ function rkRender(){
         '<button class="btn btn-sm btn-secondary" onclick="rkDel(\''+esc(rack)+'\')">删除</button>'+
         '</div>' : '';
     let rowsHtml='';
-    for(let row=rkLayout.rows;row>=1;row--){
+    const lay=rackLayoutOf(rack);
+    for(let row=lay.rows;row>=1;row--){
       const rowData=rkRacks[rack][String(row)]||{};
       let bigs='';
-      for(let b=1;b<=rkLayout.big_cols;b++){
+      for(let b=1;b<=lay.big_cols;b++){
         const p1=b*2-1,p2=b*2;
         const c1=rowData[String(p1)],c2=rowData[String(p2)];
         if(c1&&c1.span===2) bigs+=rkBigFull(rack,row,p1,c1);
@@ -318,12 +324,14 @@ function rkPickSel(id,el){
 // 录入
 function rkPut(rack,row,pos){
   $id('rkPutTitle').textContent='录入商品 · '+rack+' 第'+row+'层';
+  const lay=rackLayoutOf(rack), maxPos=lay.big_cols*2;
   $id('rkPutBody').innerHTML=
     '<div class="rk-ps" style="margin-bottom:12px;"><input id="rkPick" class="form-input" placeholder="输入名称/拼音/条码搜索商品…" autocomplete="off"><div class="rk-ps-list" id="rkPickList"></div></div>'+
     '<div class="rk-flex" style="margin-bottom:12px;">'+
-      '<div style="flex:1;min-width:120px;"><label>起始格</label><input id="rkPos" class="form-input" type="number" value="'+pos+'" min="1" max="10"></div>'+
+      '<div style="flex:1;min-width:120px;"><label>起始格</label><input id="rkPos" class="form-input" type="number" value="'+pos+'" min="1" max="'+maxPos+'"></div>'+
       '<div style="flex:1;min-width:150px;"><label>占格</label><select id="rkSpan" class="form-input"><option value="1">半大格（1小格）</option><option value="2">整大格（2小格）</option></select></div>'+
     '</div>'+
+    '<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px;line-height:1.6">本货架 '+lay.rows+' 层 × '+lay.big_cols+' 大格（格位 1-'+maxPos+'）</div>'+
     '<div style="margin-bottom:14px;"><label>备注（选填）</label><input id="rkNote" class="form-input" type="text" placeholder="如：第一批"></div>'+
     '<div class="rk-flex right"><button class="btn btn-outline" onclick="rkPutClose()">取消</button><button class="btn btn-primary" onclick="rkPutSave(\''+esc(rack)+'\','+row+')">保存</button></div>'+
     '<div class="rk-msg" id="rkMsg"></div>';
@@ -334,7 +342,8 @@ function rkPutClose(){ $id('rkPutModal').classList.remove('show'); }
 async function rkPutSave(rack,row){
   const msg=$id('rkMsg');
   if(!rkPickProduct){msg.textContent='请先选择商品';msg.className='rk-msg err';return;}
-  const maxPos=rkLayout.big_cols*2;
+  const lay=rackLayoutOf(rack);
+  const maxPos=lay.big_cols*2;
   const pos=+$id('rkPos').value, span=+$id('rkSpan').value, note=$id('rkNote').value.trim();
   if(!pos||pos<1||pos>maxPos){msg.textContent='格位需在 1-'+maxPos;msg.className='rk-msg err';return;}
   if(span===2&&pos%2!==1){msg.textContent='整大格必须从奇数格开始（1/3/5…）';msg.className='rk-msg err';return;}
@@ -376,10 +385,24 @@ async function rkSplit(rack,row,pos){
 }
 // 货架管理
 function addRack(){
-  const code=prompt('新货架编号（如 A / B / C1）：');
-  if(code===null)return;
-  const c=code.trim(); if(!c)return;
-  rkApi('rack_manage.php',{action:'add_rack',code:c}).then(d=>{if(d&&d.success){rkToast(d.message);rkLoad();}});
+  rkOpen('新建货架',
+    '<div style="margin-bottom:12px;"><label>货架编号</label><input id="rkCode" class="form-input" placeholder="如：A / B / C1"></div>'+
+    '<div class="rk-flex" style="margin-bottom:12px;">'+
+      '<div style="flex:1;min-width:120px;"><label>层数</label><input id="rkRows" class="form-input" type="number" value="'+rkLayout.rows+'" min="1" max="10"></div>'+
+      '<div style="flex:1;min-width:140px;"><label>每层大格数</label><input id="rkBig" class="form-input" type="number" value="'+rkLayout.big_cols+'" min="1" max="10"></div>'+
+    '</div>'+
+    '<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:14px;line-height:1.6">每大格可放 1 个整格商品（占 2 小格）或 2 个半格商品（各占 1 小格）。修改布局后超出范围的格子不会显示，需重新录入。不同货架可分别设置层数/格数以匹配各类型货架。</div>'+
+    '<div class="rk-flex right"><button class="btn btn-outline" onclick="rkClose()">取消</button><button class="btn btn-primary" onclick="rkAddSave()">创建货架</button></div>'+
+    '<div class="rk-msg" id="rkMsg"></div>');
+}
+async function rkAddSave(){
+  const msg=$id('rkMsg');
+  const code=$id('rkCode').value.trim();
+  const rows=+$id('rkRows').value, big=+$id('rkBig').value;
+  if(!code){msg.textContent='请输入货架编号';msg.className='rk-msg err';return;}
+  if(!rows||rows<1||rows>10||!big||big<1||big>10){msg.textContent='层数/每层大格数需在 1-10';msg.className='rk-msg err';return;}
+  const d=await rkApi('rack_manage.php',{action:'add_rack',code,rows,big_cols:big});
+  if(d&&d.success){rkClose();rkToast(d.message);rkLoad();}
 }
 // 布局设置（每店铺可不同，不写死 5×5）
 function rkLayoutSet(){

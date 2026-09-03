@@ -42,21 +42,16 @@ try {
         return null;
     };
 
-    // 店铺布局（不写死 5×5）：stores.rack_layout，NULL=默认 5层×5大格（10小格）
-    $layout = ['rows' => 5, 'big_cols' => 5];
-    if ($storeId) {
-        $stmt = $pdo->prepare('SELECT rack_layout FROM stores WHERE id = ?');
-        $stmt->execute([$storeId]);
-        $rl = $stmt->fetchColumn();
-        if ($rl) {
-            $d = json_decode($rl, true);
-            if (is_array($d)) {
-                if (!empty($d['rows'])) $layout['rows'] = max(1, min(10, (int)$d['rows']));
-                if (!empty($d['big_cols'])) $layout['big_cols'] = max(1, min(10, (int)$d['big_cols']));
-            }
-        }
-    }
-    $maxPos = $layout['big_cols'] * 2;
+    // 每架独立布局（新建货架时设置）：warehouse_racks.row_count / big_col_count，默认 5×5
+    $getRackLayout = function ($rackId) use ($pdo) {
+        $stmt = $pdo->prepare('SELECT row_count, big_col_count FROM warehouse_racks WHERE id = ?');
+        $stmt->execute([$rackId]);
+        $r = $stmt->fetch();
+        return [
+            'rows'     => isset($r['row_count']) ? max(1, min(10, (int)$r['row_count'])) : 5,
+            'big_cols' => isset($r['big_col_count']) ? max(1, min(10, (int)$r['big_col_count'])) : 5,
+        ];
+    };
 
     switch ($action) {
         case 'put': {
@@ -66,16 +61,20 @@ try {
             $span = (int)($input['span'] ?? 1);
             $productId = (int)($input['product_id'] ?? 0);
             $note = trim((string)($input['note'] ?? ''));
-            if ($code === '' || $row < 1 || $row > $layout['rows']) error('货架/层参数错误（本店 ' . $layout['rows'] . ' 层）');
+            if ($code === '') error('请输入货架号');
+            $rackId = $getRackId($code);
+            $lay = $getRackLayout($rackId);
+            $rows = $lay['rows'];
+            $maxPos = $lay['big_cols'] * 2;
+            if ($row < 1 || $row > $rows) error('层参数错误（本货架 ' . $rows . ' 层）');
             if ($pos < 1 || $pos > $maxPos) error('格位需在 1-' . $maxPos);
             if ($span !== 1 && $span !== 2) error('占格数只能为 1 或 2');
-            if ($span === 2 && $pos % 2 !== 1) error('整大格（占2格）必须从奇数格位开始（1/3/5/7/9）');
+            if ($span === 2 && $pos % 2 !== 1) error('整大格（占2格）必须从奇数格位开始（1/3/5…）');
             if ($productId <= 0) error('请选择商品');
             // 商品必须存在且属于本店
             $stmt = $pdo->prepare('SELECT id FROM products WHERE id = ?' . ($storeId ? ' AND store_id = ?' : ''));
             $stmt->execute($storeId ? [$productId, $storeId] : [$productId]);
             if (!$stmt->fetch()) error('商品不存在或不属于本店铺');
-            $rackId = $getRackId($code);
 
             $to = $pos + $span - 1;
             $conflict = $checkConflict($rackId, $row, $pos, $to);
@@ -90,8 +89,10 @@ try {
             $code = trim((string)($input['rack'] ?? ''));
             $row = (int)($input['row'] ?? 0);
             $pos = (int)($input['pos'] ?? 0);
-            if ($code === '' || $row < 1 || $row > $layout['rows'] || $pos < 1 || $pos > $maxPos) error('参数错误');
+            if ($code === '') error('参数错误');
             $rackId = $getRackId($code);
+            $lay = $getRackLayout($rackId);
+            if ($row < 1 || $row > $lay['rows'] || $pos < 1 || $pos > $lay['big_cols'] * 2) error('参数错误');
             $stmt = $pdo->prepare('DELETE FROM warehouse_rack_cells WHERE rack_id = ? AND row_no = ? AND pos_no = ?');
             $stmt->execute([$rackId, $row, $pos]);
             if ($stmt->rowCount() === 0) error('该格无商品');
@@ -102,8 +103,10 @@ try {
             $code = trim((string)($input['rack'] ?? ''));
             $row = (int)($input['row'] ?? 0);
             $pos = (int)($input['pos'] ?? 0);
-            if ($code === '' || $row < 1 || $row > $layout['rows'] || $pos < 1 || $pos > $maxPos) error('参数错误');
+            if ($code === '') error('参数错误');
             $rackId = $getRackId($code);
+            $lay = $getRackLayout($rackId);
+            if ($row < 1 || $row > $lay['rows'] || $pos < 1 || $pos > $lay['big_cols'] * 2) error('参数错误');
             $stmt = $pdo->prepare('SELECT id, span FROM warehouse_rack_cells WHERE rack_id = ? AND row_no = ? AND pos_no = ?');
             $stmt->execute([$rackId, $row, $pos]);
             $cell = $stmt->fetch();
@@ -120,12 +123,14 @@ try {
             $row = (int)($input['row'] ?? 0);
             $pos = (int)($input['pos'] ?? 0);
             $productId = (int)($input['product_id'] ?? 0);
-            if ($code === '' || $row < 1 || $row > $layout['rows'] || $pos < 1 || $pos > $maxPos) error('参数错误');
+            if ($code === '') error('参数错误');
+            $rackId = $getRackId($code);
+            $lay = $getRackLayout($rackId);
+            if ($row < 1 || $row > $lay['rows'] || $pos < 1 || $pos > $lay['big_cols'] * 2) error('参数错误');
             if ($productId <= 0) error('请选择商品');
             $stmt = $pdo->prepare('SELECT id FROM products WHERE id = ?' . ($storeId ? ' AND store_id = ?' : ''));
             $stmt->execute($storeId ? [$productId, $storeId] : [$productId]);
             if (!$stmt->fetch()) error('商品不存在或不属于本店铺');
-            $rackId = $getRackId($code);
 
             $stmt = $pdo->prepare('SELECT id, product_id FROM warehouse_rack_cells WHERE rack_id = ? AND row_no = ? AND pos_no = ?');
             $stmt->execute([$rackId, $row, $pos]);
