@@ -278,6 +278,8 @@ requireAuth(); $storeId = getStoreId();
             throw new Exception('预览数据保存失败（目录不可写）');
         }
         @chmod(impPlanPath($storeId, $token), 0666);
+        // 留档保留 30 天：本次导入后顺带清理该店铺目录里超期的文件
+        impCleanOld($storeId, 30);
 
         outputJson([
             'success' => true,
@@ -707,6 +709,19 @@ function impBackupDir($storeId) {
 
 function impPlanPath($storeId, $token) {
     return impBackupDir($storeId) . '/' . $token . '.json';
+}
+
+/** 清理该店铺留档目录中超过 N 天的文件（原始文件 + 记录 JSON） */
+function impCleanOld($storeId, $days = 30) {
+    $dir = impBackupDir($storeId);
+    if (!is_dir($dir)) return;
+    $cut = strtotime('-' . max(1, (int)$days) . ' days');
+    if ($cut === false) return;
+    foreach (glob($dir . '/*') ?: [] as $f) {
+        if (is_file($f) && filemtime($f) < $cut) {
+            @unlink($f);
+        }
+    }
 }
 
 function impSafeName($n) {
