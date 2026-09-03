@@ -102,6 +102,12 @@ $isOperator = ($currentUser['role'] === 'operator');
 .hp-canvas .hiprint-printTemplate{min-height:40px}
 .hp-canvas .hiprint-printTemplate,.hp-canvas .hiprint-printTemplate .hiprint-printPaper{background:#fff !important}
 .hp-canvas .hiprint-printTemplate .hiprint-printPaper{box-shadow:0 0 0 1px #d7dcea}
+/* 隐藏纸张上下页眉/页脚参考线（易误触，无实际用途） */
+.hp-canvas .hiprint-headerLine,
+.hp-canvas .hiprint-footerLine{display:none !important}
+/* 元素框线调细（随画布缩放会等比放大，0.5px 在缩放后仍保持纤细观感） */
+.hp-canvas .hiprint-printElement-text-content{border-width:.5px !important}
+.hp-canvas .resize-panel{border-width:.5px !important}
 /* 画布缩放时，设计控件反向缩放保持屏幕恒定大小（纸面内容随 zoom 放大，选中框/圆点/删除钮/pt标签/页码不能跟着变大） */
 .hp-canvas .size-box,
 .hp-canvas .del-btn,
