@@ -72,11 +72,14 @@ if (!empty($productIds)) {
         FROM inventory_batches
         WHERE product_id IN ({$placeholders})
         {$storeFilter}
-        ORDER BY purchased_at DESC
+        ORDER BY purchased_at DESC, id DESC
     ");
     $stmt->execute($batchParams);
     $allBatches = $stmt->fetchAll();
 
+    // 每 (商品, SKU) 聚合：在库总数 / 最新在库批次售价 / 批次加权均价(SKU均价)
+    // SKU均价 = Σ(在库批次售价 × 该批次在库数量) ÷ 该SKU在库总数量（仅统计有售价的在库批次）
+    $skuAgg = [];
     foreach ($allBatches as $b) {
         if (!isset($batchesData[$b['product_id']])) {
             $batchesData[$b['product_id']] = [];
@@ -89,11 +92,35 @@ if (!empty($productIds)) {
                 'total_stock' => 0,
                 'batch_count' => 0,
                 'suggested_price' => $b['suggested_price'],
-                'purchase_price' => $b['purchase_price']
+                'purchase_price' => $b['purchase_price'],
+                'latest_price' => null,
+                'avg_price' => null,
             ];
         }
         $inventoryData[$key]['total_stock'] += $b['remaining_qty'];
         $inventoryData[$key]['batch_count']++;
+
+        // 最新在库批次售价：批次已按 purchased_at DESC,id DESC 排序，首个「有库存且有售价」即最新
+        if ($b['remaining_qty'] > 0 && !empty($b['suggested_price'])) {
+            $aggKey = $key;
+            if (!isset($skuAgg[$aggKey])) {
+                $skuAgg[$aggKey] = ['latest' => null, 'sum_pq' => 0.0, 'priced_qty' => 0];
+            }
+            if ($skuAgg[$aggKey]['latest'] === null) {
+                $skuAgg[$aggKey]['latest'] = (float)$b['suggested_price'];
+            }
+            $qty = (int)$b['remaining_qty'];
+            $skuAgg[$aggKey]['sum_pq'] += (float)$b['suggested_price'] * $qty;
+            $skuAgg[$aggKey]['priced_qty'] += $qty;
+        }
+    }
+    foreach ($skuAgg as $key => $agg) {
+        if (isset($inventoryData[$key])) {
+            $inventoryData[$key]['latest_price'] = $agg['latest'];
+            $inventoryData[$key]['avg_price'] = $agg['priced_qty'] > 0
+                ? round($agg['sum_pq'] / $agg['priced_qty'], 2)
+                : null;
+        }
     }
 
     // 每个商品的最新入库时间（批次按 purchased_at DESC 排序，第一个即最新）

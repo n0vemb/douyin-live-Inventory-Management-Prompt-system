@@ -55,9 +55,10 @@ $isOperator = ($currentUser['role'] === 'operator');
                 <th class="pm-sortable" onclick="sortProductsBy('name')">商品名称 / 条码 <span class="pm-arrow" id="ar-name"></span></th>
                 <th class="pm-sortable" onclick="sortProductsBy('series')">系列 <span class="pm-arrow" id="ar-series"></span></th>
                 <th class="pm-sortable" onclick="sortProductsBy('brand')">品牌 <span class="pm-arrow" id="ar-brand"></span></th>
-                <th>状态分布</th>
+                <th>SKU 在库数量</th>
+                <th>SKU 最新售价</th>
+                <th>SKU 均价 <span style="font-size:11px;font-weight:400;color:var(--text-tertiary);">（批次加权）</span></th>
                 <th class="pm-sortable" onclick="sortProductsBy('stock')">库存 <span class="pm-arrow" id="ar-stock"></span></th>
-                <th class="pm-sortable" onclick="sortProductsBy('suggested_price')">售价 <span class="pm-arrow" id="ar-suggested_price"></span></th>
                 <th class="pm-no-sort">操作</th>
             </tr>
         </thead>
@@ -476,6 +477,11 @@ $isOperator = ($currentUser['role'] === 'operator');
 .pm-warn-dot.out{background:var(--danger);}
 .pm-warn-dot.ok{background:var(--success);}
 .pm-price{font-variant-numeric:tabular-nums;font-weight:600;color:var(--success);}
+/* SKU 明细三列：每 SKU 一行，固定行高保证跨列对齐 */
+.pm-sku-line{display:flex;align-items:center;gap:8px;min-height:28px;white-space:nowrap;}
+.pm-sku-line .condition-badge{min-width:72px;text-align:center;}
+.pm-sku-qty{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;color:var(--text);}
+.pm-sku-empty{font-size:12px;color:var(--text-tertiary);}
 .pm-row-actions{display:flex;gap:6px;flex-wrap:wrap;}
 /* 24小时内新入库商品：柔和青色底（暗黑主题适配，区别于库存警告色） */
 .pm-row-newin{background:rgba(56,189,248,0.06);}
@@ -745,8 +751,17 @@ function renderProducts(products) {
         const barcodeHtml = `<div class="pm-barcode">${escapeHtml(p.barcode)}</div>`;
         const seriesHtml = p.series ? `<span class="pm-series-tag">${escapeHtml(p.series)}</span>` : '<span class="pm-pcommon">-</span>';
         const brandHtml = p.brand ? escapeHtml(p.brand) : '<span class="pm-pcommon">-</span>';
-        const badges = renderBadges(p.inventory_summary);
-        const price = p.overall_suggested_price ? '¥' + parseFloat(p.overall_suggested_price).toFixed(2) : '-';
+        // SKU 明细三列：同一 SKU 顺序与行高，跨列对齐
+        const skuLines = getSkuLines(p.inventory_summary);
+        const skuQtyHtml = skuLines.length
+            ? skuLines.map(l => `<div class="pm-sku-line"><span class="condition-badge ${getCondColor(l.key)}">${escapeHtml(getCN(l.key))}</span><span class="pm-sku-qty">${l.qty}</span></div>`).join('')
+            : '<span class="pm-sku-empty">暂无库存</span>';
+        const skuLatestHtml = skuLines.length
+            ? skuLines.map(l => `<div class="pm-sku-line pm-price">${fmtSkuPrice(l.latest)}</div>`).join('')
+            : '<span class="pm-sku-empty">-</span>';
+        const skuAvgHtml = skuLines.length
+            ? skuLines.map(l => `<div class="pm-sku-line pm-price">${fmtSkuPrice(l.avg)}</div>`).join('')
+            : '<span class="pm-sku-empty">-</span>';
         const checked = selectedIds.has(p.id) ? 'checked' : '';
         // 24小时内新入库：行底色柔和高亮（区分新入库商品）
         let newInClass = '';
@@ -760,9 +775,10 @@ function renderProducts(products) {
             <td><div style="cursor:pointer;" onclick="openDrawer(${p.id})">${nameHtml}${barcodeHtml}</div></td>
             <td>${seriesHtml}</td>
             <td>${brandHtml}</td>
-            <td>${badges}</td>
+            <td>${skuQtyHtml}</td>
+            <td>${skuLatestHtml}</td>
+            <td>${skuAvgHtml}</td>
             <td><span class="pm-warn-dot ${sc}"></span><span class="pm-stock-total">${t}</span></td>
-            <td class="pm-price">${price}</td>
             <td>
                 <div class="pm-row-actions">
                     <button class="btn btn-sm btn-primary" onclick="openDrawer(${p.id})">库存</button>
@@ -777,15 +793,20 @@ function renderProducts(products) {
     }).join('');
 }
 
-function renderBadges(inventory) {
-    if (!inventory || Object.keys(inventory).length === 0) return '<span class="pm-pcommon">暂无库存</span>';
-    return getConditionKeys().map(k => {
-        if (!inventory[k]) return '';
-        const q = inventory[k].total_stock || 0;
-        if (q === 0) return '';
-        const cls = q <= 2 ? 'stock-low' : '';
-        return `<span class="condition-badge ${getCondColor(k)}" style="margin:2px;">${escapeHtml(getCN(k))}: <span class="${cls}">${q}</span></span>`;
-    }).join(' ');
+// SKU 明细行数据：按店铺品相配置顺序，仅取有在库的 SKU（三列共用同一顺序对齐）
+function getSkuLines(inventory) {
+    const lines = [];
+    getConditionKeys().forEach(k => {
+        const it = inventory && inventory[k];
+        const q = (it && it.total_stock) || 0;
+        if (q <= 0) return;
+        lines.push({ key: k, qty: q, latest: it.latest_price, avg: it.avg_price });
+    });
+    return lines;
+}
+
+function fmtSkuPrice(v) {
+    return (v === null || v === undefined || v === '') ? '-' : '¥' + parseFloat(v).toFixed(2);
 }
 
 /* ---------- 详情抽屉 ---------- */
