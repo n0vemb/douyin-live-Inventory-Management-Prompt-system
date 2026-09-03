@@ -293,14 +293,17 @@ $isOperator = ($currentUser['role'] === 'operator');
 
 <!-- ============ 批量导入 ============ -->
 <div class="modal" id="importModal">
-    <div class="modal-content pm-modal-wide" style="width:min(1240px,96vw); max-width:none; max-height:94vh; display:flex; flex-direction:column; overflow:hidden;">
+    <div class="modal-content pm-modal-wide" style="width:min(1280px,98vw); max-width:none; max-height:calc(100vh - 14px); display:flex; flex-direction:column; overflow:hidden; padding:14px 18px;">
         <div class="modal-header">
             <h3 class="modal-title">批量导入（Excel / CSV）</h3>
             <button class="modal-close" onclick="closeImportModal()">&times;</button>
         </div>
-        <div style="font-size:12px; color:var(--text-tertiary); margin-bottom:15px; line-height:1.7;">
+        <div id="importHint" style="font-size:12px; color:var(--text-tertiary); margin-bottom:10px; line-height:1.6;">
             支持 .xlsx / .csv，格式与「库存导出」一致：<b>每个商品一行</b>，列 = 商品名称、常用名称、系列、品牌、条码、参考价、发售时间、产品介绍、图片链接，<b>每个 SKU 状态各占 数量 / 进价 / 售价 三列</b>（如：未拆袋数量、未拆袋进价、未拆袋售价…），最后加 供应商、备注。<br>
             有数量的 SKU 才会入库；同条码/同名商品自动匹配补库存，不重复建商品。
+        </div>
+        <div style="margin-bottom:8px;">
+            <button type="button" class="btn btn-sm btn-outline" style="padding:2px 10px;font-size:12px;" onclick="toggleImportHint()">收起/展开格式说明</button>
         </div>
         <div style="display:flex; gap:15px; margin-bottom:15px;">
             <button class="btn btn-secondary" onclick="downloadTemplate()">下载导入模板</button>
@@ -546,9 +549,11 @@ $isOperator = ($currentUser['role'] === 'operator');
 .pm-imp-prev th{background:var(--bg-hover);position:sticky;top:0;}
 .pm-imp-err{color:var(--danger);font-size:12px;margin-top:8px;white-space:pre-line;}
 .pm-modal-wide{max-width:640px;}
-#importModal .modal-content{width:min(1240px,96vw); max-width:none; max-height:94vh; display:flex; flex-direction:column; overflow:hidden;}
+#importModal .modal-content{width:min(1280px,98vw); max-width:none; max-height:calc(100vh - 14px); display:flex; flex-direction:column; overflow:hidden;}
 #importModal #importResult{flex:1; min-height:0; overflow:auto;}
-#importModal #importResult .pm-imp-cmp{white-space:nowrap;}
+#importModal #importResult .pm-imp-cmp{white-space:nowrap; border-collapse:collapse; width:100%; font-size:12px;}
+#importModal #importResult .pm-imp-cmp th{position:sticky; top:0; z-index:2; background:var(--bg-hover,#eef2ff); padding:6px 10px; text-align:left;}
+#importModal #importResult .pm-imp-cmp td{padding:5px 10px; border-top:1px solid var(--border,#e5e7eb); vertical-align:top;}
 </style>
 
 <script>
@@ -1871,6 +1876,10 @@ function openImportModal() {
     $('importResult').innerHTML = '';
     $('importErr').textContent = '';
     $('importFile').value = '';
+    const h = $('importHint');
+    if (h) h.style.display = 'none';
+    const t = document.querySelector('#importModal button[onclick="toggleImportHint()"]');
+    if (t) t.textContent = '展开格式说明';
     showModal('importModal');
 }
 function closeImportModal() {
@@ -1878,6 +1887,14 @@ function closeImportModal() {
     const b = $('impConfirmBtn');
     if (b) { b.style.display = 'none'; b.disabled = false; b.textContent = '确认入库'; }
     window._impToken = '';
+}
+function toggleImportHint() {
+    const h = $('importHint');
+    if (!h) return;
+    const show = h.style.display === 'none';
+    h.style.display = show ? '' : 'none';
+    const t = document.querySelector('#importModal button[onclick="toggleImportHint()"]');
+    if (t) t.textContent = show ? '收起格式说明' : '展开格式说明';
 }
 function downloadTemplate() {
     // 表头：商品基础信息 + 每个状态 数量/进价/售价 三列 + 供应商/备注（与导出格式一致）
