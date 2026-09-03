@@ -293,7 +293,7 @@ $isOperator = ($currentUser['role'] === 'operator');
 
 <!-- ============ 批量导入 ============ -->
 <div class="modal" id="importModal">
-    <div class="modal-content pm-modal-wide">
+    <div class="modal-content pm-modal-wide" style="width:min(1240px,96vw); max-width:none; max-height:94vh; display:flex; flex-direction:column; overflow:hidden;">
         <div class="modal-header">
             <h3 class="modal-title">批量导入（Excel / CSV）</h3>
             <button class="modal-close" onclick="closeImportModal()">&times;</button>
@@ -546,6 +546,9 @@ $isOperator = ($currentUser['role'] === 'operator');
 .pm-imp-prev th{background:var(--bg-hover);position:sticky;top:0;}
 .pm-imp-err{color:var(--danger);font-size:12px;margin-top:8px;white-space:pre-line;}
 .pm-modal-wide{max-width:640px;}
+#importModal .modal-content{width:min(1240px,96vw); max-width:none; max-height:94vh; display:flex; flex-direction:column; overflow:hidden;}
+#importModal #importResult{flex:1; min-height:0; overflow:auto;}
+#importModal #importResult .pm-imp-cmp{white-space:nowrap;}
 </style>
 
 <script>
@@ -1929,7 +1932,7 @@ function renderImportPreview(data) {
             <span style="font-size:12px;color:var(--text-tertiary);margin-left:8px;">请核对下方比对结果，确认无误再点「确认入库」；格式有问题可直接关闭后重新上传</span>
         </div>
         ${data.file_bak ? `<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px;">原文件已留档备查：<code>${escapeHtml(data.file_bak)}</code></div>` : ''}
-        <div style="max-height:46vh; overflow:auto; border:1px solid var(--border); border-radius:8px;">
+        <div style="border:1px solid var(--border); border-radius:8px;">
             <table class="pm-import-cmp" style="width:100%; border-collapse:collapse; font-size:12px;">
                 <thead><tr style="background:var(--bg-hover);">
                     <th style="padding:7px 8px; text-align:left;">Excel行</th>
@@ -1997,7 +2000,7 @@ function renderImportResult(data) {
     let html = `<div style="padding:14px 16px;">
         <div style="color:var(--success); font-size:15px; margin-bottom:10px;">导入完成：成功 ${data.success_count} 个 / 共处理 ${data.total_count} 个</div>
         ${data.file_bak ? `<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px;">原文件已留档备查：<code>${escapeHtml(data.file_bak)}</code></div>` : ''}
-        <div style="max-height:44vh; overflow:auto; border:1px solid var(--border); border-radius:8px;">
+        <div style="border:1px solid var(--border); border-radius:8px;">
             <table class="pm-import-cmp" style="width:100%; border-collapse:collapse; font-size:12px;">
                 <thead><tr style="background:var(--bg-hover);">
                     <th style="padding:7px 8px; text-align:left;">Excel行</th>
