@@ -951,6 +951,7 @@ function render() {
     const showReduce = act === 'full_reduce' || act === 'both';
     const list = document.getElementById('customerList');
     list.innerHTML = '';
+    const parts = []; // 一次拼装再整体写入，避免逐客户 innerHTML += 的 O(n²) 卡顿
 
     customers.forEach(c => {
         const m = calcCustomer(c);
@@ -1013,7 +1014,7 @@ function render() {
         // 满赠提示：满赠活动开启 且 购买数量达到赠品门槛 且 尚未添加赠品
         const needsGift = showGift && m.totalQty >= giftEveryN && !(c.gifts || []).length;
 
-        list.innerHTML += `
+        parts.push(`
             <div class="customer ${collapsed ? 'collapsed' : 'active'} ${needsGift ? 'needs-gift' : ''}" id="cust_${c.id}">
                 <div class="customer-header" onclick="toggleCustomer(${c.id})">
                     <span class="toggle-arrow">▼</span>
@@ -1046,8 +1047,9 @@ function render() {
                     </div>`}
                     ${metrics}
                 </div>
-            </div>`;
+            </div>`);
     });
+    list.innerHTML = parts.join('');
 
     let tq = 0, tg = 0, tc = 0, tp = 0;
     // 根据场次活动类型决定顶部毛利口径：none→无活动 / full_gift→满赠 / full_reduce→满减 / both→满减+满赠
