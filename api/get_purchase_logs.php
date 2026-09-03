@@ -49,28 +49,37 @@ try {
     $params = [];
     if ($storeId) $params[] = $storeId;
 
-    if ($startDate) {
-        $sql .= " AND COALESCE(ib.purchased_at, ib.created_at) >= ?";
-        $params[] = $startDate . " 00:00:00";
-    }
-
-    if ($endDate) {
-        $sql .= " AND COALESCE(ib.purchased_at, ib.created_at) <= ?";
-        $params[] = $endDate . " 23:59:59";
-    }
-
     if ($keyword) {
         $sql .= " AND (p.name LIKE ? OR p.common_name LIKE ? OR p.barcode LIKE ? OR p.pinyin_initials LIKE ?)";
         $likeKeyword = "%$keyword%";
-        $params[] = $likeKeyword;
-        $params[] = $likeKeyword;
-        $params[] = $likeKeyword;
-        $params[] = $likeKeyword;
+        for ($i = 0; $i < 4; $i++) $params[] = $likeKeyword;
     }
 
     if ($conditionType) {
         $sql .= " AND ib.condition_type = ?";
         $params[] = $conditionType;
+    }
+
+    // 日期筛选语义：圈定「该日期内有在库批次的 SKU」，但该 SKU 的库存/均价仍按
+    // 全部在库批次计算（近1天入库的商品，与在库所有库存售价做价差比对，不因窗口截断均价）
+    if ($startDate || $endDate) {
+        $sub = "EXISTS (SELECT 1 FROM inventory_batches ib2
+                WHERE ib2.product_id = ib.product_id AND ib2.condition_type = ib.condition_type
+                  AND ib2.remaining_qty > 0";
+        if ($storeId) {
+            $sub .= " AND ib2.store_id = ?";
+            $params[] = $storeId;
+        }
+        if ($startDate) {
+            $sub .= " AND COALESCE(ib2.purchased_at, ib2.created_at) >= ?";
+            $params[] = $startDate . " 00:00:00";
+        }
+        if ($endDate) {
+            $sub .= " AND COALESCE(ib2.purchased_at, ib2.created_at) <= ?";
+            $params[] = $endDate . " 23:59:59";
+        }
+        $sub .= ")";
+        $sql .= " AND " . $sub;
     }
 
     // ---------- 改：PHP 端按 product_id + condition_type 合并 ----------
