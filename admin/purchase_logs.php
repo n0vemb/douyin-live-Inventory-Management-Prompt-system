@@ -42,6 +42,7 @@ $isOperator = ($currentUser['role'] === 'operator');
 .lp-row-bottom{display:flex;align-items:center;gap:8px;margin-top:8px}
 .lp-stock{font-size:12px;color:var(--text-secondary)}
 .lp-price{font-size:13px;font-weight:700;color:var(--danger)}
+.lp-avg{font-size:11.5px;color:var(--warning);font-weight:600;white-space:nowrap;}
 .lp-hist{font-size:11px;color:var(--text-secondary);opacity:.75;white-space:nowrap;}
 /* SKU 状态徽章颜色（conditionClassMap 生成 condition-<key>） */
 .condition-sealed{background:#5e5ce6;color:#fff}
@@ -406,6 +407,7 @@ function renderProducts(){
         <span class="condition-badge ${getCondClass(r.condition_type)}">${esc(getCondName(r.condition_type))}</span>
         <span class="lp-stock">库存 ${r.qty}</span>
         <span class="lp-price">¥${parseFloat(r.suggested_price||0).toFixed(2)}</span>
+        ${r.avg_price!=null?`<span class="lp-avg" title="SKU均价（批次加权取整，不打印）">均价 ¥${Math.ceil(+r.avg_price||0)}</span>`:''}
         ${hist?`<span class="lp-hist" title="历史批次售价（不打印）">历史 ${hist}</span>`:''}
         <span class="lp-acts">
           <span class="lp-stepper">
@@ -458,6 +460,7 @@ function defaultElSize(type){
     common:{width:50,height:4,fontSize:3},
     series:{width:50,height:4,fontSize:3},
     price:{width:50,height:6,fontSize:5,fontWeight:'bold',color:'#e53e3e'},
+    avg:{width:50,height:5,fontSize:4,color:'#b45309'},
     condition:{width:50,height:4,fontSize:2.5},
     batch:{width:50,height:4,fontSize:2.5},
     date:{width:50,height:4,fontSize:2.5}
@@ -467,7 +470,7 @@ function defaultElSize(type){
 function sampleItem(){
   const hit=records.find(r=>(copies[r.batch_id]||0)>0);
   const r=hit||records[0]||{};
-  return {barcode:r.barcode||'',productName:r.product_name||r.common_name||'',commonName:r.common_name||'',series:r.series||'',price:parseFloat(r.suggested_price||0),conditionType:r.condition_type||'sealed',batchNo:r.batch_no||'',date:r.purchased_at||''};
+  return {barcode:r.barcode||'',productName:r.product_name||r.common_name||'',commonName:r.common_name||'',series:r.series||'',price:parseFloat(r.suggested_price||0),avgPrice:(r.avg_price!=null?Math.ceil(+r.avg_price||0):0),conditionType:r.condition_type||'sealed',batchNo:r.batch_no||'',date:r.purchased_at||''};
 }
 // elHTML：fsPx=字号(px)、bhPx=条码高度(px)——编辑器/预览/浏览器打印按各自 scale 传入，缩放元素时字号/条码真实变化
 // elHTML：fsPx=字号(px)、bhPx=条码高度(px)、align=水平对齐、fw=fontWeight(编辑器设置)
@@ -485,6 +488,7 @@ function elHTML(type,item,fsPx,bhPx,align,fw){
   if(type==='barcode')return `<div class="barcode" style="height:${bhPx||26}px;width:100%">${barcodeBars(item.barcode,bhPx)}</div>`;
   if(type==='barcodeText')return `<div style="${alignStyle}font-family:ui-monospace,monospace;font-size:${Math.round(fsPx)}px;color:#1d2330;${boldStyle}">${esc(item.barcode)}</div>`;
   if(type==='price')return `<div style="${base(1,true)};color:#d92d20">¥${(+item.price||0).toFixed(2)}</div>`;
+  if(type==='avg')return `<div style="${base(1,true)};color:#b45309">¥${Math.ceil(+item.avgPrice||0)}</div>`;
   if(type==='condition')return `<div style="${base(1,true)}">${esc(allConditionTypes.map(k=>`${k===item.conditionType?'☑':'□'} ${getCondName(k)}`).join('  '))}</div>`;
   if(type==='batch')return `<div style="${base(1,true)};color:#5b6478">批次 ${esc(item.batchNo)}</div>`;
   if(type==='date')return `<div style="${base(1,true)};color:#5b6478">${esc(item.date?String(item.date).slice(0,10):'')}</div>`;
@@ -578,6 +582,7 @@ const EL_META={
   barcode:{field:'barcode',textType:'barcode',testData:'6901234567890'},
   barcodeText:{field:'barcode',testData:'6901234567890'},
   price:{field:'price',testData:'¥1299.00'},
+  avg:{field:'avgPrice',testData:'¥100'},
   condition:{field:'conditionType',testData:'☑ 全新   □ 拆封   □ 裸盒   □ 瑕疵'},
   batch:{field:'batchNo',testData:'批次 B0830-001'},
   date:{field:'purchasedAt',testData:'2026-08-30'}
@@ -591,7 +596,7 @@ const hpQueue=[];
 // 编辑器 testData 动态化：用当前选中商品的真实数据填充设计器画布（所见即所得），
 // 无选中商品/无数据时回退 EL_META 默认示例；品相按店铺动态配置显示
 // 真实数据为空时显示中性占位（如"（无系列）"），避免示例文字误导（打印用真实数据，空则空白）
-const NO_DATA_LABEL={name:'（无名称）',common:'（无常用名）',series:'（无系列）',barcode:'（无条码）',barcodeText:'（无条码）',price:'（无价格）',batch:'（无批次）',date:'（无日期）'};
+const NO_DATA_LABEL={name:'（无名称）',common:'（无常用名）',series:'（无系列）',barcode:'（无条码）',barcodeText:'（无条码）',price:'（无价格）',avg:'（无均价）',batch:'（无批次）',date:'（无日期）'};
 function editorTestData(type,item){
   const def=(EL_META[type]||{}).testData||'';
   const nod=NO_DATA_LABEL[type]||def;
@@ -600,6 +605,7 @@ function editorTestData(type,item){
   if(type==='series')return item.series||nod;
   if(type==='barcode'||type==='barcodeText')return item.barcode||nod;
   if(type==='price')return (item.price!=null&&item.price!=='')?('¥'+Number(item.price).toFixed(2)):nod;
+  if(type==='avg')return (item.avgPrice!=null&&item.avgPrice!=='')?('¥'+Math.ceil(+item.avgPrice||0)):nod;
   if(type==='condition')return allConditionTypes.length?allConditionTypes.map(k=>`${k===item.conditionType?'☑':'□'} ${getCondName(k)}`).join('  '):def;
   if(type==='batch')return item.batchNo?('批次 '+item.batchNo):nod;
   if(type==='date')return item.date?String(item.date).slice(0,10):nod;
@@ -612,6 +618,7 @@ function editorTestDataMap(){
   return {name:it.productName||nod.name,common:it.commonName||nod.common,series:it.series||nod.series,
     barcode:it.barcode||nod.barcode,barcodeText:it.barcode||nod.barcodeText,
     price:(it.price!=null&&it.price!=='')?('¥'+Number(it.price).toFixed(2)):nod.price,
+    avg:(it.avgPrice!=null&&it.avgPrice!=='')?('¥'+Math.ceil(+it.avgPrice||0)):nod.avg,
     condition:allConditionTypes.length?allConditionTypes.map(k=>`${k===it.conditionType?'☑':'□'} ${getCondName(k)}`).join('  '):'',
     batch:it.batchNo?('批次 '+it.batchNo):nod.batch,
     date:it.date?String(it.date).slice(0,10):nod.date};
@@ -963,6 +970,7 @@ function renderLabelCanvas(tpl,item){
     else if(e.type==='common'){text=item.commonName||'';color='#5b6478';}
     else if(e.type==='series'){text=item.series||'';color='#5b6478';}
     else if(e.type==='price'){text='¥'+(+item.price||0).toFixed(2);color='#d92d20';}
+    else if(e.type==='avg'){text='¥'+Math.ceil(+item.avgPrice||0);color='#b45309';}
     else if(e.type==='condition'){text=allConditionTypes.map(k=>`${k===item.conditionType?'☑':'□'} ${getCondName(k)}`).join('  ');color='#111';}
     else if(e.type==='batch'){text='批次 '+item.batchNo;color='#5b6478';}
     else if(e.type==='date'){text=(item.date||'').slice(0,10);color='#5b6478';}
@@ -1010,7 +1018,7 @@ function renderLabelCanvas(tpl,item){
 }
 function batchItem(bid){
   const r=records.find(x=>String(x.batch_id)===String(bid))||{};
-  return {barcode:r.barcode||'',productName:r.product_name||r.common_name||'',commonName:r.common_name||'',series:r.series||'',price:parseFloat(r.suggested_price||0),conditionType:r.condition_type||'sealed',batchNo:r.batch_no||'',date:r.purchased_at||''};
+  return {barcode:r.barcode||'',productName:r.product_name||r.common_name||'',commonName:r.common_name||'',series:r.series||'',price:parseFloat(r.suggested_price||0),avgPrice:(r.avg_price!=null?Math.ceil(+r.avg_price||0):0),conditionType:r.condition_type||'sealed',batchNo:r.batch_no||'',date:r.purchased_at||''};
 }
 
 function buildDirectPayload(list){

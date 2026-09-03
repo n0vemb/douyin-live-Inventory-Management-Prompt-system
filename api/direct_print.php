@@ -35,7 +35,7 @@ try {
 requireAuth(); $storeId = getStoreId();
         $placeholders = implode(',', array_fill(0, count($input['batch_ids']), '?'));
         $stmt = $pdo->prepare("
-            SELECT ib.id AS batch_id, ib.batch_no, ib.remaining_qty, ib.suggested_price, ib.condition_type,
+            SELECT ib.id AS batch_id, ib.product_id, ib.batch_no, ib.remaining_qty, ib.suggested_price, ib.condition_type,
                    p.barcode, COALESCE(p.common_name, p.name) AS product_name, p.common_name, p.series,
                    COALESCE(ib.purchased_at, ib.created_at) AS purchased_at
             FROM inventory_batches ib
@@ -49,6 +49,32 @@ requireAuth(); $storeId = getStoreId();
 
         $condMap = conditionNames($pdo, $storeId);
 
+        // 各 SKU 均价（满 0.01 进 1 取整）：Σ(在库批次售价×数量)÷在库总数，与商品页口径一致
+        $avgMap = array();
+        $pairs = array();
+        foreach ($batchRows as $row) {
+            if (isset($row['product_id'])) {
+                $pairs[$row['product_id'] . '|' . $row['condition_type']] = array(
+                    'product_id' => (int)$row['product_id'],
+                    'condition_type' => $row['condition_type'],
+                );
+            }
+        }
+        foreach ($pairs as $pair) {
+            $sql = "SELECT (int)CEIL(SUM(suggested_price * remaining_qty) / SUM(remaining_qty))
+                    FROM inventory_batches
+                    WHERE product_id = ? AND condition_type = ? AND remaining_qty > 0 AND suggested_price > 0";
+            $p = array($pair['product_id'], $pair['condition_type']);
+            if ($storeId) {
+                $sql .= " AND store_id = ?";
+                $p[] = $storeId;
+            }
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($p);
+            $avg = $stmt->fetchColumn();
+            $avgMap[$pair['product_id'] . '|' . $pair['condition_type']] = $avg === false || $avg === null ? 0 : (int)$avg;
+        }
+
         $batchQtyMap = isset($input['batch_qty']) ? $input['batch_qty'] : array();
         $labels = array();
         foreach ($batchRows as $row) {
@@ -60,6 +86,9 @@ requireAuth(); $storeId = getStoreId();
                 'batchNo'       => $row['batch_no'],
                 'purchasedAt'   => $row['purchased_at'],
                 'price'         => $row['suggested_price'],
+                'avgPrice'      => isset($avgMap[$row['product_id'] . '|' . $row['condition_type']])
+                    ? $avgMap[$row['product_id'] . '|' . $row['condition_type']]
+                    : 0,
                 'conditionType' => $row['condition_type'],
                 'qty'           => isset($batchQtyMap[$row['batch_id']]) ? intval($batchQtyMap[$row['batch_id']]) : intval($row['remaining_qty']),
             );
@@ -373,6 +402,9 @@ function getElementContent($type, $item, $condMap = null) {
         case 'price':
             $price = floatval(isset($item['price']) ? $item['price'] : 0);
             return '¥' . number_format($price, 2);
+        case 'avg':
+            $avg = isset($item['avgPrice']) ? (int)ceil(floatval($item['avgPrice'])) : 0;
+            return '¥' . $avg;
         default:
             return isset($item[$type]) ? $item[$type] : '';
     }

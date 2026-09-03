@@ -88,6 +88,20 @@
         }
       },
       {
+        tid: "labelModule.avg",
+        title: "均价",
+        type: "text",
+        options: {
+          field: "avgPrice",
+          testData: labelTestData("avg", "¥100"),
+          height: 15,
+          fontSize: 12,
+          color: "#b45309",
+          verticalAlign: "top",
+          hideTitle: true
+        }
+      },
+      {
         tid: "labelModule.condition",
         title: "SKU状态",
         type: "text",
@@ -178,6 +192,7 @@
         { tid: "labelModule.common", title: "常用名" },
         { tid: "labelModule.series", title: "系列" },
         { tid: "labelModule.price", title: "售价" },
+        { tid: "labelModule.avg", title: "均价" },
         { tid: "labelModule.condition", title: "SKU状态" }
       ]
     },

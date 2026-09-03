@@ -102,6 +102,9 @@ try {
                 "purchased_at"   => null,
                 "latest_time"    => null,
                 "price_history"  => [],
+                "avg_sum_pq"     => 0.0,  // Σ(售价×在库数量)，用于SKU均价
+                "avg_qty"        => 0,    // 参与均价计算的在库总数
+                "avg_price"      => null, // SKU均价 = 满0.01进1取整
             ];
         }
 
@@ -111,6 +114,12 @@ try {
         // 收集该 SKU 所有批次的售价历史（按时间，用于 DOM 显示历史价格参考，不打印）
         $ph = ["t" => $row["purchased_at"], "p" => (float)$row["suggested_price"]];
         $groups[$key]["price_history"][] = $ph;
+
+        // SKU均价 = Σ(批次售价×批次在库数量) ÷ 该SKU在库总数量（仅统计有售价的在库批次），满0.01进1
+        if ((float)$row["suggested_price"] > 0) {
+            $groups[$key]["avg_sum_pq"] += (float)$row["suggested_price"] * (int)$row["qty"];
+            $groups[$key]["avg_qty"] += (int)$row["qty"];
+        }
 
         // 取时间最新的批次的价格等信息
         $t = $row["purchased_at"];
@@ -138,6 +147,11 @@ try {
 
     // 按 sort_by/sort_dir 排序（默认 purchased_at DESC，最新在前）
     $groupedRecords = array_values($groups);
+    foreach ($groupedRecords as &$g) {
+        $g["avg_price"] = $g["avg_qty"] > 0 ? (int)ceil($g["avg_sum_pq"] / $g["avg_qty"]) : null;
+        unset($g["avg_sum_pq"], $g["avg_qty"]);
+    }
+    unset($g);
     $sortCmp = function ($a, $b) use ($sortBy, $sortDir) {
         $va = null; $vb = null;
         switch ($sortBy) {
