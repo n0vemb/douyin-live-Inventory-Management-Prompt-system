@@ -19,6 +19,7 @@ try {
     $pageSize = (int)($data["page_size"] ?? 20);
     $sortBy = $data["sort_by"] ?? "date";
     $sortDir = strtolower($data["sort_dir"] ?? "desc") === "asc" ? "asc" : "desc";
+    $priceDiff = !empty($data["price_diff"]) ? 1 : 0;
 
     $offset = ($page - 1) * $pageSize;
 
@@ -145,13 +146,20 @@ try {
         }
     }
 
-    // 按 sort_by/sort_dir 排序（默认 purchased_at DESC，最新在前）
     $groupedRecords = array_values($groups);
     foreach ($groupedRecords as &$g) {
         $g["avg_price"] = $g["avg_qty"] > 0 ? (int)ceil($g["avg_sum_pq"] / $g["avg_qty"]) : null;
         unset($g["avg_sum_pq"], $g["avg_qty"]);
     }
     unset($g);
+    // 仅看价差：均价与最新批次售价不一致（差异 > 0.01）的 SKU
+    if ($priceDiff) {
+        $groupedRecords = array_values(array_filter($groupedRecords, function ($g) {
+            if ($g["avg_price"] === null) return false;
+            if ($g["suggested_price"] === null) return false;
+            return abs((float)$g["avg_price"] - (float)$g["suggested_price"]) > 0.01;
+        }));
+    }
     $sortCmp = function ($a, $b) use ($sortBy, $sortDir) {
         $va = null; $vb = null;
         switch ($sortBy) {

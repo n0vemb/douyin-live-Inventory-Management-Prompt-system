@@ -139,6 +139,10 @@ $isOperator = ($currentUser['role'] === 'operator');
       <input type="date" id="fStart" onchange="loadProducts(1)">
       <span class="fsep">—</span>
       <input type="date" id="fEnd" onchange="loadProducts(1)">
+      <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;white-space:nowrap;" title="仅显示均价与最新售价不一致的SKU">
+        <input type="checkbox" id="priceDiffFilter" onchange="loadProducts(1)">
+        仅看价差
+      </label>
       <button class="btn btn-sm btn-secondary" onclick="setRange(1)">近1天</button>
       <div class="lp-sku-filters" id="skuFilters"></div>
     </div>
@@ -384,7 +388,8 @@ async function loadProducts(page=1){
   try{
     const res=await fetch('../api/get_purchase_logs.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       start_date:startDate,end_date:endDate,keyword,condition_type:skuFilter,page,page_size:50,
-      sort_by:$('sortBy').value||'date',sort_dir:$('sortDir').value||'desc'
+      sort_by:$('sortBy').value||'date',sort_dir:$('sortDir').value||'desc',
+      price_diff:$('priceDiffFilter').checked?1:0
     })});
     const data=await res.json();
     if(data.success){
