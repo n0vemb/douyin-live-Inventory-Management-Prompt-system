@@ -65,6 +65,63 @@ requireAuth(); $storeId = getStoreId();
     if ($pdo === null) {
         throw new Exception('数据库连接失败');
     }
+
+    // 读取请求参数（FormData 或 JSON 均可）
+    $rawBody = file_get_contents('php://input');
+    $jsonIn = json_decode($rawBody, true);
+    if (!is_array($jsonIn)) $jsonIn = [];
+    $mode = trim((string)($_POST['mode'] ?? ($jsonIn['mode'] ?? '')));
+
+    // ===== 确认入库（第二阶段）：按预览 token 执行，不重新上传 =====
+    if ($mode === 'commit') {
+        $token = preg_replace('/[^A-Za-z0-9_\-]/', '', (string)($jsonIn['token'] ?? ''));
+        if ($token === '') {
+            throw new Exception('缺少预览标识，请重新上传文件');
+        }
+        $planFile = impPlanPath($storeId, $token);
+        if (!is_file($planFile)) {
+            throw new Exception('预览数据不存在或已过期（超时/换了店铺），请重新上传文件');
+        }
+        $plan = json_decode((string)file_get_contents($planFile), true);
+        if (!is_array($plan) || !isset($plan['rows']) || (int)($plan['store_id'] ?? 0) !== (int)$storeId) {
+            throw new Exception('预览数据无效，请重新上传文件');
+        }
+
+        $errors = [];
+        $pdo->beginTransaction();
+        try {
+            list($successCount, $details) = impCommitRows($pdo, $storeId, $plan['rows'], $errors);
+            if ($successCount > 0) {
+                $pdo->commit();
+            } else {
+                $pdo->rollBack();
+            }
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+
+        // 把执行结果写回留档，便于备查
+        $plan['status'] = 'committed';
+        $plan['committed_at'] = date('Y-m-d H:i:s');
+        $plan['operator'] = $_SESSION['username'] ?? null;
+        $plan['success_count'] = $successCount;
+        $plan['details'] = $details;
+        $plan['errors'] = $errors;
+        @file_put_contents($planFile, json_encode($plan, JSON_UNESCAPED_UNICODE));
+
+        outputJson([
+            'success' => true,
+            'data' => [
+                'mode' => 'commit',
+                'success_count' => $successCount,
+                'total_count' => count($plan['rows']),
+                'errors' => $errors,
+                'details' => $details,
+                'file_bak' => $plan['file_bak'] ?? '',
+            ]
+        ]);
+    }
     
     // 检查是否有文件上传
     if (!isset($_FILES['import_file'])) {
@@ -190,6 +247,49 @@ requireAuth(); $storeId = getStoreId();
 
     if (empty($products)) {
         throw new Exception('文件中没有有效的商品数据');
+    }
+
+    // ===== 解析预览（第一阶段）：只解析+留档，不写库存 =====
+    if ($mode === 'preview') {
+        $previewErrors = $errorMessages;
+        $rows = impPreviewRows($pdo, $storeId, $products, $previewErrors);
+
+        // 留档原始文件（uploads/import_bak/<store>/<token>-原名）
+        $dir = impBackupDir($storeId);
+        $token = date('YmdHis') . '-' . bin2hex(random_bytes(4));
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $bakName = $token . '-' . impSafeName($file['name']) . ($ext === '' ? '' : '');
+        $bakFull = $dir . '/' . $bakName;
+        if (!@copy($file['tmp_name'], $bakFull)) {
+            throw new Exception('文件留档失败（目录不可写），已停止预览');
+        }
+        @chmod($bakFull, 0666);
+
+        $plan = [
+            'token' => $token,
+            'store_id' => (int)$storeId,
+            'created_at' => date('Y-m-d H:i:s'),
+            'original_name' => $file['name'],
+            'file_bak' => 'uploads/import_bak/' . (int)$storeId . '/' . $bakName,
+            'rows' => $products,
+            'status' => 'preview',
+        ];
+        if (!@file_put_contents(impPlanPath($storeId, $token), json_encode($plan, JSON_UNESCAPED_UNICODE))) {
+            throw new Exception('预览数据保存失败（目录不可写）');
+        }
+        @chmod(impPlanPath($storeId, $token), 0666);
+
+        outputJson([
+            'success' => true,
+            'data' => [
+                'mode' => 'preview',
+                'token' => $token,
+                'total_count' => count($products),
+                'file_bak' => 'uploads/import_bak/' . (int)$storeId . '/' . $bakName,
+                'rows' => $rows,
+                'errors' => $previewErrors,
+            ]
+        ]);
     }
 
     // 开始事务
@@ -593,4 +693,205 @@ function parseExcelRow($header, $row, $rowIndex, $pdo) {
     }
     
     return $product;
+}
+
+/* ================= 批量导入两段式（预览缓冲 + 留档）辅助 ================= */
+
+function impBackupDir($storeId) {
+    $dir = __DIR__ . '/../uploads/import_bak/' . (int)$storeId;
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0777, true);
+    }
+    return $dir;
+}
+
+function impPlanPath($storeId, $token) {
+    return impBackupDir($storeId) . '/' . $token . '.json';
+}
+
+function impSafeName($n) {
+    $n = preg_replace('/[\\\\\/:*?"<>|\x00-\x1f]/', '_', (string)$n);
+    $n = trim($n, ' ._');
+    return $n === '' ? 'import' : $n;
+}
+
+/** 预览：逐行给出 Excel 内容 + 预计动作（新建/匹配/跳过），不写库 */
+function impPreviewRows($pdo, $storeId, $products, &$errors) {
+    $rows = [];
+    foreach ($products as $p) {
+        $skus = [];
+        foreach (($p['inventory_data'] ?? []) as $key => $d) {
+            $skus[] = [
+                'key' => $key,
+                'qty' => (int)$d['quantity'],
+                'purchase_price' => (float)$d['purchase_price'],
+                'suggested_price' => (float)$d['suggested_price'],
+            ];
+        }
+        $barcode = trim((string)($p['barcode'] ?? ''));
+        $row = [
+            'row' => (int)($p['row'] ?? 0),
+            'name' => (string)($p['name'] ?? ''),
+            'series' => (string)($p['series'] ?? ''),
+            'brand' => (string)($p['brand'] ?? ''),
+            'barcode' => $barcode,
+            'skus' => $skus,
+            'action' => 'new',
+            'action_note' => '将新建商品（条码自动生成）',
+            'matched_name' => null,
+        ];
+
+        if ($barcode === '') {
+            $stmt = $pdo->prepare('SELECT id, name, barcode FROM products WHERE name = ? AND store_id = ?');
+            $stmt->execute([$row['name'], $storeId]);
+            $existing = $stmt->fetch();
+            if ($existing) {
+                $row['action'] = 'match';
+                $row['action_note'] = '将匹配已有商品并追加库存';
+                $row['matched_name'] = $existing['name'];
+            }
+        } else {
+            $stmt = $pdo->prepare('SELECT id, name FROM products WHERE barcode = ? AND store_id = ?');
+            $stmt->execute([$barcode, $storeId]);
+            if ($stmt->fetch()) {
+                $row['action'] = 'skip';
+                $row['action_note'] = '条码已存在，不会重复创建（本行将被跳过）';
+                $errors[] = "第{$row['row']}行：条码 {$barcode} 已存在，跳过";
+            } else {
+                $row['action_note'] = '将新建商品';
+            }
+        }
+        $rows[] = $row;
+    }
+    return $rows;
+}
+
+/** 提交入库：按预览结果实际写入商品/批次/入库记录，返回逐行比对明细 */
+function impCommitRows($pdo, $storeId, $products, &$errors) {
+    $successCount = 0;
+    $details = [];
+
+    foreach ($products as $product) {
+        $rowNo = (int)($product['row'] ?? 0);
+        $skus = [];
+        foreach (($product['inventory_data'] ?? []) as $key => $d) {
+            $skus[] = [
+                'key' => $key,
+                'qty' => (int)$d['quantity'],
+                'purchase_price' => (float)$d['purchase_price'],
+                'suggested_price' => (float)$d['suggested_price'],
+            ];
+        }
+        $res = [
+            'row' => $rowNo,
+            'name' => (string)($product['name'] ?? ''),
+            'series' => (string)($product['series'] ?? ''),
+            'brand' => (string)($product['brand'] ?? ''),
+            'barcode' => trim((string)($product['barcode'] ?? '')),
+            'skus' => $skus,
+            'action' => 'skip',
+            'action_note' => '',
+            'matched_name' => null,
+        ];
+
+        try {
+            $productId = null;
+            $matched = false;
+
+            if ($res['barcode'] === '') {
+                $stmt = $pdo->prepare('SELECT id, barcode, name FROM products WHERE name = ? AND store_id = ?');
+                $stmt->execute([$res['name'], $storeId]);
+                $existing = $stmt->fetch();
+                if ($existing) {
+                    $productId = (int)$existing['id'];
+                    $matched = true;
+                    $res['matched_name'] = $existing['name'];
+                    if (empty($existing['barcode'])) {
+                        $newBarcode = generateBarcode($pdo, $_SESSION['barcode_prefix'] ?? '69414486');
+                        if ($newBarcode) {
+                            $upd = $pdo->prepare('UPDATE products SET barcode = ? WHERE id = ?');
+                            $upd->execute([$newBarcode, $productId]);
+                            $res['barcode'] = $newBarcode;
+                        }
+                    } else {
+                        $res['barcode'] = $existing['barcode'];
+                    }
+                } else {
+                    $newBarcode = generateBarcode($pdo, $_SESSION['barcode_prefix'] ?? '69414486');
+                    if (empty($newBarcode)) {
+                        throw new Exception('条码生成失败，请稍后重试');
+                    }
+                    $res['barcode'] = $newBarcode;
+                    $product['barcode'] = $newBarcode;
+                }
+            }
+
+            if ($productId === null) {
+                $stmt = $pdo->prepare('SELECT id FROM products WHERE barcode = ?');
+                $stmt->execute([$res['barcode']]);
+                if ($stmt->fetch()) {
+                    $errors[] = "第{$rowNo}行：条码 {$res['barcode']} 已存在，跳过";
+                    $res['action_note'] = '条码已存在，未导入';
+                    $details[] = $res;
+                    continue;
+                }
+                $pinyinInitials = generatePinyinInitials($res['name']);
+                $ins = $pdo->prepare("INSERT INTO products (name, pinyin_initials, common_name, series, brand, barcode, qiandao_price, release_date, product_description, image_url, created_at, updated_at, store_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)");
+                $ins->execute([
+                    $res['name'],
+                    $pinyinInitials,
+                    trim((string)($product['common_name'] ?? '')),
+                    $res['series'],
+                    $res['brand'],
+                    $res['barcode'],
+                    !empty($product['qiandao_price']) ? floatval($product['qiandao_price']) : null,
+                    !empty($product['release_date']) ? $product['release_date'] : null,
+                    trim((string)($product['product_description'] ?? '')),
+                    trim((string)($product['image_url'] ?? '')),
+                    $storeId,
+                ]);
+                $productId = (int)$pdo->lastInsertId();
+            }
+
+            foreach (($product['inventory_data'] ?? []) as $condition => $data) {
+                if ((int)$data['quantity'] <= 0) continue;
+                $batchNo = 'B' . date('YmdHis') . rand(1000, 9999);
+                $ins = $pdo->prepare("INSERT INTO inventory_batches (product_id, condition_type, batch_no, purchase_price, suggested_price, total_qty, remaining_qty, supplier, remark, purchased_at, created_at, store_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)");
+                $ins->execute([
+                    $productId,
+                    $condition,
+                    $batchNo,
+                    $data['purchase_price'],
+                    $data['suggested_price'],
+                    (int)$data['quantity'],
+                    (int)$data['quantity'],
+                    $data['supplier'] ?? null,
+                    $data['remark'] ?? null,
+                    $storeId,
+                ]);
+                $log = $pdo->prepare("INSERT INTO purchase_log (product_id, condition_type, purchase_price, qty, supplier, remark, store_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $log->execute([
+                    $productId,
+                    $condition,
+                    $data['purchase_price'],
+                    (int)$data['quantity'],
+                    $data['supplier'] ?? null,
+                    $data['remark'] ?? null,
+                    $storeId,
+                ]);
+            }
+
+            $successCount++;
+            $res['action'] = $matched ? 'match' : 'new';
+            $res['action_note'] = $matched ? '已匹配商品并追加库存' : '已新建商品并入库';
+        } catch (Exception $e) {
+            $errors[] = "第{$rowNo}行：" . $e->getMessage();
+            $res['action_note'] = $e->getMessage();
+        }
+        $details[] = $res;
+    }
+    return [$successCount, $details];
 }

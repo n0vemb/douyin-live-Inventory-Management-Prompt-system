@@ -311,6 +311,7 @@ $isOperator = ($currentUser['role'] === 'operator');
         <div id="importResult" class="pm-imp-prev"></div>
         <div id="importErr" class="pm-imp-err"></div>
         <div style="display:flex; gap:15px; margin-top:20px; justify-content:flex-end;">
+            <button class="btn btn-primary" id="impConfirmBtn" style="display:none;" onclick="doImportCommit()">确认入库</button>
             <button class="btn btn-secondary" onclick="closeImportModal()">关闭</button>
         </div>
     </div>
@@ -482,6 +483,10 @@ $isOperator = ($currentUser['role'] === 'operator');
 .pm-warn-dot.out{background:var(--danger);}
 .pm-warn-dot.ok{background:var(--success);}
 .pm-price{font-variant-numeric:tabular-nums;font-weight:600;color:var(--success);}
+.pm-imp-act{display:inline-block;padding:1px 8px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap}
+.pm-imp-act.new{background:rgba(56,189,248,.16);color:#38bdf8}
+.pm-imp-act.match{background:rgba(52,211,153,.16);color:#34d399}
+.pm-imp-act.skip{background:rgba(248,113,113,.16);color:#f87171}
 /* SKU 明细三列：每 SKU 一行，固定行高保证跨列对齐 */
 .pm-sku-line{display:flex;align-items:center;gap:8px;min-height:28px;white-space:nowrap;}
 .pm-sku-line .condition-badge{min-width:72px;text-align:center;}
@@ -1865,7 +1870,12 @@ function openImportModal() {
     $('importFile').value = '';
     showModal('importModal');
 }
-function closeImportModal() { closeModal('importModal'); }
+function closeImportModal() {
+    closeModal('importModal');
+    const b = $('impConfirmBtn');
+    if (b) { b.style.display = 'none'; b.disabled = false; b.textContent = '确认入库'; }
+    window._impToken = '';
+}
 function downloadTemplate() {
     // 表头：商品基础信息 + 每个状态 数量/进价/售价 三列 + 供应商/备注（与导出格式一致）
     const base = ['商品名称', '常用名称', '系列', '品牌', '条码', '参考价', '发售时间', '产品介绍', '图片链接'];
@@ -1891,29 +1901,131 @@ async function handleImportFile(input) {
     if (!['csv', 'xlsx'].includes(ext)) { $('importErr').textContent = '仅支持 .csv / .xlsx 文件'; return; }
     const formData = new FormData();
     formData.append('import_file', f);
-    $('importResult').innerHTML = '<div style="text-align:center; padding:24px; color:var(--text-tertiary);">正在导入，请稍候…（数据量较大时可能需数十秒）</div>';
+    formData.append('mode', 'preview');
+    $('impConfirmBtn').style.display = 'none';
+    $('importResult').innerHTML = '<div style="text-align:center; padding:24px; color:var(--text-tertiary);">正在解析文件，请稍候…</div>';
     $('importErr').textContent = '';
     try {
         const res = await fetch('../api/bulk_import_products.php', { method: 'POST', body: formData });
         const result = await res.json();
         if (result.success) {
-            const { success_count, total_count, errors } = result.data || {};
-            let html = `<div style="padding:16px;">
-                <div style="color:var(--success); font-size:15px; margin-bottom:12px;">导入完成：成功 ${success_count} 个商品 / 共处理 ${total_count} 个</div>`;
-            if (errors && errors.length) {
-                html += `<div style="color:var(--danger); margin-bottom:10px;"><strong>部分行有错误：</strong><ul style="margin:8px 0; padding-left:20px; max-height:180px; overflow:auto;">` +
-                    errors.map(e => `<li>${escapeHtml(e)}</li>`).join('') + `</ul></div>`;
-            }
-            html += `<div style="font-size:12px; color:var(--text-tertiary);">可关闭后查看商品列表（已自动刷新）。</div></div>`;
-            $('importResult').innerHTML = html;
-            showToast(`导入完成：成功 ${success_count} / ${total_count}`);
-            await loadProducts();
+            window._impToken = result.data.token;
+            renderImportPreview(result.data);
+            $('impConfirmBtn').style.display = 'inline-flex';
         } else {
             $('importResult').innerHTML = `<div style="padding:16px; color:var(--danger);">导入失败：${escapeHtml(result.message || '未知错误')}</div>`;
         }
     } catch (err) {
         $('importResult').innerHTML = `<div style="padding:16px; color:var(--danger);">导入失败：${escapeHtml(err.message)}</div>`;
     }
+}
+
+function renderImportPreview(data) {
+    const rows = data.rows || [];
+    const errors = data.errors || [];
+    let html = `<div style="padding:14px 16px;">
+        <div style="color:var(--text); font-size:15px; margin-bottom:10px;">
+            ✅ 解析完成，共 ${rows.length} 行商品（尚未写入库存）
+            <span style="font-size:12px;color:var(--text-tertiary);margin-left:8px;">请核对下方比对结果，确认无误再点「确认入库」；格式有问题可直接关闭后重新上传</span>
+        </div>
+        ${data.file_bak ? `<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px;">原文件已留档备查：<code>${escapeHtml(data.file_bak)}</code></div>` : ''}
+        <div style="max-height:46vh; overflow:auto; border:1px solid var(--border); border-radius:8px;">
+            <table class="pm-import-cmp" style="width:100%; border-collapse:collapse; font-size:12px;">
+                <thead><tr style="background:var(--bg-hover);">
+                    <th style="padding:7px 8px; text-align:left;">Excel行</th>
+                    <th style="padding:7px 8px; text-align:left;">商品</th>
+                    <th style="padding:7px 8px; text-align:left;">条码</th>
+                    <th style="padding:7px 8px; text-align:left;">预计动作</th>
+                    <th style="padding:7px 8px; text-align:left;">SKU · 数量 / 进价 / 售价</th>
+                </tr></thead>
+                <tbody>` +
+        rows.map(r => `<tr style="border-top:1px solid var(--border);">
+            <td style="padding:6px 8px; vertical-align:top;">第${r.row}行</td>
+            <td style="padding:6px 8px; vertical-align:top;"><b>${escapeHtml(r.name)}</b>${r.series ? `<div class="pm-pcommon">${escapeHtml(r.series)}</div>` : ''}${r.brand ? `<div class="pm-pcommon">${escapeHtml(r.brand)}</div>` : ''}</td>
+            <td style="padding:6px 8px; vertical-align:top;"><code>${escapeHtml(r.barcode || '(自动生成)')}</code></td>
+            <td style="padding:6px 8px; vertical-align:top;">
+                <span class="pm-imp-act ${r.action}">${r.action === 'match' ? '匹配' : r.action === 'skip' ? '跳过' : '新建'}</span>
+                <div class="pm-pcommon" style="margin-top:2px;">${escapeHtml(r.action_note || '')}</div>
+            </td>
+            <td style="padding:6px 8px; vertical-align:top;">` +
+            (r.skus || []).map(s =>
+                `<div style="white-space:nowrap;"><span class="pm-tag" style="background:var(--bg-hover);color:var(--text-secondary);">${escapeHtml(getCN(s.key))}</span> ×${s.qty} · 进价 ¥${parseFloat(s.purchase_price || 0).toFixed(2)} · 售价 ¥${parseFloat(s.suggested_price || 0).toFixed(0)}</div>`
+            ).join('') || '<span class="pm-pcommon">无库存</span>' +
+            `</td></tr>`).join('') + `</tbody></table>
+        </div>`;
+    if (errors && errors.length) {
+        html += `<div style="color:var(--danger); margin-top:10px;"><strong>提示（不影响确认，可只导有效行）：</strong><ul style="margin:6px 0 0; padding-left:20px; max-height:140px; overflow:auto;">` +
+            errors.map(e => `<li>${escapeHtml(e)}</li>`).join('') + `</ul></div>`;
+    }
+    html += `</div>`;
+    $('importResult').innerHTML = html;
+}
+
+async function doImportCommit() {
+    const token = window._impToken;
+    if (!token) return;
+    const btn = $('impConfirmBtn');
+    btn.disabled = true;
+    btn.textContent = '导入中…';
+    $('importResult').innerHTML = '<div style="text-align:center; padding:24px; color:var(--text-tertiary);">正在写入库存，请稍候…</div>';
+    try {
+        const res = await fetch('../api/bulk_import_products.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'commit', token })
+        });
+        const result = await res.json();
+        if (result.success) {
+            renderImportResult(result.data);
+            showToast(`导入完成：成功 ${result.data.success_count} / ${result.data.total_count}`);
+            await loadProducts();
+        } else {
+            $('importResult').innerHTML = `<div style="padding:16px; color:var(--danger);">导入失败：${escapeHtml(result.message || '未知错误')}</div>`;
+        }
+    } catch (err) {
+        $('importResult').innerHTML = `<div style="padding:16px; color:var(--danger);">导入失败：${escapeHtml(err.message)}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.style.display = 'none';
+        btn.textContent = '确认入库';
+    }
+}
+
+function renderImportResult(data) {
+    const details = data.details || [];
+    const errors = data.errors || [];
+    let html = `<div style="padding:14px 16px;">
+        <div style="color:var(--success); font-size:15px; margin-bottom:10px;">导入完成：成功 ${data.success_count} 个 / 共处理 ${data.total_count} 个</div>
+        ${data.file_bak ? `<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px;">原文件已留档备查：<code>${escapeHtml(data.file_bak)}</code></div>` : ''}
+        <div style="max-height:44vh; overflow:auto; border:1px solid var(--border); border-radius:8px;">
+            <table class="pm-import-cmp" style="width:100%; border-collapse:collapse; font-size:12px;">
+                <thead><tr style="background:var(--bg-hover);">
+                    <th style="padding:7px 8px; text-align:left;">Excel行</th>
+                    <th style="padding:7px 8px; text-align:left;">商品</th>
+                    <th style="padding:7px 8px; text-align:left;">条码</th>
+                    <th style="padding:7px 8px; text-align:left;">结果</th>
+                    <th style="padding:7px 8px; text-align:left;">SKU · 入库数量 / 进价 / 售价</th>
+                </tr></thead><tbody>` +
+        details.map(r => `<tr style="border-top:1px solid var(--border);">
+            <td style="padding:6px 8px; vertical-align:top;">第${r.row}行</td>
+            <td style="padding:6px 8px; vertical-align:top;"><b>${escapeHtml(r.name)}</b>${r.matched_name && r.action === 'match' ? `<div class="pm-pcommon">匹配：${escapeHtml(r.matched_name)}</div>` : ''}</td>
+            <td style="padding:6px 8px; vertical-align:top;"><code>${escapeHtml(r.barcode || '-')}</code></td>
+            <td style="padding:6px 8px; vertical-align:top;">
+                <span class="pm-imp-act ${r.action === 'skip' ? 'skip' : r.action === 'match' ? 'match' : 'new'}">${r.action === 'match' ? '匹配入库' : r.action === 'skip' ? '跳过' : '新建入库'}</span>
+                <div class="pm-pcommon" style="margin-top:2px;">${escapeHtml(r.action_note || '')}</div>
+            </td>
+            <td style="padding:6px 8px; vertical-align:top;">` +
+            (r.skus || []).map(s =>
+                `<div style="white-space:nowrap;"><span class="pm-tag" style="background:var(--bg-hover);color:var(--text-secondary);">${escapeHtml(getCN(s.key))}</span> ×${s.qty} · 进价 ¥${parseFloat(s.purchase_price || 0).toFixed(2)} · 售价 ¥${parseFloat(s.suggested_price || 0).toFixed(0)}</div>`
+            ).join('') || '<span class="pm-pcommon">无库存</span>' +
+            `</td></tr>`).join('') + `</tbody></table>
+        </div>`;
+    if (errors && errors.length) {
+        html += `<div style="color:var(--danger); margin-top:10px;"><strong>未导入的行：</strong><ul style="margin:6px 0 0; padding-left:20px; max-height:140px; overflow:auto;">` +
+            errors.map(e => `<li>${escapeHtml(e)}</li>`).join('') + `</ul></div>`;
+    }
+    html += `</div>`;
+    $('importResult').innerHTML = html;
 }
 
 /* ---------- 导出 ---------- */
