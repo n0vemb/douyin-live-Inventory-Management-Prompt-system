@@ -1735,7 +1735,7 @@ function updateActionBarState() {
 function offAir() {
     if (isReadOnly) { toast('该场次已结束'); return; }
     if (offAirState()) { toast('本场已下播，无需重复操作'); return; }
-    showConfirm('确定下播吗？将记录本场下播时间用于计算播出时长；商品打包出库可在下播后执行。', async () => {
+    showConfirm('是否确认下播？', async () => {
         try {
             const res = await fetch('../api/live_ledger_off_air.php', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
