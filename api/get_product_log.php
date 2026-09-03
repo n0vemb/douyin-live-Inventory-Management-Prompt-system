@@ -91,6 +91,7 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $b) {
     if ($actualQty <= 0) continue; // 实际承载 0（已清零且没卖过）不显示
     $logs[] = [
         'source' => 'batch',
+        'seq' => (int)$b['id'],
         'change_type' => 'purchase',
         'change_type_name' => '入库',
         'condition_type' => $b['condition_type'],
@@ -128,6 +129,7 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $s) {
     $returned = (int)($s['returned_qty'] ?? 0);
     $logs[] = [
         'source' => 'sales',
+        'seq' => (int)$s['id'],
         'change_type' => 'sale',
         'change_type_name' => '销售出库',
         'condition_type' => $s['condition_type'],
@@ -157,6 +159,7 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $o) {
     $returned = (int)($o['returned_qty'] ?? 0);
     $logs[] = [
         'source' => 'outbound',
+        'seq' => (int)$o['id'],
         'change_type' => 'outbound',
         'change_type_name' => '出库',
         'condition_type' => $o['condition_type'],
@@ -193,6 +196,7 @@ $changeTypeNames = [
 foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $l) {
     $logs[] = [
         'source' => 'inventory_log',
+        'seq' => (int)$l['id'],
         'change_type' => $l['change_type'],
         'change_type_name' => $changeTypeNames[$l['change_type']] ?? $l['change_type'],
         'condition_type' => $l['condition_type'],
@@ -210,7 +214,10 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $l) {
 
 // 按时间倒序
 usort($logs, function ($a, $b) {
-    return strcmp($b['created_at'] ?? '', $a['created_at'] ?? '');
+    $c = strcmp($b['created_at'] ?? '', $a['created_at'] ?? '');
+    if ($c !== 0) return $c;
+    // 同一时刻：按内部执行序号倒序（同一场直播多笔扣减按实际执行顺序，最新执行的排上面）
+    return (int)($b['seq'] ?? 0) <=> (int)($a['seq'] ?? 0);
 });
 
 // 每条流水补「当前库存」= 该SKU（product+condition_type）在该事件发生后的库存
@@ -231,13 +238,13 @@ foreach ($byCond as $cond => $idxList) {
 
     $evts = [];
     foreach ($idxList as $i) {
-        $evts[] = ['idx' => $i, 'time' => $logs[$i]['created_at'] ?? '', 'delta' => (int)$logs[$i]['qty_change']];
+        $evts[] = ['idx' => $i, 'time' => $logs[$i]['created_at'] ?? '', 'delta' => (int)$logs[$i]['qty_change'], 'seq' => (int)($logs[$i]['seq'] ?? 0)];
     }
-    // 时间正序（同一时刻保持展示顺序稳定）
+    // 时间正序；同一时刻按内部执行序号正序（先执行/先扣的在前）
     usort($evts, function ($a, $b) {
         $c = strcmp($a['time'], $b['time']);
         if ($c !== 0) return $c;
-        return $a['idx'] <=> $b['idx'];
+        return $a['seq'] <=> $b['seq'];
     });
     // 从最新往回还原：每条事件后的库存 = 当前锚点 + 其后所有事件的变更和
     $running = $nowQty;
