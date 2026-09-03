@@ -690,6 +690,7 @@ function hiprintToSimple(json){
 
 // 按需加载编辑器资源（首次打开才加载 ~2.8MB 脚本，不拖慢页面首屏）
 const HP_BASE='assets/hiprint/';
+const HP_VER='20260903a'; // 改动 hiprint/label-elements 后递增，强制浏览器拉新（静态文件被缓存 12h）
 const HP_STEPS=[
   {src:HP_BASE+'lib/vendor/jquery.min.js'},
   {src:HP_BASE+'lib/vendor/JsBarcode.all.min.js'},
@@ -712,8 +713,8 @@ const HP_STEPS=[
       try{Object.defineProperty(window,'io',{value:mock,configurable:true,writable:true});}catch(e){window.io=mock;}
     }
   })();`},
-  {src:HP_BASE+'lib/hiprint.bundle.js'},
-  {src:HP_BASE+'label-elements.js'}
+  {src:HP_BASE+'lib/hiprint.bundle.js?v='+HP_VER},
+  {src:HP_BASE+'label-elements.js?v='+HP_VER}
 ];
 function ensureHp(cb){
   if(hpState==='ready'){cb();return;}
