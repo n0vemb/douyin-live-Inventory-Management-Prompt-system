@@ -788,7 +788,7 @@ function renderProducts(products) {
                     Math.abs(parseFloat(l.avg) - parseFloat(l.latest)) > 0.004;
                 const cls = diff ? ' pm-avg-diff' : '';
                 const tip = diff ? ' title="均价与最新售价不一致（该 SKU 多批次定价不同）"' : '';
-                return `<div class="pm-sku-line pm-price${cls}"${tip}>${fmtSkuPrice(l.avg)}</div>`;
+                return `<div class="pm-sku-line pm-price${cls}"${tip}>${fmtSkuPriceAvg(l.avg)}</div>`;
             }).join('')
             : '<span class="pm-sku-empty">-</span>';
         const checked = selectedIds.has(p.id) ? 'checked' : '';
@@ -836,6 +836,12 @@ function getSkuLines(inventory) {
 
 function fmtSkuPrice(v) {
     return (v === null || v === undefined || v === '') ? '-' : '¥' + parseFloat(v).toFixed(2);
+}
+
+// 均价取整显示：服务端已按「满 0.01 进 1」取整，这里不带小数
+function fmtSkuPriceAvg(v) {
+    if (v === null || v === undefined || v === '') return '-';
+    return '¥' + Math.ceil(parseFloat(v));
 }
 
 /* ---------- 详情抽屉 ---------- */

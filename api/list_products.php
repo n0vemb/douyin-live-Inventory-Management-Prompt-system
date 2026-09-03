@@ -118,7 +118,7 @@ if (!empty($productIds)) {
         if (isset($inventoryData[$key])) {
             $inventoryData[$key]['latest_price'] = $agg['latest'];
             $inventoryData[$key]['avg_price'] = $agg['priced_qty'] > 0
-                ? round($agg['sum_pq'] / $agg['priced_qty'], 2)
+                ? (int)ceil($agg['sum_pq'] / $agg['priced_qty']) // 均价取整：满 0.01 也进 1
                 : null;
         }
     }
