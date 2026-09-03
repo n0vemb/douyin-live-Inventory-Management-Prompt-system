@@ -35,6 +35,10 @@ $isOperator = ($currentUser['role'] === 'operator');
             <input type="checkbox" id="stockFilter" onchange="searchProducts()">
             仅看有库存
         </label>
+        <label class="pm-check" title="仅显示存在 SKU 均价与最新售价不一致（多批次定价不同）的商品">
+            <input type="checkbox" id="priceDiffFilter" onchange="searchProducts()">
+            仅看价差
+        </label>
     </div>
     <button class="btn btn-secondary" onclick="openImportModal()">批量导入</button>
     <?php if (!$isOperator): ?>
@@ -714,6 +718,7 @@ function searchProducts() {
     const keyword = $('searchInput').value.toLowerCase().trim();
     const series = $('seriesFilter').value;
     const stockOnly = $('stockFilter').checked;
+    const priceDiffOnly = $('priceDiffFilter').checked;
 
     const filtered = allProducts.filter(p => {
         const matchKeyword = !keyword ||
@@ -724,9 +729,22 @@ function searchProducts() {
         const matchSeries = !series || p.series === series;
         const t = getTotalStock(p.inventory_summary);
         const matchStock = !stockOnly || t > 0;
-        return matchKeyword && matchSeries && matchStock;
+        const matchPriceDiff = !priceDiffOnly || hasSkuPriceDiff(p.inventory_summary);
+        return matchKeyword && matchSeries && matchStock && matchPriceDiff;
     });
     renderProducts(applySort(filtered));
+}
+
+// 是否存在 SKU 均价与最新售价不一致（多批次定价不同）
+function hasSkuPriceDiff(inventory) {
+    if (!inventory) return false;
+    return getConditionKeys().some(k => {
+        const it = inventory[k];
+        if (!it || !(it.total_stock > 0)) return false;
+        if (it.latest_price === null || it.latest_price === undefined) return false;
+        if (it.avg_price === null || it.avg_price === undefined) return false;
+        return Math.abs(parseFloat(it.avg_price) - parseFloat(it.latest_price)) > 0.004;
+    });
 }
 
 function getTotalStock(inventory) {
