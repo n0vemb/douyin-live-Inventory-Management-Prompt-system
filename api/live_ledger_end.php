@@ -61,7 +61,7 @@ try {
 
     if (empty($purchaseMap)) {
         // 空场次（无客户/无购买商品）：允许直接结束，跳过出库，仅标记 ended
-        $stmt = $pdo->prepare("UPDATE live_ledger_session SET status = 'ended', ended_at = NOW(), total_customers = ?, total_qty = 0, total_gmv = 0, total_cost = 0, total_shipping = 0, total_platform_fee = 0, total_packing = 0, total_profit_base = 0, total_gift_cost = 0, total_profit_with_gift = 0, total_reduce_amount = 0, total_profit_with_reduce = 0, total_profit_both = 0, snapshot_json = ?, outbound_batch_no = NULL WHERE id = ?");
+        $stmt = $pdo->prepare("UPDATE live_ledger_session SET status = 'ended', ended_at = NOW(), off_air_at = IFNULL(off_air_at, NOW()), total_customers = ?, total_qty = 0, total_gmv = 0, total_cost = 0, total_shipping = 0, total_platform_fee = 0, total_packing = 0, total_profit_base = 0, total_gift_cost = 0, total_profit_with_gift = 0, total_reduce_amount = 0, total_profit_with_reduce = 0, total_profit_both = 0, snapshot_json = ?, outbound_batch_no = NULL WHERE id = ?");
         $stmt->execute([count($customers), json_encode([
             'settings' => $settings,
             'outbound_batch_no' => null,
@@ -214,6 +214,7 @@ try {
     // ===== 更新场次（状态 ended + 汇总 + 快照）=====
     $stmt = $pdo->prepare("UPDATE live_ledger_session SET
         status = 'ended', ended_at = NOW(),
+        off_air_at = IFNULL(off_air_at, NOW()),
         total_customers = ?, total_qty = ?, total_gmv = ?, total_cost = ?,
         total_shipping = ?, total_platform_fee = ?, total_packing = ?,
         total_profit_base = ?, total_gift_cost = ?, total_profit_with_gift = ?,

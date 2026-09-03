@@ -131,7 +131,8 @@ $isOperator = $user['role'] === 'operator';
   <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
     <button class="btn btn-success" onclick="openAddCustomerModal()">新增客户</button>
     <button class="btn btn-primary" onclick="saveAll()">保存</button>
-    <button class="btn btn-danger" onclick="endLive()">结束直播并出库</button>
+    <button class="btn btn-warning" id="offAirBtnTop" onclick="offAir()">下播</button>
+    <button class="btn btn-danger" id="packBtnTop" onclick="endLive()">打包出库</button>
     <span class="muted" style="margin-left:auto;">点击客户标题栏可收缩/展开</span>
   </div>
 </div>
@@ -146,7 +147,8 @@ $isOperator = $user['role'] === 'operator';
   <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
     <button class="btn btn-success" onclick="openAddCustomerModal()">新增客户</button>
     <button class="btn btn-primary" onclick="saveAll()">保存</button>
-    <button class="btn btn-danger" onclick="endLive()">结束直播并出库</button>
+    <button class="btn btn-warning" id="offAirBtnBottom" onclick="offAir()">下播</button>
+    <button class="btn btn-danger" id="packBtnBottom" onclick="endLive()">打包出库</button>
     <span class="muted" style="margin-left:auto;">点击客户标题栏可收缩/展开</span>
   </div>
 </div>
@@ -481,7 +483,11 @@ async function loadSessions() {
                 <td>${esc(s.anchor || '-')}</td>
                 <td>${esc(s.operator || '-')}</td>
                 <td>${esc(s.account || '-')}</td>
-                <td><span class="badge ${statusClasses[s.status] || 'badge-info'}">${statusNames[s.status] || s.status}</span></td>
+                <td>
+                    ${s.status === 'active' && s.off_air_at
+                        ? '<span class="badge badge-warning">已下播</span><span class="muted" style="margin-left:6px;">' + esc(s.off_air_at) + '</span>'
+                        : `<span class="badge ${statusClasses[s.status] || 'badge-info'}">${statusNames[s.status] || s.status}</span>`}
+                </td>
                 <td class="muted">${esc(s.created_at || '-')}</td>
                 <td style="display:flex; gap:10px;">
                     <button class="btn btn-sm btn-primary" onclick="enterSession(${s.id})">进入</button>
@@ -633,6 +639,7 @@ async function switchToSession(id) {
         document.getElementById('settingsCard').classList.remove('show');
         // 已结束场次：隐藏 新增客户/保存/结束直播 操作栏
         document.getElementById('actionBar').style.display = isReadOnly ? 'none' : 'flex';
+        updateActionBarState();
         document.getElementById('statsBar').style.display = 'grid';
         document.getElementById('customerListCard').style.display = 'block';
         render();
@@ -1708,10 +1715,50 @@ async function saveAll() {
     } catch (e) { toast('保存失败: ' + e.message, true); }
 }
 
-// ===== 结束直播 =====
+// ===== 下播（记录下播时间，打包出库另走 endLive） =====
+function offAirState() {
+    const st = sessionData && sessionData.settings;
+    return !!(st && st.off_air_at);
+}
+
+// 同步上下操作栏的下播按钮状态：已下播 → 灰色不可再点
+function updateActionBarState() {
+    const done = offAirState();
+    ['offAirBtnTop', 'offAirBtnBottom'].forEach(id => {
+        const b = document.getElementById(id);
+        if (!b) return;
+        b.disabled = done;
+        b.textContent = done ? '已下播' : '下播';
+    });
+}
+
+function offAir() {
+    if (isReadOnly) { toast('该场次已结束'); return; }
+    if (offAirState()) { toast('本场已下播，无需重复操作'); return; }
+    showConfirm('确定下播吗？将记录本场下播时间用于计算播出时长；商品打包出库可在下播后执行。', async () => {
+        try {
+            const res = await fetch('../api/live_ledger_off_air.php', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ session_id: currentSessionId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                // 本地直接标记，无需整页重载；按钮随即置灰
+                sessionData.settings.off_air_at = data.data.off_air_at;
+                updateActionBarState();
+                toast('已下播 ' + data.data.off_air_at + '，可执行打包出库');
+            } else toast(data.error || '下播失败', true);
+        } catch (e) { toast('下播失败: ' + e.message, true); }
+    });
+}
+
+// ===== 打包出库（原结束直播并出库） =====
 function endLive() {
     if (isReadOnly) { toast('该场次已结束'); return; }
-    showConfirm('结束直播将执行出库（扣减库存）并保留历史记录，确定？', async () => {
+    const confirmText = offAirState()
+        ? '确定打包出库吗？将执行出库（扣减库存）并保留历史记录，结束后不可再修改。'
+        : '尚未下播：将自动记录下播时间并立即打包出库（扣减库存），确定？';
+    showConfirm(confirmText, async () => {
         try {
             const res = await fetch('../api/live_ledger_end.php', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -1719,11 +1766,11 @@ function endLive() {
             });
             const data = await res.json();
             if (data.success) {
-                toast('直播已结束，出库完成');
+                toast('打包出库完成');
                 switchSession();
                 await loadSessions();
-            } else toast(data.error || '结束失败', true);
-        } catch (e) { toast('结束失败: ' + e.message, true); }
+            } else toast(data.error || '打包出库失败', true);
+        } catch (e) { toast('打包出库失败: ' + e.message, true); }
     });
 }
 

@@ -78,6 +78,18 @@ let CAN_SEE_PROFIT = <?= $canSeeProfit ? 'true' : 'false' ?>;
 function fmt(v) { return (parseFloat(v) || 0).toFixed(2); }
 function fmtPct(v) { return ((parseFloat(v) || 0) * 100).toFixed(1) + '%'; }
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// 播出时长：下播时间(off_air_at) - 场次创建时间；旧场次无下播时间时用 ended_at 兜底
+function fmtDuration(start, end) {
+    if (!start || !end) return '';
+    const ms = new Date(end).getTime() - new Date(start).getTime();
+    if (!(ms > 0)) return '';
+    const mins = Math.floor(ms / 60000);
+    if (mins < 1) return '不足1分钟';
+    if (mins < 60) return mins + ' 分钟';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return (h ? h + ' 小时' : '') + (m ? ' ' + m + ' 分钟' : '');
+}
 
 async function loadSessions() {
     try {
@@ -141,11 +153,12 @@ function renderSessions(sessions) {
         sums.cost += (t.cost || 0);
         sums.p += (t.profit_base || 0);
         const actLabel = s.activity_label || s.activity_type;
+        const dur = fmtDuration(s.created_at, s.off_air_at || s.ended_at);
         html += `
         <div class="session-block">
             <div class="session-head" onclick="this.parentElement.classList.toggle('open')">
                 <div style="display:flex; align-items:center;"><span class="toggle-arrow">▶</span><span class="session-title">${esc(s.session_name)}</span> <span class="muted" style="margin-left:8px;">#${s.id}</span></div>
-                <div class="muted">${esc(actLabel)} · ${esc(s.created_at)} · 出库批次 ${esc(s.outbound_batch_no || '-')}</div>
+                <div class="muted">${esc(actLabel)} · ${esc(s.created_at)}${dur ? ' · 播出时长 ' + dur : ''} · 出库批次 ${esc(s.outbound_batch_no || '-')}</div>
             </div>
             <div class="session-body">
                 <table>

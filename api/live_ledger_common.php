@@ -91,6 +91,7 @@ function ledgerGetSettings($pdo, $sessionId) {
         'gift_presets' => $presets,
         'status' => $row['status'],
         'created_at' => $row['created_at'],
+        'off_air_at' => $row['off_air_at'] ?? null,
         'ended_at' => $row['ended_at'],
     ];
 }

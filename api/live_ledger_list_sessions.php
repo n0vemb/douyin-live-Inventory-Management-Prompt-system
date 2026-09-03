@@ -10,7 +10,7 @@ $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
 
 $status = $_GET['status'] ?? 'all';
-$sql = "SELECT s.id, s.session_name, s.anchor, s.operator, s.account, s.status, s.created_at, s.ended_at, s.total_qty, s.total_gmv,
+$sql = "SELECT s.id, s.session_name, s.anchor, s.operator, s.account, s.status, s.created_at, s.off_air_at, s.ended_at, s.total_qty, s.total_gmv,
     (SELECT COUNT(*) FROM live_ledger_lucky_draw ld WHERE ld.session_id = s.id AND ld.shipped = 0) AS unshipped_count
     FROM live_ledger_session s WHERE 1=1";
 $params = [];
