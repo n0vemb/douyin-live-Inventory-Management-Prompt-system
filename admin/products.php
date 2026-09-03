@@ -55,9 +55,9 @@ $isOperator = ($currentUser['role'] === 'operator');
                 <th class="pm-sortable" onclick="sortProductsBy('name')">商品名称 / 条码 <span class="pm-arrow" id="ar-name"></span></th>
                 <th class="pm-sortable" onclick="sortProductsBy('series')">系列 <span class="pm-arrow" id="ar-series"></span></th>
                 <th class="pm-sortable" onclick="sortProductsBy('brand')">品牌 <span class="pm-arrow" id="ar-brand"></span></th>
-                <th>SKU 在库数量</th>
-                <th>SKU 最新售价</th>
-                <th>SKU 均价 <span style="font-size:11px;font-weight:400;color:var(--text-tertiary);">（批次加权）</span></th>
+                <th>在库数量</th>
+                <th>最新售价</th>
+                <th title="按在库批次数量加权的均价">均价</th>
                 <th class="pm-sortable" onclick="sortProductsBy('stock')">库存 <span class="pm-arrow" id="ar-stock"></span></th>
                 <th class="pm-no-sort">操作</th>
             </tr>
@@ -482,7 +482,11 @@ $isOperator = ($currentUser['role'] === 'operator');
 .pm-sku-line .condition-badge{min-width:72px;text-align:center;}
 .pm-sku-qty{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;color:var(--text);}
 .pm-sku-empty{font-size:12px;color:var(--text-tertiary);}
-.pm-row-actions{display:flex;gap:6px;flex-wrap:wrap;}
+/* 均价与最新售价不一致：橙色 + 虚线下划线 + 悬停解释 */
+.pm-sku-line.pm-avg-diff{color:var(--warning);text-decoration:underline dotted;text-underline-offset:3px;cursor:help;}
+/* 操作按钮：3×2 网格 */
+.pm-row-actions{display:grid;grid-template-columns:repeat(3,minmax(88px,1fr));gap:5px;width:max-content;max-width:310px;}
+.pm-row-actions .btn{width:100%;padding:5px 4px;font-size:12px;white-space:nowrap;text-align:center;}
 /* 24小时内新入库商品：柔和青色底（暗黑主题适配，区别于库存警告色） */
 .pm-row-newin{background:rgba(56,189,248,0.06);}
 .pm-row-newin:hover{background:rgba(56,189,248,0.1);}
@@ -759,8 +763,15 @@ function renderProducts(products) {
         const skuLatestHtml = skuLines.length
             ? skuLines.map(l => `<div class="pm-sku-line pm-price">${fmtSkuPrice(l.latest)}</div>`).join('')
             : '<span class="pm-sku-empty">-</span>';
+        // 均价与最新售价不一致（多批次定价不同）→ 橙色高亮 + 悬停说明
         const skuAvgHtml = skuLines.length
-            ? skuLines.map(l => `<div class="pm-sku-line pm-price">${fmtSkuPrice(l.avg)}</div>`).join('')
+            ? skuLines.map(l => {
+                const diff = l.avg !== null && l.latest !== null &&
+                    Math.abs(parseFloat(l.avg) - parseFloat(l.latest)) > 0.004;
+                const cls = diff ? ' pm-avg-diff' : '';
+                const tip = diff ? ' title="均价与最新售价不一致（该 SKU 多批次定价不同）"' : '';
+                return `<div class="pm-sku-line pm-price${cls}"${tip}>${fmtSkuPrice(l.avg)}</div>`;
+            }).join('')
             : '<span class="pm-sku-empty">-</span>';
         const checked = selectedIds.has(p.id) ? 'checked' : '';
         // 24小时内新入库：行底色柔和高亮（区分新入库商品）
