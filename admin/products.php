@@ -86,6 +86,7 @@ $isOperator = ($currentUser['role'] === 'operator');
         <div class="pm-tab" data-t="in" onclick="switchTab(this)">入库记录</div>
         <div class="pm-tab" data-t="flow" onclick="switchTab(this)">出入库流水</div>
         <div class="pm-tab" data-t="conv" onclick="switchTab(this)">状态转换</div>
+        <div class="pm-tab" data-t="sales" onclick="switchTab(this)">销售记录</div>
     </div>
     <div class="pm-drawer-body" id="dBody"></div>
     <div class="pm-drawer-foot">
@@ -998,6 +999,34 @@ async function renderDrawer() {
                 : '<div class="pm-pcommon">暂无转换记录</div>';
         } catch (err) {
             body.innerHTML = '<div class="pm-pcommon">加载失败</div>';
+        }
+    } else if (currentTab === 'sales') {
+        body.innerHTML = '<div class="pm-pcommon" style="padding:20px;text-align:center;">加载中...</div>';
+        try {
+            const res = await fetch('../api/get_product_sales.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product_id: currentId })
+            });
+            const data = await res.json();
+            const sales = data.success ? data.data.sales : [];
+            const items = sales.map(s => `<div class="pm-log-item">
+                <span class="pm-lt out"></span>
+                <div style="flex:1;min-width:0;">
+                    <div>
+                        <b>${escapeHtml(s.nickname || '(未命名客户)')}</b>
+                        ${s.vip_no ? ` <span class="pm-tag">VIP ${escapeHtml(s.vip_no)}</span>` : ''}
+                        <span class="pm-tag">${escapeHtml(s.condition_name)}</span>
+                        <span class="pm-tag">×${s.qty}</span>
+                        <span class="pm-tag">¥${parseFloat(s.amount || 0).toFixed(2)}</span>
+                    </div>
+                    <div class="pm-lc">${escapeHtml(s.sold_at || '')}${s.session_name ? ' · 场次 ' + escapeHtml(s.session_name) : ''}${s.session_operator ? ' · 运营 ' + escapeHtml(s.session_operator) : ''}${s.session_account ? ' · 账号 ' + escapeHtml(s.session_account) : ''}${s.operator_username ? ' · 操作人：' + escapeHtml(s.operator_username) : ''}</div>
+                </div>
+                <span class="pm-tag" style="align-self:center; flex-shrink:0;">¥${parseFloat(s.price || 0).toFixed(2)}/件</span>
+            </div>`).join('') || '<div class="pm-pcommon">暂无销售记录（直播记账售出会显示客户）</div>';
+            body.innerHTML = `<div class="pm-sec-title">销售记录（售出客户）</div>${items}`;
+        } catch (err) {
+            body.innerHTML = '<div class="pm-pcommon">加载失败: ' + escapeHtml(err.message) + '</div>';
         }
     }
 }
