@@ -550,7 +550,7 @@ $isOperator = ($currentUser['role'] === 'operator');
 .pm-imp-err{color:var(--danger);font-size:12px;margin-top:8px;white-space:pre-line;}
 .pm-modal-wide{max-width:640px;}
 #importModal .modal-content{width:min(1280px,98vw); max-width:none; max-height:calc(100vh - 14px); display:flex; flex-direction:column; overflow:hidden;}
-#importModal #importResult{flex:1; min-height:0; overflow:auto;}
+#importModal #importResult{flex:1; min-height:0; overflow:auto; max-height:none;}
 #importModal #importResult .pm-imp-cmp{white-space:nowrap; border-collapse:collapse; width:100%; font-size:12px;}
 #importModal #importResult .pm-imp-cmp th{position:sticky; top:0; z-index:2; background:var(--bg-hover,#eef2ff); padding:6px 10px; text-align:left;}
 #importModal #importResult .pm-imp-cmp td{padding:5px 10px; border-top:1px solid var(--border,#e5e7eb); vertical-align:top;}
