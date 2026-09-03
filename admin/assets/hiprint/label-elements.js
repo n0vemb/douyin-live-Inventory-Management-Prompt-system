@@ -102,6 +102,19 @@
         }
       },
       {
+        tid: "labelModule.custom",
+        title: "自定义文本",
+        type: "text",
+        options: {
+          field: "customText",
+          testData: labelTestData("custom", "自定义文本"),
+          height: 12.5,
+          fontSize: 10,
+          verticalAlign: "top",
+          hideTitle: true
+        }
+      },
+      {
         tid: "labelModule.condition",
         title: "SKU状态",
         type: "text",
@@ -203,6 +216,12 @@
         { tid: "labelModule.barcodeText", title: "条码数字" },
         { tid: "labelModule.batch", title: "批次号" },
         { tid: "labelModule.date", title: "入库日期" }
+      ]
+    },
+    {
+      title: "其他",
+      items: [
+        { tid: "labelModule.custom", title: "自定义文本（双击改文字）" }
       ]
     }
   ];

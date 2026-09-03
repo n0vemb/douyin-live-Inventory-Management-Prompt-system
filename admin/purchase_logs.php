@@ -212,6 +212,12 @@ $isOperator = ($currentUser['role'] === 'operator');
         <button class="hbtn" title="适应画布宽度" onclick="hpFit()">适应</button>
       </div>
     </div>
+    <div class="hp-toolbar" style="border-top:none;padding-top:0;">
+      <label style="flex:0 0 auto;">自定义文本
+        <input id="hpCustomText" style="min-width:300px;" placeholder="如：福袋款 / 直播间专享（随模板保存，所有标签一致）" oninput="hpCustomTextChanged(this.value)">
+      </label>
+      <span style="font-size:12px;color:#7a8699;align-self:center;">左侧「其他 → 自定义文本」拖入标签并调整位置/字号后生效</span>
+    </div>
     <div class="hp-body">
       <div class="hp-palette" id="hpPalette"><div class="hp-tip">编辑器资源加载中…</div></div>
       <div class="hp-canvas" id="hpCanvasWrap">
@@ -296,6 +302,7 @@ let templates=[], curTpl=null;
 let records=[], copies={}, currentPage=1, totalPages=1;
 let psHost='', psPrinter='';
 let skuFilter='';
+let customText=''; // 模板自定义文本（编辑器顶部输入，随模板保存）
 const $=id=>document.getElementById(id);
 
 // ---------- 工具 ----------
@@ -461,6 +468,7 @@ function defaultElSize(type){
     series:{width:50,height:4,fontSize:3},
     price:{width:50,height:6,fontSize:5,fontWeight:'bold',color:'#e53e3e'},
     avg:{width:50,height:5,fontSize:4,color:'#b45309'},
+    custom:{width:50,height:4,fontSize:3},
     condition:{width:50,height:4,fontSize:2.5},
     batch:{width:50,height:4,fontSize:2.5},
     date:{width:50,height:4,fontSize:2.5}
@@ -475,7 +483,7 @@ function sampleItem(){
 // elHTML：fsPx=字号(px)、bhPx=条码高度(px)——编辑器/预览/浏览器打印按各自 scale 传入，缩放元素时字号/条码真实变化
 // elHTML：fsPx=字号(px)、bhPx=条码高度(px)、align=水平对齐、fw=fontWeight(编辑器设置)
 // 字号=用户设置的原始值（不再对 常用名/系列/条码数字 打折），粗体按元素配置应用（name/price 恒粗）
-function elHTML(type,item,fsPx,bhPx,align,fw){
+function elHTML(type,item,fsPx,bhPx,align,fw,txt){
   fsPx=fsPx||13;
   const isBold=type==='name'||type==='price'||fw==='bold'||fw==='700'||fw==='bolder'||(+fw||0)>=600;
   const boldStyle=isBold?'font-weight:700;':'';
@@ -489,6 +497,7 @@ function elHTML(type,item,fsPx,bhPx,align,fw){
   if(type==='barcodeText')return `<div style="${alignStyle}font-family:ui-monospace,monospace;font-size:${Math.round(fsPx)}px;color:#1d2330;${boldStyle}">${esc(item.barcode)}</div>`;
   if(type==='price')return `<div style="${base(1,true)};color:#d92d20">¥${(+item.price||0).toFixed(2)}</div>`;
   if(type==='avg')return `<div style="${base(1,true)};color:#b45309">¥${Math.ceil(+item.avgPrice||0)}</div>`;
+  if(type==='custom')return `<div style="${base(1,false)}">${esc(txt||'')}</div>`;
   if(type==='condition')return `<div style="${base(1,true)}">${esc(allConditionTypes.map(k=>`${k===item.conditionType?'☑':'□'} ${getCondName(k)}`).join('  '))}</div>`;
   if(type==='batch')return `<div style="${base(1,true)};color:#5b6478">批次 ${esc(item.batchNo)}</div>`;
   if(type==='date')return `<div style="${base(1,true)};color:#5b6478">${esc(item.date?String(item.date).slice(0,10):'')}</div>`;
@@ -522,7 +531,7 @@ function labelHTML(tpl,item,scale){
     const ai=va==='middle'?'center':va==='bottom'?'flex-end':'flex-start';
     const wStyle=`width:${(e.width||base.width)*scale}px;`;
     const hStyle=`height:${(e.height||base.height)*scale}px;`;
-    return `<div class="lp-el ${e.type}" style="left:${(e.x||0)*scale}px;top:${(e.y||0)*scale}px;${wStyle}${hStyle}align-items:${ai};font-size:${fs}px">${elHTML(e.type,item,fs,(e.height||base.height)*scale,e.align,e.fontWeight)}</div>`;
+    return `<div class="lp-el ${e.type}" style="left:${(e.x||0)*scale}px;top:${(e.y||0)*scale}px;${wStyle}${hStyle}align-items:${ai};font-size:${fs}px">${elHTML(e.type,item,fs,(e.height||base.height)*scale,e.align,e.fontWeight,e.text||'')}</div>`;
   }).join('');
   return `<div style="position:relative;width:${w}px;height:${h}px;background:#fff;border:1px solid #d7dcea">${inner}</div>`;
 }
@@ -583,6 +592,7 @@ const EL_META={
   barcodeText:{field:'barcode',testData:'6901234567890'},
   price:{field:'price',testData:'¥1299.00'},
   avg:{field:'avgPrice',testData:'¥100'},
+  custom:{field:'customText',testData:'自定义文本'},
   condition:{field:'conditionType',testData:'☑ 全新   □ 拆封   □ 裸盒   □ 瑕疵'},
   batch:{field:'batchNo',testData:'批次 B0830-001'},
   date:{field:'purchasedAt',testData:'2026-08-30'}
@@ -619,6 +629,7 @@ function editorTestDataMap(){
     barcode:it.barcode||nod.barcode,barcodeText:it.barcode||nod.barcodeText,
     price:(it.price!=null&&it.price!=='')?('¥'+Number(it.price).toFixed(2)):nod.price,
     avg:(it.avgPrice!=null&&it.avgPrice!=='')?('¥'+Math.ceil(+it.avgPrice||0)):nod.avg,
+    custom:'自定义文本',
     condition:allConditionTypes.length?allConditionTypes.map(k=>`${k===it.conditionType?'☑':'□'} ${getCondName(k)}`).join('  '):'',
     batch:it.batchNo?('批次 '+it.batchNo):nod.batch,
     date:it.date?String(it.date).slice(0,10):nod.date};
@@ -628,7 +639,7 @@ function editorTestDataMap(){
 function simpleToHiprint(tpl){
   const printElements=(tpl.elements||[]).map(e=>{
     const meta=EL_META[e.type]||EL_META.name,base=defaultElSize(e.type);
-    const o={field:meta.field,testData:editorTestData(e.type,sampleItem()),
+    const o={field:meta.field,testData:e.type==='custom'?(e.text||''):editorTestData(e.type,sampleItem()),
       left:mmToPt(e.x||0),top:mmToPt(e.y||0),
       width:mmToPt(e.width??base.width),height:mmToPt(e.height??base.height),
       fontSize:mmToPt(e.fontSize??base.fontSize),textAlign:e.align||'left',
@@ -657,7 +668,7 @@ function hiprintToSimple(json){
     }
     if(!type){skipped++;return;}
     const base=defaultElSize(type);
-    elements.push({type,
+    elements.push(Object.assign({type,
       x:Math.max(0,ptToMm(o.left||0)),
       y:Math.max(0,ptToMm(o.top||0)),
       width:Math.max(3,ptToMm(o.width||mmToPt(base.width))),
@@ -666,7 +677,7 @@ function hiprintToSimple(json){
       align:o.textAlign||'left',
       verticalAlign:o.verticalAlign||'top',
       color:o.color||base.color,
-      fontWeight:o.fontWeight||base.fontWeight});
+      fontWeight:o.fontWeight||base.fontWeight}, type==='custom'?{text:customText||''}:{}));
   });
   return {elements,skipped};
 }
@@ -814,6 +825,10 @@ function openDesigner(t){
   let src=null;
   if(t!==undefined){src=templates.find(x=>String(x.id)===String(t));if(!src){toast('请先选择模板');return;}}
   editingTpl=src?JSON.parse(JSON.stringify(src)):{id:null,name:'',canvasWidth:58,canvasHeight:40,elements:[]};
+  // 载入模板已有自定义文本
+  const ct=(editingTpl.elements||[]).find(e=>e.type==='custom');
+  customText=(ct&&ct.text)||'';
+  const ctInput=$('hpCustomText');if(ctInput)ctInput.value=customText;
   $('tplName').value=editingTpl.name||'';
   $('tplW').value=editingTpl.canvasWidth;
   $('tplH').value=editingTpl.canvasHeight;
@@ -828,6 +843,7 @@ function openDesigner(t){
     setTimeout(hpFit,60);
   });
 }
+function hpCustomTextChanged(v){customText=v||'';}
 function closeDesigner(){closeModal('mEditor');}
 // 纸张宽高输入变化 → 重挂载（先取当前画布元素，避免丢失未保存修改）
 function remountDesigner(){
@@ -971,6 +987,7 @@ function renderLabelCanvas(tpl,item){
     else if(e.type==='series'){text=item.series||'';color='#5b6478';}
     else if(e.type==='price'){text='¥'+(+item.price||0).toFixed(2);color='#d92d20';}
     else if(e.type==='avg'){text='¥'+Math.ceil(+item.avgPrice||0);color='#b45309';}
+    else if(e.type==='custom'){text=e.text||'';color='#111';}
     else if(e.type==='condition'){text=allConditionTypes.map(k=>`${k===item.conditionType?'☑':'□'} ${getCondName(k)}`).join('  ');color='#111';}
     else if(e.type==='batch'){text='批次 '+item.batchNo;color='#5b6478';}
     else if(e.type==='date'){text=(item.date||'').slice(0,10);color='#5b6478';}

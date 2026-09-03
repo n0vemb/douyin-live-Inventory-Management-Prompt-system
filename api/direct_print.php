@@ -166,7 +166,7 @@ requireAuth(); $storeId = getStoreId();
 
             foreach ($elements as $el) {
                 $type = isset($el['type']) ? $el['type'] : '';
-                $content = getElementContent($type, $item, $condMap);
+                $content = getElementContent($type, $item, $condMap, $el);
                 $ex = (int)round(floatval(isset($el['x']) ? $el['x'] : 0) * $pxPerMm);
                 $ey = (int)round(floatval(isset($el['y']) ? $el['y'] : 0) * $pxPerMm);
 
@@ -374,7 +374,7 @@ requireAuth(); $storeId = getStoreId();
 
 // ---------- 辅助函数 ----------
 
-function getElementContent($type, $item, $condMap = null) {
+function getElementContent($type, $item, $condMap = null, $el = null) {
     switch ($type) {
         case 'barcode':
         case 'barcodeText':
@@ -405,6 +405,8 @@ function getElementContent($type, $item, $condMap = null) {
         case 'avg':
             $avg = isset($item['avgPrice']) ? (int)ceil(floatval($item['avgPrice'])) : 0;
             return '¥' . $avg;
+        case 'custom':
+            return isset($el['text']) ? (string)$el['text'] : '';
         default:
             return isset($item[$type]) ? $item[$type] : '';
     }
