@@ -216,7 +216,7 @@ $isOperator = ($currentUser['role'] === 'operator');
       <label style="flex:0 0 auto;">自定义文本
         <input id="hpCustomText" style="min-width:300px;" placeholder="如：福袋款 / 直播间专享（随模板保存，所有标签一致）" oninput="hpCustomTextChanged(this.value)">
       </label>
-      <span style="font-size:12px;color:#7a8699;align-self:center;">左侧「其他 → 自定义文本」拖入标签并调整位置/字号后生效</span>
+      <span style="font-size:12px;color:#7a8699;align-self:center;">文字填在左侧输入框；左侧「其他 → 自定义文本」拖入标签并调整位置/字号（画布内文字为占位，双击改字已禁用防误清空）</span>
     </div>
     <div class="hp-body">
       <div class="hp-palette" id="hpPalette"><div class="hp-tip">编辑器资源加载中…</div></div>
@@ -668,6 +668,12 @@ function hiprintToSimple(json){
     }
     if(!type){skipped++;return;}
     const base=defaultElSize(type);
+    const customRaw = type==='custom'
+        ? (customText && customText.trim())
+            ? customText
+            : (String(o.testData || '').trim() !== '' && String(o.testData || '').trim() !== '自定义文本' ? o.testData : '')
+              || (String(o.title || '').trim() !== '' && String(o.title || '').trim() !== '自定义文本' ? o.title : '')
+        : '';
     elements.push(Object.assign({type,
       x:ptToMm(o.left||0),   // 允许负/越界坐标（打印偏移补偿）
       y:ptToMm(o.top||0),
@@ -677,7 +683,7 @@ function hiprintToSimple(json){
       align:o.textAlign||'left',
       verticalAlign:o.verticalAlign||'top',
       color:o.color||base.color,
-      fontWeight:o.fontWeight||base.fontWeight}, type==='custom'?{text:customText||''}:{}));
+      fontWeight:o.fontWeight||base.fontWeight}, type==='custom'?{text:customRaw}:{}));
   });
   return {elements,skipped};
 }
@@ -753,6 +759,11 @@ function hpMount(tplJson){
   hpTemplate=new hiprint.PrintTemplate({template:tplJson,settingContainer:'#hpProps',paginationContainer:'.hiprint-printPagination'});
   hpTemplate.design('#hpCanvas');
   hpForceOrigin();
+  // 禁止画布内双击改字：绑定字段的文本元素双击编辑会按「标题：内容」拆分，
+  // 直接输入 / 等字符会把内容清空；自定义文本统一用顶部输入框填写
+  $('hpCanvas').addEventListener('dblclick', function (ev) {
+    if (ev.target && ev.target.closest && ev.target.closest('.hiprint-printElement-content')) ev.stopPropagation();
+  }, true);
   if(hpScale&&hpScale!==1){try{hpTemplate.zoom(hpScale);}catch(e){}hpForceOrigin();}
 }
 function hpGetTemplate(){
