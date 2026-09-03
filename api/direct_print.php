@@ -404,7 +404,7 @@ function getElementContent($type, $item, $condMap = null, $el = null) {
             return '¥' . number_format($price, 2);
         case 'avg':
             $avg = isset($item['avgPrice']) ? (int)ceil(floatval($item['avgPrice'])) : 0;
-            return '¥' . $avg;
+            return (string)$avg;
         case 'custom':
             return isset($el['text']) ? (string)$el['text'] : '';
         default:

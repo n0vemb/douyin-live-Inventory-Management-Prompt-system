@@ -93,7 +93,7 @@
         type: "text",
         options: {
           field: "avgPrice",
-          testData: labelTestData("avg", "¥100"),
+          testData: labelTestData("avg", "100"),
           height: 15,
           fontSize: 12,
           color: "#b45309",

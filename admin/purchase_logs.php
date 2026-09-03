@@ -496,7 +496,7 @@ function elHTML(type,item,fsPx,bhPx,align,fw,txt){
   if(type==='barcode')return `<div class="barcode" style="height:${bhPx||26}px;width:100%">${barcodeBars(item.barcode,bhPx)}</div>`;
   if(type==='barcodeText')return `<div style="${alignStyle}font-family:ui-monospace,monospace;font-size:${Math.round(fsPx)}px;color:#1d2330;${boldStyle}">${esc(item.barcode)}</div>`;
   if(type==='price')return `<div style="${base(1,true)};color:#d92d20">¥${(+item.price||0).toFixed(2)}</div>`;
-  if(type==='avg')return `<div style="${base(1,true)};color:#b45309">¥${Math.ceil(+item.avgPrice||0)}</div>`;
+  if(type==='avg')return `<div style="${base(1,true)};color:#b45309">${Math.ceil(+item.avgPrice||0)}</div>`;
   if(type==='custom')return `<div style="${base(1,false)}">${esc(txt||'')}</div>`;
   if(type==='condition')return `<div style="${base(1,true)}">${esc(allConditionTypes.map(k=>`${k===item.conditionType?'☑':'□'} ${getCondName(k)}`).join('  '))}</div>`;
   if(type==='batch')return `<div style="${base(1,true)};color:#5b6478">批次 ${esc(item.batchNo)}</div>`;
@@ -591,7 +591,7 @@ const EL_META={
   barcode:{field:'barcode',textType:'barcode',testData:'6901234567890'},
   barcodeText:{field:'barcode',testData:'6901234567890'},
   price:{field:'price',testData:'¥1299.00'},
-  avg:{field:'avgPrice',testData:'¥100'},
+  avg:{field:'avgPrice',testData:'100'},
   custom:{field:'customText',testData:'自定义文本'},
   condition:{field:'conditionType',testData:'☑ 全新   □ 拆封   □ 裸盒   □ 瑕疵'},
   batch:{field:'batchNo',testData:'批次 B0830-001'},
@@ -615,7 +615,7 @@ function editorTestData(type,item){
   if(type==='series')return item.series||nod;
   if(type==='barcode'||type==='barcodeText')return item.barcode||nod;
   if(type==='price')return (item.price!=null&&item.price!=='')?('¥'+Number(item.price).toFixed(2)):nod;
-  if(type==='avg')return (item.avgPrice!=null&&item.avgPrice!=='')?('¥'+Math.ceil(+item.avgPrice||0)):nod;
+  if(type==='avg')return (item.avgPrice!=null&&item.avgPrice!=='')?(String(Math.ceil(+item.avgPrice||0))):nod;
   if(type==='condition')return allConditionTypes.length?allConditionTypes.map(k=>`${k===item.conditionType?'☑':'□'} ${getCondName(k)}`).join('  '):def;
   if(type==='batch')return item.batchNo?('批次 '+item.batchNo):nod;
   if(type==='date')return item.date?String(item.date).slice(0,10):nod;
@@ -628,7 +628,7 @@ function editorTestDataMap(){
   return {name:it.productName||nod.name,common:it.commonName||nod.common,series:it.series||nod.series,
     barcode:it.barcode||nod.barcode,barcodeText:it.barcode||nod.barcodeText,
     price:(it.price!=null&&it.price!=='')?('¥'+Number(it.price).toFixed(2)):nod.price,
-    avg:(it.avgPrice!=null&&it.avgPrice!=='')?('¥'+Math.ceil(+it.avgPrice||0)):nod.avg,
+    avg:(it.avgPrice!=null&&it.avgPrice!=='')?(String(Math.ceil(+it.avgPrice||0))):nod.avg,
     custom:'自定义文本',
     condition:allConditionTypes.length?allConditionTypes.map(k=>`${k===it.conditionType?'☑':'□'} ${getCondName(k)}`).join('  '):'',
     batch:it.batchNo?('批次 '+it.batchNo):nod.batch,
@@ -669,8 +669,8 @@ function hiprintToSimple(json){
     if(!type){skipped++;return;}
     const base=defaultElSize(type);
     elements.push(Object.assign({type,
-      x:Math.max(0,ptToMm(o.left||0)),
-      y:Math.max(0,ptToMm(o.top||0)),
+      x:ptToMm(o.left||0),   // 允许负/越界坐标（打印偏移补偿）
+      y:ptToMm(o.top||0),
       width:Math.max(3,ptToMm(o.width||mmToPt(base.width))),
       height:Math.max(1,ptToMm(o.height||mmToPt(base.height))),
       fontSize:Math.max(1,ptToMm(o.fontSize||mmToPt(base.fontSize))),
@@ -986,7 +986,7 @@ function renderLabelCanvas(tpl,item){
     else if(e.type==='common'){text=item.commonName||'';color='#5b6478';}
     else if(e.type==='series'){text=item.series||'';color='#5b6478';}
     else if(e.type==='price'){text='¥'+(+item.price||0).toFixed(2);color='#d92d20';}
-    else if(e.type==='avg'){text='¥'+Math.ceil(+item.avgPrice||0);color='#b45309';}
+    else if(e.type==='avg'){text=String(Math.ceil(+item.avgPrice||0));color='#b45309';}
     else if(e.type==='custom'){text=e.text||'';color='#111';}
     else if(e.type==='condition'){text=allConditionTypes.map(k=>`${k===item.conditionType?'☑':'□'} ${getCondName(k)}`).join('  ');color='#111';}
     else if(e.type==='batch'){text='批次 '+item.batchNo;color='#5b6478';}
