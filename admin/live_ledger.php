@@ -138,6 +138,7 @@ async function fastHandleInput() {
     const inp = document.getElementById('fastInput');
     const v = inp.value.trim();
     if (!v || !currentSessionId || !sessionData) { toast('请先进入场次', true); return; }
+    if (isReadOnly) { toast('本场次已结束（打包出库），不可再添加客户/商品', true); closeFastPanel(); return; }
     fastSyncCur();
 
     // 0) “.” = 同款连发（把上一商品加给当前客户）
@@ -267,6 +268,7 @@ function fastPickAvailable(g) {
     return null;
 }
 function fastAddSku(sku) {
+    if (isReadOnly) { toast('本场次已结束（打包出库），不可再添加商品', true); return; }
     fastClearCands();
     document.getElementById('fastInput').value = '';
     editingCustomerId = fastCur.id;
@@ -279,6 +281,7 @@ function fastAddSku(sku) {
 }
 function fastRepeat() {
     if (!fastLastSku || !fastCur) { toast('还没有上一商品', true); return; }
+    if (isReadOnly) { toast('本场次已结束（打包出库），不可再添加商品', true); return; }
     fastSyncCur();
     // 防重复：同一客户已加过该同款 → 拦下提示，避免连按两次“.”重复加购
     const dup = (fastCur.items || []).some(i =>
@@ -957,7 +960,8 @@ async function switchToSession(id) {
         // 进入场次：显示右侧快捷面板 tab（价格库存查询/福袋记录）
         document.getElementById('psTab').style.display = '';
         document.getElementById('ldTab').style.display = '';
-        document.getElementById('fastTab').style.display = '';
+        // 已结束(打包出库)场次只读：不再显示速录入口
+        document.getElementById('fastTab').style.display = isReadOnly ? 'none' : '';
         // 关闭已打开的面板
         closePriceStockPanel();
         closeLuckyPanel();
