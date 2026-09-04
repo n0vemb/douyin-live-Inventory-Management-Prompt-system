@@ -137,12 +137,11 @@ function renderFastLast() {
 async function fastHandleInput() {
     const inp = document.getElementById('fastInput');
     const v = inp.value.trim();
-    inp.value = '';
     if (!v || !currentSessionId || !sessionData) { toast('请先进入场次', true); return; }
     fastSyncCur();
 
     // 0) “.” = 同款连发（把上一商品加给当前客户）
-    if (v === '.' || v === '。') { fastRepeat(); return; }
+    if (v === '.' || v === '。') { inp.value = ''; fastRepeat(); return; }
 
     // 1) 客户：VIP号(+空格+昵称)。Dxx 或纯数字，昵称可随后粘贴
     const m = /^([Dd]?\d+)(?:[\s　\-：:]+(.*))?$/.exec(v);
@@ -150,7 +149,7 @@ async function fastHandleInput() {
         const vip = m[1].toUpperCase();
         let nick = (m[2] || '').trim();
         const dup = (sessionData.customers || []).find(c => (c.vip_no || '').toUpperCase() === vip);
-        if (dup) { fastClearCands(); fastCur = dup; toast('已切到客户：' + (dup.nickname || vip)); fastRender(); return; }
+        if (dup) { inp.value = ''; fastClearCands(); fastCur = dup; toast('已切到客户：' + (dup.nickname || vip)); fastRender(); return; }
         if (!nick) {
             try {
                 const res = await fetch('../api/live_ledger_lookup_vip.php?vip_no=' + encodeURIComponent(m[1]));
@@ -158,12 +157,18 @@ async function fastHandleInput() {
                 if (data.success && data.data.nickname) nick = data.data.nickname;
             } catch (e) {}
         }
-        if (!nick) { toast('未匹配昵称：请重新输入 VIP号 空格 后粘贴昵称', true); return; }
+        if (!nick) {
+            // 保留输入（如已输 D46），可直接继续粘贴昵称再回车，省去重打 VIP
+            toast('未匹配昵称：可直接把昵称粘贴到本框后面再回车（会自动补空格）', true);
+            inp.focus();
+            return;
+        }
         const newId = nextLocalId--;
         const c = { id: newId, nickname: nick, vip_no: vip, items: [], gifts: [], _collapsed: false };
         sessionData.customers.push(c);
         fastCur = c;
         fastClearCands();
+        inp.value = '';
         render(); fastRender(); scrollToCustomer(newId);
         toast('客户已添加（速录）：' + nick);
         scheduleAutoSave();
@@ -263,6 +268,7 @@ function fastPickAvailable(g) {
 }
 function fastAddSku(sku) {
     fastClearCands();
+    document.getElementById('fastInput').value = '';
     editingCustomerId = fastCur.id;
     editingCustomerRef = fastCur;
     fastLastSku = sku;
@@ -320,6 +326,17 @@ document.addEventListener('keydown', function (e) {
             if (idx < fastCands.length) { e.preventDefault(); fastPickCand(idx); }
         }
     }
+});
+// 粘贴时：若当前只有 VIP 编号（如 D46），自动补空格再接昵称，避免 D46昵称 无法解析
+document.getElementById('fastInput').addEventListener('paste', function (e) {
+    const inp = document.getElementById('fastInput');
+    const old = inp.value.trim();
+    if (!/^[Dd]?\d+$/.test(old)) return;
+    const clip = ((e.clipboardData || window.clipboardData) || {}).getData ? (e.clipboardData || window.clipboardData).getData('text') : '';
+    if (!clip) return;
+    e.preventDefault();
+    inp.value = old + ' ' + clip.trim();
+    inp.focus();
 });
 </script>
 
