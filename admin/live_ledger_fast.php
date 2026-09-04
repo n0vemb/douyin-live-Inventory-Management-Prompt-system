@@ -55,7 +55,7 @@ $isOperator = $user['role'] === 'operator';
         <div class="fp-chips" id="fastRecent"></div>
         <div class="fp-sec">最近添加</div>
         <div class="fp-last" id="fastLast"></div>
-        <div class="fp-note">规则：未拆袋优先，仅有已拆则已拆；多个商品匹配会列候选（数字键 1-9 / 点选 / 回车选第一个）。同一商品多人要：新客户设好后输入 <b>.</b> 回车＝同款连发。</div>
+        <div class="fp-note">规则：未拆袋优先，仅有已拆则已拆；多个精确拼音命中时必须数字键/点选（回车不会自动选，防误加），可继续加字缩小。同款连发：新客户设好后输入 <b>.</b> 回车。</div>
         <div class="fp-stat" id="fastStat"></div>
     </div>
 </div>
@@ -178,7 +178,7 @@ async function fastFindAndAdd(kw) {
         // 按商品分组
         const groups = {};
         rows.forEach(b => {
-            if (!groups[b.product_id]) groups[b.product_id] = { product_id: b.product_id, name: b.common_name || b.product_name, conds: {} };
+            if (!groups[b.product_id]) groups[b.product_id] = { product_id: b.product_id, name: b.common_name || b.product_name, py: (b.pinyin_initials || '').toLowerCase(), series: b.series || '', conds: {} };
             const g = groups[b.product_id];
             if (!g.conds[b.condition_type]) g.conds[b.condition_type] = { condition_type: b.condition_type, condition_name: b.condition_name, total_stock: 0, suggested_price: 0, purchase_price: 0, product_name: b.product_name, product_id: b.product_id };
             const cd = g.conds[b.condition_type];
@@ -186,18 +186,38 @@ async function fastFindAndAdd(kw) {
             if (parseFloat(b.suggested_price) > cd.suggested_price) cd.suggested_price = parseFloat(b.suggested_price) || 0;
             if (parseFloat(b.purchase_price) > cd.purchase_price) cd.purchase_price = parseFloat(b.purchase_price) || 0;
         });
+        const q = String(kw || '').trim().toLowerCase();
         const pids = Object.keys(groups);
         if (!pids.length) { toast('未找到可用商品', true); return; }
-        // 多匹配 → 列候选让运营选择，避免加错
+        // 排序：拼音完全等于输入 > 前缀 > 仅包含；并统计“精确命中”数量
+        const rank = function (pid) {
+            const py = groups[pid].py || '';
+            if (q && py === q) return 0;
+            if (q && py.indexOf(q) === 0) return 1;
+            return 2;
+        };
+        pids.sort(function (a, b) { return rank(a) - rank(b); });
+        const exactCount = pids.filter(function (pid) { return rank(pid) === 0; }).length;
+
+        // 精确拼音唯一 → 自动添加（子串命中的不抢）
+        if (pids.length > 1 && exactCount === 1) {
+            const g = groups[pids[0]];
+            fastCache[g.product_id] = Object.values(g.conds);
+            const sku = fastPickAvailable(g);
+            if (sku) { fastAddSku(sku); } else { toast(g.name + ' 所有 SKU 已被占用', true); }
+            return;
+        }
+        // 多个命中（含多个精确/无精确）→ 列候选，必须人工选
         if (pids.length > 1) {
             fastCands = pids.map(pid => groups[pid]);
             const box = document.getElementById('fastCands');
             box.innerHTML = fastCands.map((g, i) => {
                 let avail = 0;
                 Object.values(g.conds).forEach(cd => { avail += Math.max(0, cd.total_stock - fastReserved(cd.product_id, cd.condition_type)); });
-                return '<span class="fp-chip" data-c="' + i + '">' + (i + 1) + ' ' + esc(g.name) + (g.series ? ' · ' + esc(g.series) : '') + '（可用 ' + avail + '）</span>';
+                return '<span class="fp-chip" data-c="' + i + '">' + (i + 1) + ' ' + esc(g.name) + (rank(g.product_id) === 0 ? '（精确）' : '') + (g.series ? ' · ' + esc(g.series) : '') + '（可用 ' + avail + '）</span>';
             }).join('');
             document.getElementById('fastCandSec').style.display = '';
+            document.getElementById('fastCandSec').textContent = '多个商品匹配，选一个（数字键 1-9）；回车不会自动选，防误加';
             box.querySelectorAll('[data-c]').forEach(el => {
                 el.addEventListener('click', function () { fastPickCand(+el.getAttribute('data-c')); });
             });
@@ -281,7 +301,7 @@ document.addEventListener('keydown', function (e) {
     if (p && p.classList.contains('open')) {
         if (e.target.id === 'fastInput' && e.key === 'Enter') {
             e.preventDefault();
-            if (fastCands.length) { fastPickCand(0); } else { fastHandleInput(); }
+            fastHandleInput();
             return;
         }
         if (fastCands.length && /^[1-9]$/.test(e.key)) {
