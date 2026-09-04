@@ -18,6 +18,328 @@ $isOperator = $user['role'] === 'operator';
   <div class="stat-card"><div class="label" id="statProfitLabel">毛利-无活动</div><div class="value" id="statTotalProfit">¥0</div></div>
 </div>
 
+<style>
+/* ===== 速录面板 ===== */
+#fastPanel { width: 400px; }
+#fastPanel .fp-sec { font-size: 12px; color: var(--text-tertiary); margin: 12px 0 6px; font-weight: 600; }
+#fastPanel .fp-cur { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 32px; }
+#fastPanel .fp-cur .vc { background: rgba(99,102,241,.14); color: var(--primary); border-radius: 6px; padding: 1px 8px; font-size: 12px; font-weight: 700; }
+#fastPanel .fp-cur .nk { font-weight: 700; font-size: 15px; }
+#fastPanel .fp-cur .none { color: var(--text-tertiary); font-size: 12px; }
+#fastPanel .fp-in { display: flex; gap: 8px; margin-top: 10px; }
+#fastPanel .fp-in input { flex: 1; min-width: 0; }
+#fastPanel .fp-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+#fastPanel .fp-chip { background: var(--bg-hover); border: 1px solid var(--border); color: var(--text); border-radius: 14px; padding: 2px 10px; font-size: 12px; cursor: pointer; }
+#fastPanel .fp-chip:hover { border-color: var(--primary); }
+#fastPanel .fp-chip.hit, #fastPanel .fp-hit { background: rgba(240,180,41,.16); border-color: rgba(240,180,41,.42); color: #f0b429; }
+#fastPanel .fp-hit-tag { display:inline-block; background: rgba(240,180,41,.18); color:#f0b429; border:1px solid rgba(240,180,41,.45); border-radius:4px; font-size:10px; padding:0 5px; margin-left:5px; vertical-align:middle; }
+#fastPanel .fp-sub-tag { display:inline-block; background: var(--bg-hover); color: var(--text-tertiary); border:1px solid var(--border); border-radius:4px; font-size:10px; padding:0 5px; margin-left:5px; vertical-align:middle; }
+#fastPanel .fp-last { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#fastPanel .fp-note { font-size: 11px; color: var(--text-tertiary); line-height: 1.6; margin-top: 10px; }
+#fastPanel .fp-stat { font-size: 11.5px; color: var(--text-tertiary); margin-top: 8px; }
+</style>
+
+<!-- 右侧吸附：速录面板（仅场次内显示） -->
+<div class="ps-panel" id="fastPanel">
+    <div class="ps-head">
+        <span class="title">速录</span>
+        <button class="ps-close" onclick="closeFastPanel()">&times;</button>
+    </div>
+    <div class="ps-body" id="fastBody">
+        <div class="fp-sec" style="margin-top:0;">当前客户</div>
+        <div class="fp-cur" id="fastCur"></div>
+        <div class="fp-in">
+            <input type="text" id="fastInput" class="form-input" placeholder="新客：VIP号 空格 粘贴昵称；加商品：拼音/名称回车" autocomplete="off">
+            <button type="button" class="btn btn-primary" onclick="fastHandleInput()">＋</button>
+        </div>
+        <div class="fp-sec" id="fastCandSec" style="display:none;">多个商品匹配，选一个（数字键 1-9）</div>
+        <div class="fp-chips" id="fastCands"></div>
+        <div class="fp-sec">最近客户（点选）</div>
+        <div class="fp-chips" id="fastRecent"></div>
+        <div class="fp-sec">最近添加</div>
+        <div class="fp-last" id="fastLast"></div>
+        <div class="fp-note">规则：未拆袋优先，仅有已拆则已拆；多个精确拼音命中时必须数字键/点选（回车不会自动选，防误加），可继续加字缩小。同款连发：新客户设好后输入 <b>.</b> 回车。</div>
+        <div class="fp-stat" id="fastStat"></div>
+    </div>
+</div>
+
+<script>
+// ================= 速录面板（live_ledger_fast 实验） =================
+let fastCur = null;        // 当前客户对象引用
+let fastLastSku = null;    // 上一商品（含所选 SKU 明细）
+let fastCache = {};        // product_id => [{condition...}] 搜索缓存（SKU 切换用）
+let fastCands = [];        // 拼音多匹配候选
+const FAST_SKU_PRIORITY = ['sealed', 'opened', 'boxless', 'flawed'];
+
+function openFastPanel() { document.getElementById('fastPanel').classList.add('open'); fastRender(); setTimeout(() => document.getElementById('fastInput').focus(), 120); }
+function closeFastPanel() { document.getElementById('fastPanel').classList.remove('open'); }
+function toggleFastPanel() { const p = document.getElementById('fastPanel'); if (p.classList.contains('open')) closeFastPanel(); else openFastPanel(); }
+function fastClearCands() {
+    fastCands = [];
+    document.getElementById('fastCandSec').style.display = 'none';
+    document.getElementById('fastCands').innerHTML = '';
+}
+// 点击面板外空白处收起（与其它右侧面板一致）
+document.addEventListener('click', function (e) {
+    const panel = document.getElementById('fastPanel');
+    if (!panel.classList.contains('open')) return;
+    if (panel.contains(e.target) || e.target.closest('#fastTab')) return;
+    closeFastPanel();
+});
+
+// autoSave 重载后同步当前客户引用（id 可能变化，按 vip/昵称找回）
+function fastSyncCur() {
+    if (!fastCur || !sessionData) return;
+    let c = (sessionData.customers || []).find(x => x.id === fastCur.id);
+    if (!c && fastCur.vip_no) c = (sessionData.customers || []).find(x => x.vip_no === fastCur.vip_no);
+    if (!c) c = (sessionData.customers || []).find(x => x.nickname === fastCur.nickname);
+    if (c) fastCur = c;
+}
+
+function fastRender() {
+    const curBox = document.getElementById('fastCur');
+    if (!fastCur || !sessionData) {
+        curBox.innerHTML = '<span class="none">暂无当前客户：输入 VIP号 空格 昵称 创建/切换</span>';
+    } else {
+        const c = fastCur;
+        curBox.innerHTML = '<span class="vc">VIP ' + esc(c.vip_no || '') + '</span><span class="nk">' + esc(c.nickname || '') + '</span>';
+    }
+    const rec = (sessionData && sessionData.customers) || [];
+    const chips = rec.slice(0, 14);
+    document.getElementById('fastRecent').innerHTML = chips.length
+        ? chips.map((c, i) => '<span class="fp-chip" data-i="' + i + '">' + esc(c.nickname || '(未命名)') + ' · ' + esc(c.vip_no || '-') + '</span>').join('')
+        : '<span class="none" style="font-size:12px;">暂无客户</span>';
+    document.querySelectorAll('#fastRecent .fp-chip').forEach(el => {
+        el.addEventListener('click', function () {
+            fastCur = rec[+el.getAttribute('data-i')];
+            fastRender();
+        });
+    });
+    renderFastLast();
+    if (!fastCands.length) { document.getElementById('fastCandSec').style.display = 'none'; document.getElementById('fastCands').innerHTML = ''; }
+    let total = 0;
+    rec.forEach(c => (c.items || []).forEach(i => { if (!i.is_gift) total += parseInt(i.qty) || 0; }));
+    document.getElementById('fastStat').textContent = '本场共 ' + total + ' 件已录 · 保存后仓库出库台实时可见';
+}
+function renderFastLast() {
+    const box = document.getElementById('fastLast');
+    if (!fastCur || !fastCur.items || !fastCur.items.length) { box.innerHTML = '<span class="none" style="font-size:12px;">暂无</span>'; return; }
+    const last = fastCur.items[fastCur.items.length - 1];
+    const pid = last.product_id || 0;
+    const priceTxt = (parseFloat(last.sell_price) || 0).toFixed(2);
+    box.innerHTML =
+        '<span class="fp-chip hit" style="cursor:default;">' + esc(last.product_name || '') + '<span class="fp-hit-tag">匹配</span></span>' +
+        '<span class="fp-chip" style="cursor:default; background:rgba(62,207,142,.14); border-color:rgba(62,207,142,.4); color:#3ecf8e;">售价 ¥' + priceTxt + '</span>' +
+        (pid ? '<span class="fp-chip" id="fastSkuChip">' + esc(last.condition_name || last.condition_type || '') + ' ⇄</span>' : '') +
+        '<span class="fp-chip" onclick="fastRepeat()">同款连发</span>' +
+        '<span class="fp-chip" onclick="fastCycleSku()">切 SKU</span>';
+}
+async function fastHandleInput() {
+    const inp = document.getElementById('fastInput');
+    const v = inp.value.trim();
+    if (!v || !currentSessionId || !sessionData) { toast('请先进入场次', true); return; }
+    fastSyncCur();
+
+    // 0) “.” = 同款连发（把上一商品加给当前客户）
+    if (v === '.' || v === '。') { inp.value = ''; fastRepeat(); return; }
+
+    // 1) 客户：VIP号(+空格+昵称)。Dxx 或纯数字，昵称可随后粘贴
+    const m = /^([Dd]?\d+)(?:[\s　\-：:]+(.*))?$/.exec(v);
+    if (m) {
+        const vip = m[1].toUpperCase();
+        let nick = (m[2] || '').trim();
+        const dup = (sessionData.customers || []).find(c => (c.vip_no || '').toUpperCase() === vip);
+        if (dup) { inp.value = ''; fastClearCands(); fastCur = dup; toast('已切到客户：' + (dup.nickname || vip)); fastRender(); return; }
+        if (!nick) {
+            try {
+                const res = await fetch('../api/live_ledger_lookup_vip.php?vip_no=' + encodeURIComponent(m[1]));
+                const data = await res.json();
+                if (data.success && data.data.nickname) nick = data.data.nickname;
+            } catch (e) {}
+        }
+        if (!nick) {
+            // 保留输入（如已输 D46），可直接继续粘贴昵称再回车，省去重打 VIP
+            toast('未匹配昵称：可直接把昵称粘贴到本框后面再回车（会自动补空格）', true);
+            inp.focus();
+            return;
+        }
+        const newId = nextLocalId--;
+        const c = { id: newId, nickname: nick, vip_no: vip, items: [], gifts: [], _collapsed: false };
+        sessionData.customers.push(c);
+        fastCur = c;
+        fastClearCands();
+        inp.value = '';
+        render(); fastRender(); scrollToCustomer(newId);
+        toast('客户已添加（速录）：' + nick);
+        scheduleAutoSave();
+        return;
+    }
+
+    // 2) 商品快捷添加
+    if (!fastCur) { toast('请先设置当前客户（VIP号 空格 昵称）', true); return; }
+    await fastFindAndAdd(v);
+}
+async function fastFindAndAdd(kw) {
+    try {
+        const res = await fetch('../api/search_outbound_stock.php?keyword=' + encodeURIComponent(kw));
+        const data = await res.json();
+        const rows = (data.success && data.data) ? data.data : [];
+        if (!rows.length) { toast('未找到商品：' + kw, true); return; }
+        // 按商品分组
+        const groups = {};
+        rows.forEach(b => {
+            if (!groups[b.product_id]) groups[b.product_id] = { product_id: b.product_id, name: b.common_name || b.product_name, py: (b.pinyin_initials || '').toLowerCase(), series: b.series || '', conds: {} };
+            const g = groups[b.product_id];
+            if (!g.conds[b.condition_type]) g.conds[b.condition_type] = { condition_type: b.condition_type, condition_name: b.condition_name, total_stock: 0, suggested_price: 0, purchase_price: 0, product_name: b.product_name, product_id: b.product_id };
+            const cd = g.conds[b.condition_type];
+            cd.total_stock += parseInt(b.remaining_qty) || 0;
+            if (parseFloat(b.suggested_price) > cd.suggested_price) cd.suggested_price = parseFloat(b.suggested_price) || 0;
+            if (parseFloat(b.purchase_price) > cd.purchase_price) cd.purchase_price = parseFloat(b.purchase_price) || 0;
+        });
+        const q = String(kw || '').trim().toLowerCase();
+        const pids = Object.keys(groups);
+        if (!pids.length) { toast('未找到可用商品', true); return; }
+        // 排序：拼音完全等于输入 > 前缀 > 仅包含；并统计“精确命中”数量
+        const rank = function (pid) {
+            const py = groups[pid].py || '';
+            if (q && py === q) return 0;
+            if (q && py.indexOf(q) === 0) return 1;
+            return 2;
+        };
+        pids.sort(function (a, b) { return rank(a) - rank(b); });
+        const exactCount = pids.filter(function (pid) { return rank(pid) === 0; }).length;
+
+        // 精确拼音唯一 → 自动添加（子串命中的不抢）
+        if (pids.length > 1 && exactCount === 1) {
+            const g = groups[pids[0]];
+            fastCache[g.product_id] = Object.values(g.conds);
+            const sku = fastPickAvailable(g);
+            if (sku) { fastAddSku(sku); } else { toast(g.name + ' 所有 SKU 已被占用', true); }
+            return;
+        }
+        // 多个命中（含多个精确/无精确）→ 列候选，必须人工选
+        if (pids.length > 1) {
+            fastCands = pids.map(pid => groups[pid]);
+            const box = document.getElementById('fastCands');
+            box.innerHTML = fastCands.map((g, i) => {
+                let avail = 0;
+                Object.values(g.conds).forEach(cd => { avail += Math.max(0, cd.total_stock - fastReserved(cd.product_id, cd.condition_type)); });
+                return '<span class="fp-chip' + (rank(g.product_id) === 0 ? ' hit' : '') + '" data-c="' + i + '">' + (i + 1) + ' ' + esc(g.name) + (rank(g.product_id) === 0 ? '<span class="fp-hit-tag">精确</span>' : '<span class="fp-sub-tag">包含</span>') + (g.series ? ' · ' + esc(g.series) : '') + '（可用 ' + avail + '）</span>';
+            }).join('');
+            document.getElementById('fastCandSec').style.display = '';
+            document.getElementById('fastCandSec').textContent = '多个商品匹配，选一个（数字键 1-9）；回车不会自动选，防误加';
+            box.querySelectorAll('[data-c]').forEach(el => {
+                el.addEventListener('click', function () { fastPickCand(+el.getAttribute('data-c')); });
+            });
+            return;
+        }
+        const g = groups[pids[0]];
+        fastCache[g.product_id] = Object.values(g.conds);
+        const sku = fastPickAvailable(g);
+        if (!sku) { toast(g.name + ' 所有 SKU 已被占用', true); return; }
+        fastAddSku(sku);
+    } catch (e) { toast('商品查询失败：' + e.message, true); }
+}
+function fastPickCand(i) {
+    const g = fastCands[i];
+    if (!g) return;
+    fastClearCands();
+    fastCache[g.product_id] = Object.values(g.conds);
+    const sku = fastPickAvailable(g);
+    if (!sku) { toast(g.name + ' 所有 SKU 已被占用', true); return; }
+    fastAddSku(sku);
+}
+function fastReserved(pid, cond) {
+    let local = 0;
+    (sessionData.customers || []).forEach(c => (c.items || []).forEach(i => {
+        if (!i.is_gift && i.product_id === pid && (i.condition_type || '') === cond) local += parseInt(i.qty) || 0;
+    }));
+    return local + (parseInt(otherReserved[pid + '|' + cond] || 0, 10));
+}
+function fastPickAvailable(g) {
+    const conds = Object.values(g.conds);
+    const order = FAST_SKU_PRIORITY.concat(conds.map(c => c.condition_type));
+    for (const ct of order) {
+        const cd = conds.find(x => x.condition_type === ct);
+        if (!cd) continue;
+        if (cd.total_stock - fastReserved(cd.product_id, ct) > 0) return cd;
+    }
+    return null;
+}
+function fastAddSku(sku) {
+    fastClearCands();
+    document.getElementById('fastInput').value = '';
+    editingCustomerId = fastCur.id;
+    editingCustomerRef = fastCur;
+    fastLastSku = sku;
+    pickSku(sku);
+    fastSyncCur();
+    fastRender();
+    renderFastLast();
+}
+function fastRepeat() {
+    if (!fastLastSku || !fastCur) { toast('还没有上一商品', true); return; }
+    fastSyncCur();
+    // 防重复：同一客户已加过该同款 → 拦下提示，避免连按两次“.”重复加购
+    const dup = (fastCur.items || []).some(i =>
+        !i.is_gift && i.product_id && i.product_id === fastLastSku.product_id &&
+        (i.condition_type || '') === (fastLastSku.condition_type || '')
+    );
+    if (dup) { toast('该客户已加过此商品；如需多件请点数量 +', true); return; }
+    fastAddSku(fastLastSku);
+}
+function fastCycleSku() {
+    fastSyncCur();
+    if (!fastCur || !fastCur.items || !fastCur.items.length) return;
+    const last = fastCur.items[fastCur.items.length - 1];
+    const conds = fastCache[last.product_id] || [];
+    if (!conds.length) { toast('SKU 数据暂缺，重新搜一次商品后可切换', true); return; }
+    const order = FAST_SKU_PRIORITY.concat(conds.map(c => c.condition_type));
+    const idx = order.indexOf(last.condition_type);
+    for (let i = 1; i <= order.length; i++) {
+        const ct = order[(idx + i) % order.length];
+        const cd = conds.find(x => x.condition_type === ct);
+        if (!cd) continue;
+        if (cd.total_stock - fastReserved(cd.product_id, ct) > 0) {
+            last.condition_type = ct;
+            last.condition_name = cd.condition_name || ct;
+            last.sell_price = parseFloat(cd.suggested_price || 0);
+            last.purchase_cost = parseFloat(cd.purchase_price || 0);
+            render(); fastRender(); renderFastLast();
+            toast('已切为 ' + (cd.condition_name || ct));
+            scheduleAutoSave();
+            return;
+        }
+    }
+    toast('其它 SKU 均无可用库存', true);
+}
+document.addEventListener('keydown', function (e) {
+    const p = document.getElementById('fastPanel');
+    if (p && p.classList.contains('open')) {
+        if (e.target.id === 'fastInput' && e.key === 'Enter') {
+            e.preventDefault();
+            fastHandleInput();
+            return;
+        }
+        if (fastCands.length && /^[1-9]$/.test(e.key)) {
+            const idx = +e.key - 1;
+            if (idx < fastCands.length) { e.preventDefault(); fastPickCand(idx); }
+        }
+    }
+});
+// 粘贴时：若当前只有 VIP 编号（如 D46），自动补空格再接昵称，避免 D46昵称 无法解析
+document.getElementById('fastInput').addEventListener('paste', function (e) {
+    const inp = document.getElementById('fastInput');
+    const old = inp.value.trim();
+    if (!/^[Dd]?\d+$/.test(old)) return;
+    const clip = ((e.clipboardData || window.clipboardData) || {}).getData ? (e.clipboardData || window.clipboardData).getData('text') : '';
+    if (!clip) return;
+    e.preventDefault();
+    inp.value = old + ' ' + clip.trim();
+    inp.focus();
+});
+</script>
+
 <!-- 场次选择/新建（未进入时显示） -->
 <div class="card" id="sessionListCard">
   <div class="flex-between mb-10">
@@ -589,6 +911,7 @@ function confirmDeleteSession(id, name) {
                     // 回列表：隐藏右侧快捷面板 tab
                     document.getElementById('psTab').style.display = 'none';
                     document.getElementById('ldTab').style.display = 'none';
+                    document.getElementById('fastTab').style.display = 'none';
                     closePriceStockPanel();
                     closeLuckyPanel();
                 }
@@ -608,6 +931,8 @@ function switchSession() {
     document.getElementById('sessionInfoCard').style.display = 'none';
     document.getElementById('customerListCard').style.display = 'none';
     document.getElementById('sessionListCard').style.display = 'block';
+    document.getElementById('fastTab').style.display = 'none';
+    closeFastPanel();
 }
 
 function exitSession() {
@@ -632,6 +957,7 @@ async function switchToSession(id) {
         // 进入场次：显示右侧快捷面板 tab（价格库存查询/福袋记录）
         document.getElementById('psTab').style.display = '';
         document.getElementById('ldTab').style.display = '';
+        document.getElementById('fastTab').style.display = '';
         // 关闭已打开的面板
         closePriceStockPanel();
         closeLuckyPanel();
@@ -1865,6 +2191,7 @@ window.addEventListener('resize', syncBottomActionBar);
 <div id="sideTabs">
   <div class="ps-tab" id="psTab" onclick="openPriceStockPanel()" style="display:none;">价格库存查询</div>
   <div class="ps-tab" id="ldTab" onclick="openLuckyPanel()" style="display:none;">福袋记录</div>
+  <div class="ps-tab" id="fastTab" onclick="toggleFastPanel()" style="display:none;">速录</div>
 </div>
 <div class="ps-panel" id="psPanel">
     <div class="ps-head">
