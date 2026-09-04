@@ -272,6 +272,12 @@ function fastAddSku(sku) {
 function fastRepeat() {
     if (!fastLastSku || !fastCur) { toast('还没有上一商品', true); return; }
     fastSyncCur();
+    // 防重复：同一客户已加过该同款 → 拦下提示，避免连按两次“.”重复加购
+    const dup = (fastCur.items || []).some(i =>
+        !i.is_gift && i.product_id && i.product_id === fastLastSku.product_id &&
+        (i.condition_type || '') === (fastLastSku.condition_type || '')
+    );
+    if (dup) { toast('该客户已加过此商品；如需多件请点数量 +', true); return; }
     fastAddSku(fastLastSku);
 }
 function fastCycleSku() {
