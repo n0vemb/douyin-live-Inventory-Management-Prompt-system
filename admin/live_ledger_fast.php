@@ -31,6 +31,9 @@ $isOperator = $user['role'] === 'operator';
 #fastPanel .fp-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 #fastPanel .fp-chip { background: var(--bg-hover); border: 1px solid var(--border); color: var(--text); border-radius: 14px; padding: 2px 10px; font-size: 12px; cursor: pointer; }
 #fastPanel .fp-chip:hover { border-color: var(--primary); }
+#fastPanel .fp-chip.hit, #fastPanel .fp-hit { background: rgba(240,180,41,.16); border-color: rgba(240,180,41,.42); color: #f0b429; }
+#fastPanel .fp-hit-tag { display:inline-block; background: rgba(240,180,41,.18); color:#f0b429; border:1px solid rgba(240,180,41,.45); border-radius:4px; font-size:10px; padding:0 5px; margin-left:5px; vertical-align:middle; }
+#fastPanel .fp-sub-tag { display:inline-block; background: var(--bg-hover); color: var(--text-tertiary); border:1px solid var(--border); border-radius:4px; font-size:10px; padding:0 5px; margin-left:5px; vertical-align:middle; }
 #fastPanel .fp-last { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 #fastPanel .fp-note { font-size: 11px; color: var(--text-tertiary); line-height: 1.6; margin-top: 10px; }
 #fastPanel .fp-stat { font-size: 11.5px; color: var(--text-tertiary); margin-top: 8px; }
@@ -124,7 +127,7 @@ function renderFastLast() {
     const last = fastCur.items[fastCur.items.length - 1];
     const pid = last.product_id || 0;
     box.innerHTML =
-        '<span class="vc" style="cursor:default;">' + esc(last.product_name || '') + '</span>' +
+        '<span class="fp-chip hit" style="cursor:default;">' + esc(last.product_name || '') + '<span class="fp-hit-tag">匹配</span></span>' +
         (pid ? '<span class="fp-chip" id="fastSkuChip">' + esc(last.condition_name || last.condition_type || '') + ' ⇄</span>' : '') +
         '<span class="fp-chip" onclick="fastRepeat()">同款连发</span>' +
         '<span class="fp-chip" onclick="fastCycleSku()">切 SKU</span>';
@@ -214,7 +217,7 @@ async function fastFindAndAdd(kw) {
             box.innerHTML = fastCands.map((g, i) => {
                 let avail = 0;
                 Object.values(g.conds).forEach(cd => { avail += Math.max(0, cd.total_stock - fastReserved(cd.product_id, cd.condition_type)); });
-                return '<span class="fp-chip" data-c="' + i + '">' + (i + 1) + ' ' + esc(g.name) + (rank(g.product_id) === 0 ? '（精确）' : '') + (g.series ? ' · ' + esc(g.series) : '') + '（可用 ' + avail + '）</span>';
+                return '<span class="fp-chip' + (rank(g.product_id) === 0 ? ' hit' : '') + '" data-c="' + i + '">' + (i + 1) + ' ' + esc(g.name) + (rank(g.product_id) === 0 ? '<span class="fp-hit-tag">精确</span>' : '<span class="fp-sub-tag">包含</span>') + (g.series ? ' · ' + esc(g.series) : '') + '（可用 ' + avail + '）</span>';
             }).join('');
             document.getElementById('fastCandSec').style.display = '';
             document.getElementById('fastCandSec').textContent = '多个商品匹配，选一个（数字键 1-9）；回车不会自动选，防误加';
