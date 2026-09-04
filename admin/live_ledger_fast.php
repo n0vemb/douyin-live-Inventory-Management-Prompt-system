@@ -49,11 +49,13 @@ $isOperator = $user['role'] === 'operator';
             <input type="text" id="fastInput" class="form-input" placeholder="新客：VIP号 空格 粘贴昵称；加商品：拼音/名称回车" autocomplete="off">
             <button type="button" class="btn btn-primary" onclick="fastHandleInput()">＋</button>
         </div>
+        <div class="fp-sec" id="fastCandSec" style="display:none;">多个商品匹配，选一个（数字键 1-9）</div>
+        <div class="fp-chips" id="fastCands"></div>
         <div class="fp-sec">最近客户（点选）</div>
         <div class="fp-chips" id="fastRecent"></div>
         <div class="fp-sec">最近添加</div>
         <div class="fp-last" id="fastLast"></div>
-        <div class="fp-note">规则：未拆袋优先，仅有已拆则已拆；点 SKU 可切换。同款连发按钮＝把上一商品加给当前客户。</div>
+        <div class="fp-note">规则：未拆袋优先，仅有已拆则已拆；多个商品匹配会列候选（数字键 1-9 / 点选 / 回车选第一个）。同一商品多人要：新客户设好后输入 <b>.</b> 回车＝同款连发。</div>
         <div class="fp-stat" id="fastStat"></div>
     </div>
 </div>
@@ -63,11 +65,17 @@ $isOperator = $user['role'] === 'operator';
 let fastCur = null;        // 当前客户对象引用
 let fastLastSku = null;    // 上一商品（含所选 SKU 明细）
 let fastCache = {};        // product_id => [{condition...}] 搜索缓存（SKU 切换用）
+let fastCands = [];        // 拼音多匹配候选
 const FAST_SKU_PRIORITY = ['sealed', 'opened', 'boxless', 'flawed'];
 
 function openFastPanel() { document.getElementById('fastPanel').classList.add('open'); fastRender(); setTimeout(() => document.getElementById('fastInput').focus(), 120); }
 function closeFastPanel() { document.getElementById('fastPanel').classList.remove('open'); }
 function toggleFastPanel() { const p = document.getElementById('fastPanel'); if (p.classList.contains('open')) closeFastPanel(); else openFastPanel(); }
+function fastClearCands() {
+    fastCands = [];
+    document.getElementById('fastCandSec').style.display = 'none';
+    document.getElementById('fastCands').innerHTML = '';
+}
 // 点击面板外空白处收起（与其它右侧面板一致）
 document.addEventListener('click', function (e) {
     const panel = document.getElementById('fastPanel');
@@ -105,6 +113,7 @@ function fastRender() {
         });
     });
     renderFastLast();
+    if (!fastCands.length) { document.getElementById('fastCandSec').style.display = 'none'; document.getElementById('fastCands').innerHTML = ''; }
     let total = 0;
     rec.forEach(c => (c.items || []).forEach(i => { if (!i.is_gift) total += parseInt(i.qty) || 0; }));
     document.getElementById('fastStat').textContent = '本场共 ' + total + ' 件已录 · 保存后仓库出库台实时可见';
@@ -127,13 +136,16 @@ async function fastHandleInput() {
     if (!v || !currentSessionId || !sessionData) { toast('请先进入场次', true); return; }
     fastSyncCur();
 
+    // 0) “.” = 同款连发（把上一商品加给当前客户）
+    if (v === '.' || v === '。') { fastRepeat(); return; }
+
     // 1) 客户：VIP号(+空格+昵称)。Dxx 或纯数字，昵称可随后粘贴
     const m = /^([Dd]?\d+)(?:[\s　\-：:]+(.*))?$/.exec(v);
     if (m) {
         const vip = m[1].toUpperCase();
         let nick = (m[2] || '').trim();
         const dup = (sessionData.customers || []).find(c => (c.vip_no || '').toUpperCase() === vip);
-        if (dup) { fastCur = dup; toast('已切到客户：' + (dup.nickname || vip)); fastRender(); return; }
+        if (dup) { fastClearCands(); fastCur = dup; toast('已切到客户：' + (dup.nickname || vip)); fastRender(); return; }
         if (!nick) {
             try {
                 const res = await fetch('../api/live_ledger_lookup_vip.php?vip_no=' + encodeURIComponent(m[1]));
@@ -146,6 +158,7 @@ async function fastHandleInput() {
         const c = { id: newId, nickname: nick, vip_no: vip, items: [], gifts: [], _collapsed: false };
         sessionData.customers.push(c);
         fastCur = c;
+        fastClearCands();
         render(); fastRender(); scrollToCustomer(newId);
         toast('客户已添加（速录）：' + nick);
         scheduleAutoSave();
@@ -162,7 +175,7 @@ async function fastFindAndAdd(kw) {
         const data = await res.json();
         const rows = (data.success && data.data) ? data.data : [];
         if (!rows.length) { toast('未找到商品：' + kw, true); return; }
-        // 按商品分组，选择首个有可用库存的商品
+        // 按商品分组
         const groups = {};
         rows.forEach(b => {
             if (!groups[b.product_id]) groups[b.product_id] = { product_id: b.product_id, name: b.common_name || b.product_name, conds: {} };
@@ -173,13 +186,38 @@ async function fastFindAndAdd(kw) {
             if (parseFloat(b.suggested_price) > cd.suggested_price) cd.suggested_price = parseFloat(b.suggested_price) || 0;
             if (parseFloat(b.purchase_price) > cd.purchase_price) cd.purchase_price = parseFloat(b.purchase_price) || 0;
         });
-        const pid = Object.keys(groups)[0];
-        const g = groups[pid];
-        fastCache[pid] = Object.values(g.conds);
+        const pids = Object.keys(groups);
+        if (!pids.length) { toast('未找到可用商品', true); return; }
+        // 多匹配 → 列候选让运营选择，避免加错
+        if (pids.length > 1) {
+            fastCands = pids.map(pid => groups[pid]);
+            const box = document.getElementById('fastCands');
+            box.innerHTML = fastCands.map((g, i) => {
+                let avail = 0;
+                Object.values(g.conds).forEach(cd => { avail += Math.max(0, cd.total_stock - fastReserved(cd.product_id, cd.condition_type)); });
+                return '<span class="fp-chip" data-c="' + i + '">' + (i + 1) + ' ' + esc(g.name) + (g.series ? ' · ' + esc(g.series) : '') + '（可用 ' + avail + '）</span>';
+            }).join('');
+            document.getElementById('fastCandSec').style.display = '';
+            box.querySelectorAll('[data-c]').forEach(el => {
+                el.addEventListener('click', function () { fastPickCand(+el.getAttribute('data-c')); });
+            });
+            return;
+        }
+        const g = groups[pids[0]];
+        fastCache[g.product_id] = Object.values(g.conds);
         const sku = fastPickAvailable(g);
         if (!sku) { toast(g.name + ' 所有 SKU 已被占用', true); return; }
         fastAddSku(sku);
     } catch (e) { toast('商品查询失败：' + e.message, true); }
+}
+function fastPickCand(i) {
+    const g = fastCands[i];
+    if (!g) return;
+    fastClearCands();
+    fastCache[g.product_id] = Object.values(g.conds);
+    const sku = fastPickAvailable(g);
+    if (!sku) { toast(g.name + ' 所有 SKU 已被占用', true); return; }
+    fastAddSku(sku);
 }
 function fastReserved(pid, cond) {
     let local = 0;
@@ -199,6 +237,7 @@ function fastPickAvailable(g) {
     return null;
 }
 function fastAddSku(sku) {
+    fastClearCands();
     editingCustomerId = fastCur.id;
     editingCustomerRef = fastCur;
     fastLastSku = sku;
@@ -239,9 +278,16 @@ function fastCycleSku() {
 }
 document.addEventListener('keydown', function (e) {
     const p = document.getElementById('fastPanel');
-    if (p && p.classList.contains('open') && e.target.id === 'fastInput' && e.key === 'Enter') {
-        e.preventDefault();
-        fastHandleInput();
+    if (p && p.classList.contains('open')) {
+        if (e.target.id === 'fastInput' && e.key === 'Enter') {
+            e.preventDefault();
+            if (fastCands.length) { fastPickCand(0); } else { fastHandleInput(); }
+            return;
+        }
+        if (fastCands.length && /^[1-9]$/.test(e.key)) {
+            const idx = +e.key - 1;
+            if (idx < fastCands.length) { e.preventDefault(); fastPickCand(idx); }
+        }
     }
 });
 </script>
