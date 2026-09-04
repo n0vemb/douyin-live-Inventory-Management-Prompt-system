@@ -2097,6 +2097,7 @@ window.addEventListener('resize', syncBottomActionBar);
 <div id="sideTabs">
   <div class="ps-tab" id="psTab" onclick="openPriceStockPanel()" style="display:none;">价格库存查询</div>
   <div class="ps-tab" id="ldTab" onclick="openLuckyPanel()" style="display:none;">福袋记录</div>
+  <div class="ps-tab" id="fastTab" onclick="toggleFastPanel()" style="display:none;">速录</div>
 </div>
 <div class="ps-panel" id="psPanel">
     <div class="ps-head">
