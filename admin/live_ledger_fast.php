@@ -126,8 +126,10 @@ function renderFastLast() {
     if (!fastCur || !fastCur.items || !fastCur.items.length) { box.innerHTML = '<span class="none" style="font-size:12px;">暂无</span>'; return; }
     const last = fastCur.items[fastCur.items.length - 1];
     const pid = last.product_id || 0;
+    const priceTxt = (parseFloat(last.sell_price) || 0).toFixed(2);
     box.innerHTML =
         '<span class="fp-chip hit" style="cursor:default;">' + esc(last.product_name || '') + '<span class="fp-hit-tag">匹配</span></span>' +
+        '<span class="fp-chip" style="cursor:default; background:rgba(62,207,142,.14); border-color:rgba(62,207,142,.4); color:#3ecf8e;">售价 ¥' + priceTxt + '</span>' +
         (pid ? '<span class="fp-chip" id="fastSkuChip">' + esc(last.condition_name || last.condition_type || '') + ' ⇄</span>' : '') +
         '<span class="fp-chip" onclick="fastRepeat()">同款连发</span>' +
         '<span class="fp-chip" onclick="fastCycleSku()">切 SKU</span>';
