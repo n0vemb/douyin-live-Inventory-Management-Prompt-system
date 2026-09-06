@@ -142,6 +142,22 @@ function pmSeriesSimilar($a, $b) {
     return $na === $nb || mb_stripos($na, $nb) !== false || mb_stripos($nb, $na) !== false;
 }
 
+/** 系列名等价：去掉末尾「系列/套装/盒」等类型词后完全一致才算同一写法
+ *  例：第7代 慢下来 == 第7代 慢下来系列（不再提示）
+ *      自在生长系列 != 第2代 自在生长系列（代次缺失仍提示统一）
+ */
+function pmSeriesSameText($a, $b) {
+    $na = pmSeriesSameKey($a);
+    $nb = pmSeriesSameKey($b);
+    return $na !== '' && $na === $nb;
+}
+
+/** 系列等价比对键：去掉末尾类型词（系列/套装/盒） */
+function pmSeriesSameKey($s) {
+    $s = pmNorm((string)$s);
+    return trim((string)preg_replace('/(系列|套装|盒子?)$/u', '', $s));
+}
+
 /**
  * 单商品匹配：名称 → 候选；再用当前品牌/系列消歧。
  * @return array{matched:bool,cands:array,unique:bool}

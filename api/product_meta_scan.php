@@ -80,8 +80,13 @@ try {
                 $normCur = pmNorm($p['series']);
                 $normRec = pmNorm($c['series']);
                 if ($normCur !== $normRec) {
-                    if (pmSeriesSimilar($p['series'], $c['series'])) $flags[] = 'series_variant';
-                    else $flags[] = 'series_mismatch';
+                    if (pmSeriesSameText($p['series'], $c['series'])) {
+                        // 只差「系列/套装/盒」字样：视为同一写法，不提示
+                    } elseif (pmSeriesSimilar($p['series'], $c['series'])) {
+                        $flags[] = 'series_variant';
+                    } else {
+                        $flags[] = 'series_mismatch';
+                    }
                 }
             }
         } elseif (!$matched) {
@@ -163,7 +168,7 @@ try {
         foreach ($g['products'] as $pp) {
             $s = trim((string)$pp['series']);
             if ($s === '') continue;
-            $seen[pmNorm($s)] = $s;
+            $seen[pmSeriesSameKey($s)] = $s;
         }
         $g['variants'] = array_values($seen);
         if (count($g['variants']) < 2) continue;
