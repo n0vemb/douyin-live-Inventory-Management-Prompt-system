@@ -1780,7 +1780,7 @@ function renderAuditTable() {
             html += '<td style="text-align:center; padding:6px 4px; border-bottom:1px solid var(--border); font-size:13px; font-weight:600; color:var(--text);">' + on + '</td>';
             // 实际库存（手输）
             html += '<td style="text-align:center; padding:4px; border-bottom:1px solid var(--border);">';
-            html += '<input type="number" class="audit-qty" min="0" step="1" inputmode="numeric" data-pid="' + p.product_id + '" data-cond="' + escapeHtml(ct.key) + '" data-orig="' + on + '" value="' + (filled ? escapeHtml(v) : '') + '" placeholder="手输" ' + (chg ? 'style="border-color:var(--warning); background:rgba(240,180,41,.1);"' : '') + ' oninput="auditInputMark(this)" onchange="auditCommit(this)" onfocus="this.select()">';
+            html += '<input type="number" class="audit-qty" min="0" step="1" inputmode="numeric" data-pid="' + p.product_id + '" data-cond="' + escapeHtml(ct.key) + '" data-orig="' + on + '" value="' + (filled ? escapeHtml(v) : '') + '" placeholder="手输" ' + (chg ? 'style="border-color:var(--warning); background:rgba(240,180,41,.1);"' : '') + ' oninput="auditInput(this)" onchange="auditCommit(this)" onfocus="this.select()">';
             html += '</td>';
         });
         html += '<td style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--border);"><span class="audit-badge audit-badge-' + st + '">' + auditBadgeText(st) + '</span></td>';
@@ -1809,21 +1809,23 @@ function renderAuditTable() {
     auditUpdateFooter();
 }
 
-function auditInputMark(input) {
-    const orig = parseInt(input.dataset.orig);
-    const val = parseInt(input.value);
-    if (isNaN(val) || val === orig) { input.style.borderColor = 'var(--border)'; input.style.background = 'var(--bg-elevated)'; }
-    else { input.style.borderColor = 'var(--warning)'; input.style.background = 'rgba(240,180,41,.1)'; }
-}
-function auditCommit(input) {
+// 边输入边入库：0 是合法盘点值，立即写入草稿并保存，避免重绘/切焦点时丢失
+function auditInput(input) {
     const pid = parseInt(input.dataset.pid);
     const cond = input.dataset.cond;
     const d = auditDraft[pid] || (auditDraft[pid] = {});
-    const val = input.value;
-    if (val === '' || val === null) d[cond] = null;
-    else { const n = parseInt(val, 10); d[cond] = isNaN(n) ? null : Math.max(0, n); }
+    const val = (input.value || '').trim();
+    const n = parseInt(val, 10);
+    d[cond] = (val === '' || isNaN(n)) ? null : Math.max(0, n);
     auditSaveDraft();
-    renderAuditTable();
+    const orig = parseInt(input.dataset.orig) || 0;
+    const chg = d[cond] !== null && d[cond] !== orig;
+    input.style.borderColor = chg ? 'var(--warning)' : 'var(--border)';
+    input.style.background = chg ? 'rgba(240,180,41,.1)' : 'var(--bg-elevated)';
+}
+function auditCommit(input) {
+    auditInput(input); // 确保草稿已含 0
+    renderAuditTable(); // 失焦/回车后再刷新状态、统计与筛选
 }
 function auditToggleSel(k, on) { auditSel[k] = on; auditSaveDraft(); auditUpdateFooter(); }
 
