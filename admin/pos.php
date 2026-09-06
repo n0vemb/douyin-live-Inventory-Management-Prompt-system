@@ -961,8 +961,9 @@ async function onPaid() {
     showSuccess(curOrder);
   } catch (e) {
     const msg = e.message || '';
-    // 订单已超时释放/被取消：收起收款码，避免顾客对着失效订单继续操作
-    if (msg.indexOf('超时') !== -1 || msg.indexOf('取消') !== -1 || msg.indexOf('失效') !== -1) {
+    // 订单已超时释放/被取消/已作废：收起收款码，避免顾客对着失效订单继续操作
+    if (msg.indexOf('超时') !== -1 || msg.indexOf('取消') !== -1 || msg.indexOf('失效') !== -1
+        || msg.indexOf('作废') !== -1 || msg.indexOf('待出库') !== -1 || msg.indexOf('已收款') !== -1) {
       curOrder = null;
       closeQr();
     }
