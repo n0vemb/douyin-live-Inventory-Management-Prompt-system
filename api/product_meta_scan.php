@@ -29,13 +29,12 @@ try {
                                   (SELECT COALESCE(SUM(b.remaining_qty),0) FROM inventory_batches b
                                    WHERE b.product_id = p.id AND b.store_id = p.store_id AND b.remaining_qty > 0) stock_total
                            FROM products p
-                           WHERE p.store_id = ? AND EXISTS (
-                               SELECT 1 FROM inventory_batches b
-                               WHERE b.product_id = p.id AND b.store_id = p.store_id AND b.remaining_qty > 0
-                           )
+                           WHERE p.store_id = ?
                            ORDER BY p.name, p.id");
     $stmt->execute([$storeId]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $instockCount = 0;
+    foreach ($rows as $rr) if ((int)$rr['stock_total'] > 0) $instockCount++;
 
     $storeName = $pdo->prepare('SELECT name FROM stores WHERE id = ?');
     $storeName->execute([$storeId]);
@@ -53,7 +52,7 @@ try {
 
     $problems = [];
     $groups = [];
-    $stats = ['total' => 0, 'missing_brand' => 0, 'missing_series' => 0, 'mismatch' => 0, 'variant' => 0, 'no_source' => 0];
+    $stats = ['total' => 0, 'instock' => $instockCount, 'missing_brand' => 0, 'missing_series' => 0, 'mismatch' => 0, 'variant' => 0, 'no_source' => 0];
     $groupMap = [];
 
     foreach ($rows as $p) {

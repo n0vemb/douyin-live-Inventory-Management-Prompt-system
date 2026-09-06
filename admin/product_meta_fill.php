@@ -2,7 +2,7 @@
 /**
  * product_meta_fill.php — 商品信息完善（品牌/IP · 系列）
  * 直接访问地址（无菜单入口）：/admin/product_meta_fill.php
- * 说明：仅店管/超管；在当前会话店铺（默认数智新匠）下扫描在库商品，
+ * 说明：仅店管/超管；在当前会话店铺（默认数智新匠）下扫描全部商品（含无库存），
  *       用 ysjp 目录推荐品牌(IP名)+系列名（去IP前缀保留代次），千岛作无匹配时的兜底。
  */
 $pageTitle = '商品信息完善';
@@ -178,7 +178,7 @@ function renderStats(d) {
   $e('fMismatch').textContent = (s.mismatch || 0) + (s.variant || 0);
   $e('fNoSource').textContent = s.no_source || 0;
   const c = d.catalog || {};
-  $e('pmfCatalogInfo').textContent = `${d.store ? d.store.name + ' · ' : ''}在库商品 ${s.total || 0} · ysjp 目录 ${c.updated_at || '-'}（${c.ips || 0} IP）`;
+  $e('pmfCatalogInfo').textContent = `${d.store ? d.store.name + ' · ' : ''}扫描商品 ${s.total || 0} 个（在库 ${s.instock || 0}）· ysjp 目录 ${c.updated_at || '-'}（${c.ips || 0} IP）`;
 }
 
 function renderDatalist(dl) {
@@ -214,7 +214,7 @@ function rowFlagHtml(flags) {
 
 function renderRows() {
   const box = $e('pmfRows');
-  if (!PMF.rows.length) { box.innerHTML = '<div class="pmf-empty">该筛选下暂无需要处理的在库商品 🎉</div>'; return; }
+  if (!PMF.rows.length) { box.innerHTML = '<div class="pmf-empty">该筛选下暂无需要处理的商品 🎉</div>'; return; }
   box.innerHTML = PMF.rows.map(r => {
     const id = r.id;
     const curB = r.brand || '<span class="del">空</span>';
