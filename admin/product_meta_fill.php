@@ -189,13 +189,13 @@ function renderDatalist(dl) {
 function renderGroups() {
   const w = $e('pmfGroupsWrap');
   if (!PMF.groups.length) { w.innerHTML = ''; return; }
-  w.innerHTML = `<div class="pmf-sec">同系列写法不一致（可一键统一）<small>例：在日光之下 / 第10代 在日光下系列 → 统一为推荐系列；取消勾选可保留“萌粒”等子类写法</small></div>` +
+  w.innerHTML = `<div class="pmf-sec">同系列写法不一致（可一键统一）<small>初代/第一代/第1代按同一代处理；例：在日光之下 / 第10代 在日光下系列 → 统一为推荐系列；取消勾选可保留“萌粒”等子类写法</small></div>` +
     PMF.groups.map(g => `
       <div class="pmf-grp">
         <div class="gi">${esc(g.ip_name)} · ${esc(g.series)}</div>
         <div class="gv">现有写法：${esc(g.variants.join(' / '))}</div>
         <div style="flex:1;min-width:180px"><input class="pmf-inp" id="gSeries_${g.key.replace(/[^a-zA-Z0-9]/g,'_')}" value="${esc(g.series)}" list="pmfSeriesList"></div>
-        <label style="font-size:12px;color:var(--text-secondary);display:flex;gap:4px;align-items:center"><input type="checkbox" id="gBrand_${g.key.replace(/[^a-zA-Z0-9]/g,'_')}">品牌同时改为 ${esc(g.ip_name)}</label>
+        <label style="font-size:12px;color:var(--text-secondary);display:flex;gap:4px;align-items:center"><input type="checkbox" id="gBrand_${g.key.replace(/[^a-zA-Z0-9]/g,'_')}" checked>品牌同时改为 ${esc(g.ip_name)}</label>
         <button class="pmf-btn ok" onclick="applyGroup('${esc(g.key.replace(/[^a-zA-Z0-9]/g,'_'))}')">统一该组</button>
         <div style="width:100%;display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:6px">
           ${g.products.map(p => {
@@ -221,8 +221,6 @@ function renderRows() {
     const curS = r.series || '<span class="del">空</span>';
     const recB = r.rec_brand || r.brand || '';
     const recS = r.rec_series || r.series || '';
-    const noYsjp = (r.flags || []).includes('no_source');
-    const review = !r.unique && r.matched;
     return `<div class="pmf-row" data-id="${id}">
       <span><input type="checkbox" class="pmf-chk" data-id="${id}"></span>
       <span class="pmf-name">${esc(r.name)}<span class="sub2">${esc(r.common_name || '')}${r.stock_total ? ' · 库存 ' + r.stock_total : ''}</span></span>
@@ -234,7 +232,7 @@ function renderRows() {
       </span>
       <span class="pmf-acts">
         <button class="pmf-btn ok" onclick="applyOne(${id})">应用</button>
-        ${(noYsjp || review) ? `<button class="pmf-btn" onclick="showCands(${id},true)">千岛/候选</button>` : ''}
+        <button class="pmf-btn" onclick="showCands(${id},true)">候选/千岛</button>
       </span>
     </div>`;
   }).join('');
@@ -285,8 +283,14 @@ async function applyGroup(k) {
   }));
   const d = await api('product_meta_save.php', { items });
   if (!d.success) { toast(d.error || '保存失败', true); return; }
-  toast('已统一 ' + (d.applied || 0) + ' 个商品：' + series);
+  const n = (d.applied || 0);
+  const groupIds = items.map(x => x.id);
   reload();
+  // reload 完成后提示是否还有同组商品未消失（多为品牌待核对）
+  setTimeout(() => {
+    const remain = PMF.rows.filter(r => groupIds.includes(r.id)).length;
+    toast(n ? `已统一 ${n} 个商品：${series}${remain ? `；还有 ${remain} 个因品牌等其他问题仍在列表中，可在明细继续处理` : ''}` : '保存完成');
+  }, 500);
 }
 
 async function showCands(id, useQiandao) {

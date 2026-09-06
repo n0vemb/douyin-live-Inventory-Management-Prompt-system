@@ -131,7 +131,8 @@ function pmMatchByName($name, $cat) {
 /** 系列名宽松比较：去「第/代」干扰后互相包含即视为同一系列 */
 function pmSeriesSimilar($a, $b) {
     $strip = function ($s) {
-        $s = preg_replace('/第?\s*\d+\s*代/u', '', $s);      // 去掉「第N代」
+        // 去掉代次表达：第10代 / 10代 / 第一代 / 一代 / 初代 都视为同一代
+        $s = preg_replace('/第?\s*[\d一二三四五六七八九十百]+代|初代/u', '', $s);
         $s = preg_replace('/(系列|套装|盒子?)$/u', '', $s);   // 去掉末尾类型词（系列/套装/盒）
         return trim($s);
     };
