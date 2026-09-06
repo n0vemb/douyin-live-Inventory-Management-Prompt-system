@@ -142,6 +142,7 @@ $qrAli = posAssetUrl($qrAli);
   }
   .mask{position:fixed;inset:0;background:rgba(15,20,40,.5);display:none;align-items:flex-end;justify-content:center;z-index:50}
   .mask.show{display:flex}
+  #successMask{align-items:center}
   .sheet{background:var(--surface);width:min(420px,94vw);border-radius:20px;max-height:88vh;display:flex;flex-direction:column;animation:pop .25s ease;box-shadow:0 18px 50px rgba(15,20,40,.35)}
   @keyframes pop{from{transform:scale(.96) translateY(14px);opacity:.5}to{transform:none;opacity:1}}
   @keyframes up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
@@ -303,7 +304,7 @@ $qrAli = posAssetUrl($qrAli);
 </div>
 
 <!-- 下单成功 -->
-<div class="mask" id="successMask">
+<div class="mask" id="successMask" style="align-items:center">
   <div class="modal">
     <div class="success">
       <div class="ok">✓</div>
