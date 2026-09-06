@@ -192,11 +192,11 @@ $qrAli = posAssetUrl($qrAli);
   .success .ot.note{color:var(--text-3);font-size:12px;margin-top:8px}
   .shortage-modal{width:min(540px,94vw)}
   .shortage-list{max-height:38vh;overflow-y:auto;margin-top:12px;border-top:1px solid var(--border);padding:2px 0}
-  .shortage-item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 2px;border-bottom:1px dashed var(--border);font-size:13.5px}
+  .shortage-item{display:block;padding:10px 2px;border-bottom:1px dashed var(--border)}
   .shortage-item:last-child{border-bottom:0}
-  .shortage-item .sn{font-weight:700;flex:1;min-width:0}
+  .shortage-item .sn{font-size:14px;font-weight:800;line-height:1.4}
   .shortage-item .sn .c{color:var(--text-2);font-weight:600;font-size:12px}
-  .shortage-item .need{color:var(--danger);font-weight:800;white-space:nowrap;text-align:right}
+  .shortage-item .msg{font-size:13px;color:var(--danger);font-weight:700;line-height:1.5;margin-top:2px}
   .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:#1c2230;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;opacity:0;transition:.25s;z-index:90;pointer-events:none}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .toast.err{background:#b3261e}
@@ -336,16 +336,15 @@ $qrAli = posAssetUrl($qrAli);
 <div class="mask" id="shortageMask" style="align-items:center;z-index:70">
   <div class="modal shortage-modal">
     <div class="sheet-head" style="border:0;padding:0 0 10px">
-      <span class="st">部分商品库存不足</span>
+      <span class="st">哎呀，手慢了</span>
     </div>
     <div style="font-size:13.5px;color:var(--text-2);line-height:1.65">
-      下单时这些商品的可售数量发生了变化（可能刚被其它收银台结算，或被直播场次占用）。
-      清单已自动按当前可售数量调整：
+      这些商品刚被其他小主先选走啦，清单已自动帮你按可售数量调整：
     </div>
     <div class="shortage-list" id="shortageList"></div>
-    <div style="font-size:12px;color:var(--text-3);margin-top:10px">显示的可售数量为最新实时数据，最终以再次结算为准。</div>
+    <div style="font-size:12px;color:var(--text-3);margin-top:10px">数量以再次结算为准，确认无误后继续就好～</div>
     <button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="shortageContinue()">按调整后清单继续结算</button>
-    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="shortageBack()">返回购物车查看</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="shortageBack()">返回购物车看看</button>
   </div>
 </div>
 
@@ -860,11 +859,12 @@ function handleStockShortage(shortages) {
     const name = cartIt ? cartIt.name : sh.name;
     const condName = cartIt ? cartIt.condName
       : ({ sealed: '原盒未拆', opened: '拆盒无瑕', boxless: '无盒无瑕', flawed: '微瑕' }[sh.condition_type] || sh.condition_type || '');
-    const occTxt = sh.occupied_live > 0 ? `（另有直播占用 ${sh.occupied_live} 件）` : '';
-    const availTxt = sh.available > 0 ? `仅剩 ${sh.available} 件` : '当前不可售';
+    const msg = sh.available > 0
+      ? `手慢了，只剩 ${sh.available} 件了，已先帮你调整数量`
+      : '手慢了，最后一个被其他小主带走了，已帮你移出清单';
     return `<div class="shortage-item">
-      <span class="sn">${name}<div class="c">${condName}</div></span>
-      <span class="need">你需要 ${sh.requested} 件<br>${availTxt}${occTxt}</span>
+      <div class="sn">${name} · ${condName}</div>
+      <div class="msg">${msg}</div>
     </div>`;
   }).join('');
   $('shortageList').innerHTML = rows;
@@ -872,6 +872,11 @@ function handleStockShortage(shortages) {
 }
 function shortageContinue() {
   hide('shortageMask');
+  if (!cart.length) {
+    if (!$('cart').classList.contains('open')) expandCart();
+    toast('清单已空，可以再去挑挑别的');
+    return;
+  }
   openCheckout();
 }
 function shortageBack() {
