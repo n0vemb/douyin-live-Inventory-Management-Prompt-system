@@ -127,11 +127,6 @@ $isOperator = ($currentUser['role'] === 'operator');
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">线下售价</label>
-                    <input type="number" step="0.01" min="0" class="form-input" id="offlinePrice" placeholder="留空自动=最高进价×加价比例">
-                    <span style="font-size:11px; color:var(--text-tertiary);">线下收银台优先使用此价格；留空则自动按店铺加价比例计算</span>
-                </div>
-                <div class="form-group">
                     <label class="form-label">参考价</label>
                     <input type="number" step="0.01" class="form-input" id="qiandaoPrice">
                 </div>
@@ -141,6 +136,11 @@ $isOperator = ($currentUser['role'] === 'operator');
                     <label class="form-label">品牌</label>
                     <input type="text" class="form-input" id="productBrand">
                 </div>
+            </div>
+            <div class="form-group" id="productOfflineGroup" style="display:none;">
+                <label class="form-label">线下售价（收银台专用，按品相 / SKU 分别设置）</label>
+                <div id="productOfflineRows" style="display:flex;flex-direction:column;gap:8px;"></div>
+                <span style="font-size:11px; color:var(--text-tertiary);">留空 = 自动（进价×加价比例）；不同品相可设不同价格。</span>
             </div>
             <div class="form-row">
                 <div class="form-group">
@@ -1096,6 +1096,57 @@ async function loadPriceTrend(detail) {
 
 /* ---------- 新建/编辑商品 ---------- */
 let editingId = null;
+function offlineRowsHtml() {
+    return getConditionKeys().map(k => `
+        <div style="display:flex;align-items:center;gap:10px;">
+            <span style="flex:0 0 90px;font-size:13px;font-weight:600;">${escapeHtml(getCN(k))}</span>
+            <input type="number" step="0.01" min="0" class="form-input" data-cond="${k}" placeholder="留空自动" style="max-width:150px;">
+        </div>`).join('');
+}
+// 生成品相行并回显已配置的线下售价（productId 为空=新建，不请求）
+async function initProductOfflineRows(productId) {
+    const og = $('productOfflineGroup');
+    const rows = $('productOfflineRows');
+    if (!og || !rows) return;
+    if (IS_OPERATOR) { og.style.display = 'none'; return; }
+    og.style.display = 'block';
+    rows.innerHTML = offlineRowsHtml();
+    if (!productId) return;
+    try {
+        const res = await fetch('../api/get_offline_prices.php?product_id=' + productId);
+        const d = await res.json();
+        if (d.success && d.configured) {
+            rows.querySelectorAll('input[data-cond]').forEach(inp => {
+                const v = d.configured[inp.dataset.cond];
+                if (v) inp.value = v;
+            });
+        }
+    } catch (err) { /* 配置回显失败不阻塞编辑 */ }
+}
+// 逐品相保存线下售价（空值 = 恢复自动定价）
+async function saveProductOfflineRows(productId) {
+    if (IS_OPERATOR) return true;
+    const og = $('productOfflineGroup');
+    const rows = $('productOfflineRows');
+    if (!og || !rows || og.style.display === 'none') return true;
+    for (const inp of rows.querySelectorAll('input[data-cond]')) {
+        const cond = inp.dataset.cond;
+        const v = inp.value;
+        try {
+            const res = await fetch('../api/save_offline_price.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product_id: productId, condition_type: cond, offline_price: v !== '' ? parseFloat(v) : null })
+            });
+            const d = await res.json();
+            if (!d.success) { showErrorToast('线下售价保存失败(' + getCN(cond) + '): ' + d.error); return false; }
+        } catch (err) {
+            showErrorToast('线下售价保存失败(' + getCN(cond) + '): ' + err.message);
+            return false;
+        }
+    }
+    return true;
+}
 function openAddModal() {
     if (!requireStore()) return;
     editingId = null;
@@ -1104,6 +1155,7 @@ function openAddModal() {
     $('productId').value = '';
     $('productBarcode').value = generateBarcode();
     $('previewImg').style.display = 'none';
+    initProductOfflineRows(null);
     showModal('productModal');
 }
 function generateBarcode() {
@@ -1135,7 +1187,6 @@ async function openEditModal(id) {
         $('productSeries').value = p.series || '';
         $('productBarcode').value = p.barcode;
         $('qiandaoPrice').value = p.qiandao_price || '';
-        $('offlinePrice').value = p.offline_price || '';
         $('productBrand').value = p.brand || '';
         $('releaseDate').value = p.release_date || '';
         $('productDescription').value = p.product_description || '';
@@ -1147,6 +1198,7 @@ async function openEditModal(id) {
         } else {
             $('previewImg').style.display = 'none';
         }
+        await initProductOfflineRows(p.id);
         showModal('productModal');
     } catch (err) { console.error(err); showErrorToast('获取商品信息失败'); }
 }
@@ -1183,7 +1235,6 @@ async function saveProduct(event) {
         series: $('productSeries').value || null,
         barcode: $('productBarcode').value || null,
         qiandao_price: $('qiandaoPrice').value ? parseFloat($('qiandaoPrice').value) : null,
-        offline_price: $('offlinePrice').value !== '' ? parseFloat($('offlinePrice').value) : null,
         brand: $('productBrand').value || null,
         release_date: $('releaseDate').value || null,
         product_description: $('productDescription').value || null,
@@ -1199,6 +1250,11 @@ async function saveProduct(event) {
         });
         const data = await res.json();
         if (data.success) {
+            const savedId = id ? parseInt(id) : (data.data && data.data.id ? parseInt(data.data.id) : null);
+            if (savedId && !await saveProductOfflineRows(savedId)) {
+                showErrorToast('商品信息已保存，线下售价保存失败，请重试保存');
+                return;
+            }
             showToast(id ? '商品已更新' : '商品已新建');
             closeModal('productModal');
             await loadProducts();
