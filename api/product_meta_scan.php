@@ -140,7 +140,8 @@ try {
                 'name'   => $p['name'],
                 'brand'  => $p['brand'],
                 'series' => $p['series'],
-                'need'   => $p['series'] === '' || !pmSeriesSameText($p['series'], $c['series']),
+                // 需要“统一” = 文字与推荐不一致（缺系列字/初代vs第1代等），已一致的不动
+                'need'   => $p['series'] === '' || pmNorm($p['series']) !== pmNorm($c['series']),
             ];
         }
 
@@ -168,7 +169,7 @@ try {
         foreach ($g['products'] as $pp) {
             $s = trim((string)$pp['series']);
             if ($s === '') continue;
-            $seen[pmSeriesSameKey($s)] = $s;
+            $seen[pmNorm($s)] = $s; // 按实际文字归组：只差系列字/空格也能进“同系列写法不一致”
         }
         $g['variants'] = array_values($seen);
         if (count($g['variants']) < 2) continue;
