@@ -182,21 +182,8 @@ async function fastHandleInput() {
 }
 async function fastFindAndAdd(kw) {
     try {
-        const res = await fetch('../api/search_outbound_stock.php?keyword=' + encodeURIComponent(kw));
-        const data = await res.json();
-        const rows = (data.success && data.data) ? data.data : [];
-        if (!rows.length) { toast('未找到商品：' + kw, true); return; }
-        // 按商品分组
-        const groups = {};
-        rows.forEach(b => {
-            if (!groups[b.product_id]) groups[b.product_id] = { product_id: b.product_id, name: b.common_name || b.product_name, py: (b.pinyin_initials || '').toLowerCase(), series: b.series || '', conds: {} };
-            const g = groups[b.product_id];
-            if (!g.conds[b.condition_type]) g.conds[b.condition_type] = { condition_type: b.condition_type, condition_name: b.condition_name, total_stock: 0, suggested_price: 0, purchase_price: 0, product_name: b.product_name, product_id: b.product_id };
-            const cd = g.conds[b.condition_type];
-            cd.total_stock += parseInt(b.remaining_qty) || 0;
-            if (parseFloat(b.suggested_price) > cd.suggested_price) cd.suggested_price = parseFloat(b.suggested_price) || 0;
-            if (parseFloat(b.purchase_price) > cd.purchase_price) cd.purchase_price = parseFloat(b.purchase_price) || 0;
-        });
+        const groups = await fastFetchGroups(kw);
+        if (!groups) { toast('未找到商品：' + kw, true); return; }
         const q = String(kw || '').trim().toLowerCase();
         const pids = Object.keys(groups);
         if (!pids.length) { toast('未找到可用商品', true); return; }
@@ -257,6 +244,41 @@ function fastReserved(pid, cond) {
     }));
     return local + (parseInt(otherReserved[pid + '|' + cond] || 0, 10));
 }
+// 查询前先刷新其他场次占用，再用最新库存分组（防止用旧快照导致超售）
+async function fastFetchGroups(kw) {
+    await refreshOtherReserved();
+    const res = await fetch('../api/search_outbound_stock.php?keyword=' + encodeURIComponent(kw));
+    const data = await res.json();
+    const rows = (data.success && data.data) ? data.data : [];
+    if (!rows || !rows.length) return null;
+    const groups = {};
+    rows.forEach(b => {
+        if (!groups[b.product_id]) groups[b.product_id] = {
+            product_id: b.product_id,
+            name: b.common_name || b.product_name,
+            py: (b.pinyin_initials || '').toLowerCase(),
+            series: b.series || '',
+            barcode: b.barcode || '',
+            conds: {}
+        };
+        const g = groups[b.product_id];
+        if (!g.conds[b.condition_type]) g.conds[b.condition_type] = {
+            condition_type: b.condition_type,
+            condition_name: b.condition_name,
+            total_stock: 0,
+            suggested_price: 0,
+            purchase_price: 0,
+            product_name: b.product_name,
+            product_id: b.product_id,
+            barcode: b.barcode || ''
+        };
+        const cd = g.conds[b.condition_type];
+        cd.total_stock += parseInt(b.remaining_qty) || 0;
+        if (parseFloat(b.suggested_price) > cd.suggested_price) cd.suggested_price = parseFloat(b.suggested_price) || 0;
+        if (parseFloat(b.purchase_price) > cd.purchase_price) cd.purchase_price = parseFloat(b.purchase_price) || 0;
+    });
+    return groups;
+}
 function fastPickAvailable(g) {
     const conds = Object.values(g.conds);
     const order = FAST_SKU_PRIORITY.concat(conds.map(c => c.condition_type));
@@ -276,10 +298,13 @@ function fastAddSku(sku) {
     fastLastSku = sku;
     pickSku(sku);
     fastSyncCur();
+    if (fastCur && fastCur.items && fastCur.items.length && sku && sku.barcode) {
+        fastCur.items[fastCur.items.length - 1].barcode = sku.barcode;
+    }
     fastRender();
     renderFastLast();
 }
-function fastRepeat() {
+async function fastRepeat() {
     if (!fastLastSku || !fastCur) { toast('还没有上一商品', true); return; }
     if (isReadOnly) { toast('本场次已结束（打包出库），不可再添加商品', true); return; }
     fastSyncCur();
@@ -289,13 +314,36 @@ function fastRepeat() {
         (i.condition_type || '') === (fastLastSku.condition_type || '')
     );
     if (dup) { toast('该客户已加过此商品；如需多件请点数量 +', true); return; }
-    fastAddSku(fastLastSku);
+    // 同款连发也必须用最新库存/占用重新校验，不直接复用旧快照（防其他场次刚扣/占用）
+    try {
+        const groups = await fastFetchGroups(fastLastSku.barcode || fastLastSku.product_name);
+        if (!groups) { toast('库存已变化，请重新输入商品搜索', true); return; }
+        const pid = Object.keys(groups)[0];
+        const g = groups[pid];
+        fastCache[pid] = Object.values(g.conds);
+        const same = Object.values(g.conds).find(cd =>
+            cd.condition_type === fastLastSku.condition_type &&
+            (cd.total_stock - fastReserved(cd.product_id, cd.condition_type)) > 0
+        );
+        const sku = same || fastPickAvailable(g);
+        if (!sku) { toast('该商品已无可用库存', true); return; }
+        fastAddSku(sku);
+    } catch (e) { toast('同款连发失败，请重试：' + e.message, true); }
 }
-function fastCycleSku() {
+async function fastCycleSku() {
     fastSyncCur();
     if (!fastCur || !fastCur.items || !fastCur.items.length) return;
     const last = fastCur.items[fastCur.items.length - 1];
-    const conds = fastCache[last.product_id] || [];
+    let conds = fastCache[last.product_id] || [];
+    // 切换前先刷新库存/占用，避免基于旧 SKU 库存误切
+    try {
+        const groups = await fastFetchGroups(last.barcode || last.product_name);
+        if (groups) {
+            const pid = Object.keys(groups)[0];
+            fastCache[pid] = Object.values(groups[pid].conds);
+            conds = fastCache[pid];
+        }
+    } catch (e) {}
     if (!conds.length) { toast('SKU 数据暂缺，重新搜一次商品后可切换', true); return; }
     const order = FAST_SKU_PRIORITY.concat(conds.map(c => c.condition_type));
     const idx = order.indexOf(last.condition_type);
