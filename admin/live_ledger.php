@@ -754,6 +754,8 @@ tr.tr-active td:first-child { border-left: 3px solid var(--primary, #6366f1); }
 .ps-sku .sname { color: var(--text-secondary); }
 .ps-sku .sval { font-weight: 600; }
 .ps-sku .sval .stock { color: #34d399; }
+.ps-sku .sval .occ { color: var(--text-tertiary); margin-left: 4px; font-weight: 600; }
+.ps-sku .sval .occ.warn { color: var(--warning); }
 .ps-sku .sval .price { color: var(--text); margin-left: 10px; }
 </style>
 
@@ -2164,7 +2166,7 @@ function psSearch() {
     body.innerHTML = '<div class="ps-empty">查询中...</div>';
     psTimer = setTimeout(async () => {
         try {
-            const res = await fetch('../api/live_ledger_price_stock.php?q=' + encodeURIComponent(q));
+            const res = await fetch('../api/live_ledger_price_stock.php?q=' + encodeURIComponent(q) + '&session_id=' + (currentSessionId || 0));
             const data = await res.json();
             if (!data.success) { body.innerHTML = '<div class="ps-empty">' + esc(data.error || '查询失败') + '</div>'; return; }
             const products = data.data.products || [];
@@ -2173,7 +2175,11 @@ function psSearch() {
                 const skus = (p.skus || []).map(s => `
                     <div class="ps-sku">
                         <span class="sname">${esc(s.condition_name)}</span>
-                        <span class="sval"><span class="stock">库存 ${s.stock}</span><span class="price">¥${s.price ? s.price.toFixed(2) : '-'}</span></span>
+                        <span class="sval">
+                            <span class="stock">可售 ${s.stock}</span>
+                            ${s.occupied > 0 ? `<span class="occ${s.other_occupied > 0 ? ' warn' : ''}" title="本场已录 ${s.local_occupied} · 其他场次已录 ${s.other_occupied}">(-${s.occupied})</span>` : ''}
+                            <span class="price">¥${s.price ? s.price.toFixed(2) : '-'}</span>
+                        </span>
                     </div>`).join('');
                 return `<div class="ps-product">
                     <div class="ps-pname">${esc(p.name)}</div>
