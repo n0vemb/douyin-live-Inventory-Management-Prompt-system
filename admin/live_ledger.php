@@ -1804,7 +1804,7 @@ function showSearchDropdown() {
                 return `
                 <div class="search-dropdown-item" style="${dimmed ? 'opacity:0.5;' : ''}">
                     <span class="condition-badge">${esc(sku.condition_name)}</span>
-                    <span class="sdi-stock">库存 ${remain}${totalRes > 0 ? `<span style="color:var(--text-tertiary);font-weight:normal;">(-${totalRes})</span>` : ''}${otherRes > 0 ? `<span style="color:var(--warning,#f59e0b);font-weight:normal;">⚠其他场次占${otherRes}</span>` : ''}</span>
+                    <span class="sdi-stock">可售 ${remain}${totalRes > 0 ? `<span style="color:${otherRes > 0 ? 'var(--warning,#f59e0b)' : 'var(--text-tertiary)'};font-weight:600;" title="本场已录 ${totalRes - otherRes} · 其他场次已录 ${otherRes}">(-${totalRes})</span>` : ''}</span>
                     <span class="sdi-price">¥${parseFloat(sku.suggested_price || 0).toFixed(2)}</span>
                     <button class="sdi-add-btn" data-add-id="${id}"${dimmed ? ' disabled' : ''}>${dimmed ? '已占完' : '添加'}</button>
                 </div>
