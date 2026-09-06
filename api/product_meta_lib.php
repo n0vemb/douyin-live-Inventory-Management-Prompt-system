@@ -49,8 +49,16 @@ function pmLoadCatalog() {
                 ];
             }
         }
+        // 系列内娃名索引：{ip|src: [娃名...]}，用于“商品名反向验证是否属于该系列”
+        $itemsBySeries = [];
+        foreach (($cat['items'] ?? []) as $it) {
+            $n = (string)($it['n'] ?? '');
+            if ($n === '') continue;
+            $itemsBySeries[(string)$it['ip'] . '|' . (string)$it['src']][] = $n;
+        }
         $cat['__idx'] = $idx;
         $cat['__series'] = $seriesIdx;
+        $cat['__itemsBySeries'] = $itemsBySeries;
     }
     return $cat;
 }
@@ -215,45 +223,82 @@ function pmSeriesCandidatesFor($p, $cat) {
     return pmDedupCands(array_slice($out, 0, 5));
 }
 
+/** 商品名是否属于某个 ysjp 系列（系列内娃名反查） */
+function pmNameInSeries($name, $cat, $ip, $src) {
+    $names = $cat['__itemsBySeries'][$ip . '|' . $src] ?? [];
+    if (!$names) return false;
+    $n = pmNorm(pmNormItemName((string)$name));
+    if ($n === '') return false;
+    foreach ($names as $item) {
+        $kn = pmNorm(pmNormItemName($item));
+        if ($kn === '') continue;
+        if ($kn === $n) return true;
+        // 商品名是娃名的子串（如“向日葵”∈“开满向日葵的草地”）
+        if (mb_strlen($n) >= 2 && mb_stripos($kn, $n) !== false) return true;
+        // 娃名是商品名的子串：排除“二代鸟人”→“鸟人”这类代次前缀误配
+        $pos = mb_stripos($n, $kn);
+        if ($pos !== false && mb_strlen($kn) >= 2) {
+            $before = mb_substr($n, 0, $pos);
+            $after = mb_substr($n, $pos + mb_strlen($kn));
+            if ($before !== '' && preg_match('/(第?[\d一二三四五六七八九十百]+代)$/u', $before)) continue;
+            if ($after !== '' && preg_match('/^(第?[\d一二三四五六七八九十百]+代)/u', $after)) continue;
+            return true;
+        }
+    }
+    return false;
+}
+
 /**
  * 单商品匹配：名称 → 候选；再用当前品牌/系列消歧。
  * @return array{matched:bool,cands:array,unique:bool}
  */
 function pmMatchProduct($p, $cat) {
-    $cands = pmMatchByName((string)($p['name'] ?? ''), $cat);
-    // 商品名匹配不到时，用当前系列名回查目录（同源系列仍能识别）
-    if (!$cands) $cands = pmSeriesCandidatesFor($p, $cat);
-    // 商品名命中多个系列但都与当前系列对不上（如“蘑菇”→DIMOO/PUCKY）：
-    // 再用系列名回查补上正确候选，交给下方系列消歧
-    if ($cands && count($cands) > 1 && trim((string)($p['series'] ?? '')) !== '') {
-        $series = trim((string)$p['series']);
-        $nameCandsMatchSeries = false;
-        foreach ($cands as $c) {
-            if (pmSeriesSimilar($series, $c['series']) || pmSeriesSameText($series, $c['series'])) {
-                $nameCandsMatchSeries = true;
-                break;
+    $nameCands = pmMatchByName((string)($p['name'] ?? ''), $cat);
+    $seriesText = trim((string)($p['series'] ?? ''));
+    $brandText = trim((string)($p['brand'] ?? ''));
+
+    // ① 有品牌/系列：先锁定候选系列，再做“系列内娃名反查”交叉验证
+    $seriesCands = $seriesText !== '' ? pmSeriesCandidatesFor($p, $cat) : [];
+    if ($seriesCands) {
+        // 候选系列里，商品名确实属于该系列（反查命中）的优先
+        $verified = [];
+        foreach ($seriesCands as $sc) {
+            if (pmNameInSeries((string)($p['name'] ?? ''), $cat, $sc['ip'], $sc['src'])) {
+                $verified[] = $sc;
             }
         }
-        if (!$nameCandsMatchSeries) {
-            $extra = pmSeriesCandidatesFor($p, $cat);
-            if ($extra) $cands = array_merge($cands, $extra);
+        if ($verified) {
+            $seriesCands = pmDedupCands($verified);
+        } else {
+            // 系列里没有这个娃名：看娃名直配是否落在别的系列 → 倾向“系列写错，需改”
+            $nameAligned = array_values(array_filter($nameCands, function ($c) use ($seriesCands) {
+                foreach ($seriesCands as $sc) if ($c['ip'] === $sc['ip'] && $c['src'] === $sc['src']) return true;
+                return false;
+            }));
+            if ($nameAligned) $seriesCands = pmDedupCands($nameAligned);
         }
     }
+
+    // ② 合并娃名直配与系列候选
+    $cands = array_merge($nameCands, $seriesCands);
+    $cands = pmDedupCands($cands);
     if (!$cands) return ['matched' => false, 'cands' => [], 'unique' => false];
 
-    // 多候选：先用当前品牌（IP 名）消歧
-    $brand = trim((string)($p['brand'] ?? ''));
-    if (count($cands) > 1 && $brand !== '') {
-        $bn = pmNorm($brand);
+    // ③ 消歧：优先品牌(IP)，再当前系列文字，再“系列内反查命中”的候选
+    if (count($cands) > 1 && $brandText !== '') {
+        $bn = pmNorm($brandText);
         $filt = array_values(array_filter($cands, fn($c) => pmNorm($c['ip_name']) === $bn));
         if ($filt) $cands = $filt;
     }
-    // 仍多：用当前系列消歧
-    $series = trim((string)($p['series'] ?? ''));
-    if (count($cands) > 1 && $series !== '') {
+    if (count($cands) > 1 && $seriesText !== '') {
         $filt = array_values(array_filter($cands, fn($c) =>
-            pmSeriesSimilar($c['series'], $series) || pmSeriesSimilar($c['src'], $series)));
+            pmSeriesSimilar($c['series'], $seriesText) || pmSeriesSimilar($c['src'], $seriesText)));
         if ($filt) $cands = $filt;
+    }
+    if (count($cands) > 1) {
+        $inSeries = array_values(array_filter($cands, fn($c) =>
+            pmNameInSeries((string)($p['name'] ?? ''), $cat, $c['ip'], $c['src'])));
+        if ($inSeries) $cands = $inSeries;
     }
     $cands = pmDedupCands($cands);
     return ['matched' => true, 'cands' => $cands, 'unique' => count($cands) === 1];
