@@ -1830,6 +1830,11 @@ function auditInput(input) {
     input.style.borderColor = chg ? 'var(--warning)' : 'var(--border)';
     input.style.background = chg ? 'rgba(240,180,41,.1)' : 'var(--bg-elevated)';
 }
+// 点击行内快捷按钮前，先提交当前正在编辑的格子（防 blur→重绘 丢正在输入的值）
+function auditFlushFocused() {
+    const el = document.activeElement;
+    if (el && el.classList && el.classList.contains('audit-qty')) auditInput(el);
+}
 function auditCommit(input) {
     auditInput(input); // 确保草稿已含 0
     renderAuditTable(); // 失焦/回车后再刷新状态、统计与筛选
@@ -1837,17 +1842,23 @@ function auditCommit(input) {
 function auditToggleSel(k, on) { auditSel[k] = on; auditSaveDraft(); auditUpdateFooter(); }
 
 function auditFillOnline(pid) {
+    auditFlushFocused();
     const p = auditProducts.find(x => x.product_id === pid); if (!p) return;
     const d = auditDraft[pid] || (auditDraft[pid] = {});
     auditConditionTypes.forEach(ct => { d[ct.key] = auditOnlineQty(p, ct.key); });
     auditSaveDraft(); renderAuditTable();
 }
 function auditFillZero(pid) {
+    auditFlushFocused();
     const d = auditDraft[pid] || (auditDraft[pid] = {});
+    // 只填空格：0 也算已填，不覆盖任何手输/已在库值
     auditConditionTypes.forEach(ct => { if (!auditIsFilled(d[ct.key])) d[ct.key] = 0; });
     auditSaveDraft(); renderAuditTable();
 }
-function auditClearRow(pid) { delete auditDraft[pid]; auditSaveDraft(); renderAuditTable(); }
+function auditClearRow(pid) {
+    auditFlushFocused();
+    delete auditDraft[pid]; auditSaveDraft(); renderAuditTable();
+}
 function auditClearAll() {
     if (!confirm('确定清空本次所有盘点记录？（线上库存不会被改动）')) return;
     auditDraft = {}; auditSel = {};
