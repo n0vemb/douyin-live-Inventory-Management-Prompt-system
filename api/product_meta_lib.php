@@ -89,6 +89,22 @@ function pmNormItemName($n) {
     return trim($n);
 }
 
+/** 识别商品名里的周边类型词（冰箱贴/挂绳/吊卡等），返回类型标签或空 */
+function pmPeripheralType($name) {
+    $name = (string)$name;
+    $tokens = [
+        '冰箱贴夹子', '冰箱硅胶夹子', '冰箱磁贴', '冰箱贴',
+        '手机挂绳', '手机支架', '手机链', '挂绳',
+        '钥匙挂件', '钥匙扣', '挂件', '吊卡', '卡套', '零钱包',
+        '数据线', '摇摇乐', '萌粒', '立牌', '徽章', '贴纸', '透卡',
+        '明信片', '杯垫', '毛绒公仔挂件', '毛绒挂件', '毛绒', '夹子', '盲袋', '挂饰',
+    ];
+    foreach ($tokens as $t) {
+        if (mb_strpos($name, $t) !== false) return $t;
+    }
+    return '';
+}
+
 function pmCandidateKey($c) {
     return $c['ip'] . '|' . $c['src'] . '|' . $c['series'];
 }
@@ -383,7 +399,8 @@ function pmQiandaoToCands($items, $cat) {
         }
         $ipName = $ipSlugFound !== '' ? (string)($cat['ips'][$ipSlugFound]['name'] ?? '') : '';
 
-        // 系列：优先取 item 名（千岛系列 SPU 时 name 即系列），否则取 IP 段前的描述
+        // 系列：优先取 item 名（千岛系列 SPU 时 name 即完整系列，如“公路日志系列冰箱贴”），
+        // 否则取 IP 段前的描述；保留周边后缀（回声系列冰箱贴夹子），只清掉手办/盲盒等类别噪声
         $series = '';
         if (mb_strpos($name, '系列') !== false) {
             $series = $name;
@@ -391,12 +408,9 @@ function pmQiandaoToCands($items, $cat) {
             $pre = $ipPos >= 0 ? array_slice($kp, 0, $ipPos) : array_slice($kp, 0, 1);
             $series = implode('', $pre);
         }
-        // 清理：系列字后不再要类型词（如「系列手办」/「系列 二合一数据线」）
-        if (mb_strpos($series, '系列') !== false) {
-            $series = mb_substr($series, 0, mb_strpos($series, '系列') + 2);
-        }
-        $series = trim((string)preg_replace('/(手办|盲盒|周边|数据线|挂链|挂绳|挂件|徽章|冰箱贴|摇摇乐|夹子)$/u', '', trim($series)), ' -');
-        if ($series === '' && mb_strpos($name, '系列') === false) $series = $name;
+        $series = trim((string)preg_replace('/(手办|盲盒|周边)$/u', '', trim($series)), ' -');
+        if ($series === '') $series = $name;
+        $periph = pmPeripheralType($name . ' ' . ($it['key_property'] ?? ''));
         $cands[] = [
             'ip'       => '',
             'ip_name'  => $ipName,
@@ -405,14 +419,26 @@ function pmQiandaoToCands($items, $cat) {
             'source'   => 'qiandao',
             'name'     => $name,
             'image'    => pmQiandaoImageUrl((string)($it['image'] ?? '')),
+            'periph'   => $periph,
         ];
     }
-    return pmDedupCands(array_values(array_filter($cands, fn($c) => $c['series'] !== '' || $c['ip_name'] !== '')));
+    $cands = pmDedupCands(array_values(array_filter($cands, fn($c) => $c['series'] !== '' || $c['ip_name'] !== '')));
+    // 周边优先：与商品类型词一致的候选排前面
+    usort($cands, fn($a, $b) => (($b['periph'] ?? '') !== '' ? 1 : 0) - (($a['periph'] ?? '') !== '' ? 1 : 0));
+    return $cands;
 }
 
 /** 千岛搜索词：去掉周边前缀，原始名兜底 */
 function pmQiandaoQueryTerms($name) {
-    $n = preg_replace('/^(冰箱贴夹子|冰箱贴|手机挂绳|手机支架|钥匙挂件|数据线挂件|卡套|零钱包|香薰挂件|挂件|洞洞装饰扣|装饰扣)[\-－—]/u', '', $name);
-    $terms = $n === $name ? [$name] : [$n, $name];
+    $periph = pmPeripheralType($name);
+    if ($periph === '') {
+        $n = preg_replace('/^(冰箱贴夹子|冰箱贴|手机挂绳|手机支架|钥匙挂件|数据线挂件|卡套|零钱包|香薰挂件|挂件|洞洞装饰扣|装饰扣)[\-－—]/u', '', $name);
+        $terms = $n === $name ? [$name] : [$n, $name];
+    } else {
+        // 周边：先按“冰箱贴 雪霜时分”整词搜，再退回主体名（不强行去前缀找娃）
+        $withType = trim((string)preg_replace('/[\-－—·]+/u', ' ', $name));
+        $base = trim((string)preg_replace('/^(冰箱贴夹子|冰箱贴|手机挂绳|手机支架|钥匙挂件|数据线挂件|卡套|零钱包|香薰挂件|挂件|洞洞装饰扣|装饰扣|毛绒|夹子)[\-－—]/u', '', $name));
+        $terms = [$withType, $base, $name];
+    }
     return array_values(array_unique(array_filter(array_map('trim', $terms))));
 }

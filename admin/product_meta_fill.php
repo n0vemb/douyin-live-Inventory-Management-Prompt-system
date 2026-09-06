@@ -43,6 +43,7 @@ $pmStoreId = $storeId ?? 0;
   .t-mm{background:rgba(168,85,247,.15);color:#a855f7}
   .t-vr{background:rgba(59,130,246,.15);color:#3b82f6}
   .t-ns{background:rgba(107,114,128,.16);color:#6b7280}
+  .t-qd{background:rgba(14,165,233,.15);color:#0284c7}
   .pmf-row{display:grid;grid-template-columns:28px minmax(170px,1.2fr) minmax(180px,1fr) minmax(150px,.9fr) minmax(210px,1.2fr) auto;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);font-size:13px}
   .pmf-row.head{background:var(--bg-hover);font-weight:700;color:var(--text-secondary);font-size:12px}
   .pmf-name{font-weight:700;color:var(--text)}
@@ -254,7 +255,7 @@ function renderRows() {
       <span><input type="checkbox" class="pmf-chk" data-id="${id}"></span>
       <span class="pmf-name">${esc(r.name)}<span class="sub2">${esc(r.common_name || '')}${r.stock_total ? ' · 库存 ' + r.stock_total : ''}</span></span>
       <span class="pmf-cur"><b>${curB}</b><br>${curS}</span>
-      <span>${rowFlagHtml(r.flags)}</span>
+      <span>${rowFlagHtml(r.flags)}${r.periph ? `<span class="pmf-tag t-qd">周边·${esc(r.periph)}</span>` : ''}</span>
       <span style="display:flex;flex-direction:column;gap:5px">
         <input class="pmf-inp" id="b_${id}" value="${esc(recB)}" list="pmfIpList" placeholder="自定义 IP 名…">
         <input class="pmf-inp" id="s_${id}" value="${esc(recS)}" list="pmfSeriesList" placeholder="自定义系列名…">
@@ -341,7 +342,7 @@ async function showCands(id, useQiandao) {
       <div class="pmf-cand"><div><div class="cn">${esc(c.ip_name || '')} · ${esc(c.series || '')}</div><div class="cc">ysjp 图库</div></div>
       <button class="pmf-btn ok" data-pick="y" data-i="${i}">采用</button></div>`).join('');
     const qHtml = qCands.map((c, i) => `
-      <div class="pmf-cand"><div><div class="cn">${esc(c.name || '')}</div><div class="cc">${esc([c.series, c.ip_name].filter(Boolean).join(' · ') || '千岛候选')}</div></div>
+      <div class="pmf-cand"><div><div class="cn">${esc(c.name || '')}</div><div class="cc">${esc([c.series, c.ip_name].filter(Boolean).join(' · ') || '千岛候选')}${c.periph ? ` · <span class="pmf-tag t-qd">周边·${esc(c.periph)}</span>` : ''}</div></div>
       <button class="pmf-btn ok" data-pick="q" data-i="${i}">采用</button></div>`).join('');
     let html = (ysjpHtml ? '<div style="font-weight:700;font-size:13px;margin:6px 0">ysjp 推荐</div>' + ysjpHtml : '')
       + (qHtml ? '<div style="font-weight:700;font-size:13px;margin:12px 0 6px">千岛兜底</div>' + qHtml : '')

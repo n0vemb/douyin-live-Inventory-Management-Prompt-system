@@ -107,6 +107,7 @@ try {
             'brand'          => $p['brand'],
             'series'         => $p['series'],
             'stock_total'    => (int)$p['stock_total'],
+            'periph'         => pmPeripheralType($p['name']),
             'matched'        => $matched,
             'unique'         => $unique,
             'cands'          => array_slice($cands, 0, 8),
