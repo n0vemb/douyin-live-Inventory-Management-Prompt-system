@@ -65,6 +65,12 @@ try {
     $insertItem = $pdo->prepare(
         'INSERT INTO pos_order_items (order_id, store_id, product_id, condition_type, qty, unit_price, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
+    // 直播占用：所有未结束(active)记账场次已录数量（POS 不可卖）
+    $liveOccStmt = $pdo->prepare("SELECT COALESCE(SUM(li.qty),0)
+        FROM live_ledger_item li
+        JOIN live_ledger_session s ON s.id = li.session_id
+        WHERE s.store_id = ? AND s.status = 'active'
+          AND li.product_id = ? AND li.condition_type = ? AND li.is_gift = 0 AND li.is_temp = 0");
 
     $subtotal = 0;
     $resultItems = [];
@@ -100,6 +106,16 @@ try {
         // FIFO 锁批次
         $batchStmt->execute([$storeId, $productId, $cond]);
         $batches = $batchStmt->fetchAll();
+        $liveOccStmt->execute([$storeId, $productId, $cond]);
+        $occ = (int)$liveOccStmt->fetchColumn();
+        $totalAvail = 0;
+        foreach ($batches as $b) {
+            $totalAvail += max(0, (int)$b['remaining_qty'] - (int)$b['locked_qty']);
+        }
+        $sellable = max(0, $totalAvail - $occ);
+        if ($sellable < $qty) {
+            throw new Exception($prod['name'] . ' 该品相可售不足：剩 ' . $sellable . ' 件' . ($occ > 0 ? '（直播占用 ' . $occ . ' 件）' : ''));
+        }
         $need = $qty;
         $lockedBatches = [];
         foreach ($batches as $b) {

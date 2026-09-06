@@ -2,7 +2,7 @@
 /**
  * pos_catalog.php — 收银台商品目录（免登录）
  * 售价 = MAX(在库批次进价) × 店铺加价比例；比例不出前端
- * 库存 = remaining_qty - locked_qty（POS锁定量视为不可用）
+ * 库存 = remaining_qty - locked_qty - 直播active场次占用（可售口径）
  */
 require_once __DIR__ . '/pos_auth.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -56,6 +56,18 @@ try {
     $stmt->execute([$storeId]);
     $rows = $stmt->fetchAll();
 
+    // 直播占用：所有未结束(active)记账场次已录的非赠品商品数量（未打包出库前物理库存仍含这些）
+    $liveOcc = [];
+    $occStmt = $pdo->prepare("SELECT li.product_id, li.condition_type, SUM(li.qty) qty
+        FROM live_ledger_item li
+        JOIN live_ledger_session s ON s.id = li.session_id
+        WHERE s.store_id = ? AND s.status = 'active' AND li.is_gift = 0 AND li.is_temp = 0
+        GROUP BY li.product_id, li.condition_type");
+    $occStmt->execute([$storeId]);
+    foreach ($occStmt->fetchAll() as $o) {
+        $liveOcc[$o['product_id'] . '|' . $o['condition_type']] = (int)$o['qty'];
+    }
+
     $products = [];
     foreach ($rows as $r) {
         $pid = (int)$r['id'];
@@ -71,7 +83,8 @@ try {
         }
         $cond = $r['condition_type'];
         if (!$cond) continue;
-        $avail = max(0, (int)$r['avail_stock']);
+        $occupied = $liveOcc[$pid . '|' . $cond] ?? 0;
+        $avail = max(0, (int)$r['avail_stock'] - $occupied);
         // 售价：优先 SKU 级手动线下售价（product_offline_prices）；未配置则 最高在库进价 × 加价比例
         $manual = $offlinePrices[$pid . '|' . $cond] ?? 0;
         $price = $avail > 0
@@ -81,6 +94,7 @@ try {
             'condition_type' => $cond,
             'cond_name' => $condNames[$cond] ?? $cond,
             'stock' => $avail,
+            'occupied_live' => $occupied,
             'price' => $price
         ];
     }
