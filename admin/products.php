@@ -1787,7 +1787,7 @@ function renderAuditTable() {
             html += '<td style="text-align:center; padding:6px 4px; border-bottom:1px solid var(--border); font-size:13px; font-weight:600; color:var(--text);">' + on + '</td>';
             // 实际库存（手输）
             html += '<td style="text-align:center; padding:4px; border-bottom:1px solid var(--border);">';
-            html += '<input type="text" inputmode="numeric" pattern="[0-9]*" class="audit-qty" autocomplete="off" data-pid="' + p.product_id + '" data-cond="' + escapeHtml(ct.key) + '" data-orig="' + on + '" value="' + (filled ? escapeHtml(v) : '') + '" placeholder="手输" ' + (chg ? 'style="border-color:var(--warning); background:rgba(240,180,41,.1);"' : '') + ' oninput="auditInput(this)" onchange="auditCommit(this)" onfocus="this.select()">';
+            html += '<input type="text" inputmode="numeric" pattern="[0-9]*" class="audit-qty" autocomplete="off" data-pid="' + p.product_id + '" data-cond="' + escapeHtml(ct.key) + '" data-orig="' + on + '" value="' + (filled ? escapeHtml(String(v)) : '') + '" placeholder="手输" ' + (chg ? 'style="border-color:var(--warning); background:rgba(240,180,41,.1);"' : '') + ' oninput="auditInput(this)" onchange="auditCommit(this)" onfocus="this.select()">';
             html += '</td>';
         });
         html += '<td style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--border);"><span class="audit-badge audit-badge-' + st + '">' + auditBadgeText(st) + '</span></td>';
