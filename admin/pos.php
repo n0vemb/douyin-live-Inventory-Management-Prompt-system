@@ -73,6 +73,8 @@ $qrAli = posAssetUrl($qrAli);
   .grid{flex:1;overflow:visible;padding:12px 18px 24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));grid-auto-rows:max-content;gap:14px;align-content:start}
   .pcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:.15s;box-shadow:var(--shadow);display:flex;flex-direction:column;height:max-content;min-height:0}
   .pcard:active{transform:scale(.97)}
+  .pcard.sold-out{opacity:.55}
+  .pcard.sold-out .from{color:var(--text-3)}
   .pcard .img{aspect-ratio:4/5;width:100%;flex:none;display:flex;align-items:center;justify-content:center;font-size:44px;font-weight:800;color:#fff;position:relative;overflow:hidden}
   .pcard .img img{width:100%;height:100%;object-fit:contain;position:absolute;inset:0;background:#fff}
   .pcard .series{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.45);color:#fff;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;z-index:2}
@@ -99,6 +101,9 @@ $qrAli = posAssetUrl($qrAli);
   .citem .cp{font-size:12px;color:var(--text-2);margin-top:2px}
   .citem .cp b{color:var(--primary)}
   .citem .cr{color:var(--danger);font-size:11px;cursor:pointer;font-weight:700}
+  .citem.short{border-color:rgba(230,2,31,.35)}
+  .citem.short .line{color:var(--danger)}
+  .citem .cs .short{color:var(--danger);font-weight:700}
   .stepper{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:6px}
   .stepper button{width:30px;height:30px;border:none;background:var(--surface);color:var(--text-2);font-size:17px;font-weight:700;cursor:pointer}
   .stepper button:active{background:var(--primary-soft)}
@@ -185,6 +190,13 @@ $qrAli = posAssetUrl($qrAli);
   .success .ot{font-size:13px;color:var(--text-2);margin:3px 0}
   .success .ot b{color:var(--text)}
   .success .ot.note{color:var(--text-3);font-size:12px;margin-top:8px}
+  .shortage-modal{width:min(540px,94vw)}
+  .shortage-list{max-height:38vh;overflow-y:auto;margin-top:12px;border-top:1px solid var(--border);padding:2px 0}
+  .shortage-item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 2px;border-bottom:1px dashed var(--border);font-size:13.5px}
+  .shortage-item:last-child{border-bottom:0}
+  .shortage-item .sn{font-weight:700;flex:1;min-width:0}
+  .shortage-item .sn .c{color:var(--text-2);font-weight:600;font-size:12px}
+  .shortage-item .need{color:var(--danger);font-weight:800;white-space:nowrap;text-align:right}
   .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:#1c2230;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;opacity:0;transition:.25s;z-index:90;pointer-events:none}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .toast.err{background:#b3261e}
@@ -298,6 +310,7 @@ $qrAli = posAssetUrl($qrAli);
     <div class="qr-box" id="qrBox"></div>
     <div class="qr-tip">请使用微信/支付宝扫码付款</div>
     <div class="scan-hint" id="qrHint">付款完成后请找工作人员配货</div>
+    <div id="qrExpiry" style="font-size:12px;color:var(--text-3);margin:-4px 0 0"></div>
     <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="onPaid()">已付款</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="cancelQr()">取消</button>
   </div>
@@ -316,6 +329,23 @@ $qrAli = posAssetUrl($qrAli);
       <div class="ot note" id="sNote">订单已提交，请凭订单号找工作人员配货</div>
       <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="backHome()">返回</button>
     </div>
+  </div>
+</div>
+
+<!-- 结算库存不足兜底 -->
+<div class="mask" id="shortageMask" style="align-items:center;z-index:70">
+  <div class="modal shortage-modal">
+    <div class="sheet-head" style="border:0;padding:0 0 10px">
+      <span class="st">部分商品库存不足</span>
+    </div>
+    <div style="font-size:13.5px;color:var(--text-2);line-height:1.65">
+      下单时这些商品的可售数量发生了变化（可能刚被其它收银台结算，或被直播场次占用）。
+      清单已自动按当前可售数量调整：
+    </div>
+    <div class="shortage-list" id="shortageList"></div>
+    <div style="font-size:12px;color:var(--text-3);margin-top:10px">显示的可售数量为最新实时数据，最终以再次结算为准。</div>
+    <button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="shortageContinue()">按调整后清单继续结算</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="shortageBack()">返回购物车查看</button>
   </div>
 </div>
 
@@ -350,6 +380,11 @@ let curSeries = '';
 let kw = '';
 let payMethod = 'wechat';
 let curOrder = null;    // 当前待确认收款的订单 {order_id, order_no}
+let lastSkuPid = null;  // 当前打开的品相弹层商品（定时刷新时原地更新）
+let autoTimer = null;   // 30s 静默库存刷新
+let refreshing = false; // 防止刷新重叠
+let pendingShortages = null; // 最近一次库存不足明细
+let qrTimer = null;     // 收款码未付款倒计时（15分钟自动释放）
 
 // ===== 加载目录 =====
 async function loadCatalog(keepFilter) {
@@ -374,6 +409,111 @@ async function loadCatalog(keepFilter) {
     handlePosState();
   } catch (e) {
     toast(e.message, true);
+  }
+}
+
+// ===== 多机 30s 静默库存刷新 =====
+// 只更新库存/价格快照与可见文案，不重载筛选、不丢购物车、不打断浏览
+function startAutoRefresh() {
+  if (autoTimer) return;
+  autoTimer = setInterval(() => {
+    if (!CATALOG.products.length) {
+      // 首次加载失败时静默重试
+      loadCatalog(true).catch(() => {});
+      return;
+    }
+    refreshStockQuietly();
+  }, 30000);
+}
+
+function mergeCatalogFresh(data) {
+  const fresh = new Map((data.products || []).map(p => [p.id, p]));
+  for (const p of CATALOG.products) {
+    const np = fresh.get(p.id);
+    if (!np) {
+      // 后端已查不到（停售/删除）：本地全部置为不可售，结算仍由服务端兜底
+      p.skus.forEach(s => { s.stock = 0; });
+      continue;
+    }
+    if (np.name) p.name = np.name;
+    const nskus = new Map(np.skus.map(s => [s.condition_type, s]));
+    for (const s of p.skus) {
+      const ns = nskus.get(s.condition_type);
+      if (ns) {
+        s.stock = ns.stock;
+        s.occupied_live = ns.occupied_live;
+        s.cond_name = ns.cond_name;
+        s.price = ns.price;
+      } else {
+        s.stock = 0;
+      }
+    }
+    // 目录里新出现的品相（极少见）补进来
+    for (const ns of np.skus) {
+      if (!p.skus.some(s => s.condition_type === ns.condition_type)) {
+        p.skus.push({ condition_type: ns.condition_type, cond_name: ns.cond_name, stock: ns.stock, occupied_live: ns.occupied_live, price: ns.price });
+      }
+    }
+  }
+}
+
+function refreshGridStockText() {
+  document.querySelectorAll('.pcard[data-pid]').forEach(card => {
+    const p = CATALOG.products.find(x => x.id === Number(card.dataset.pid));
+    if (!p) return;
+    const avail = p.skus.filter(s => s.stock > 0);
+    const minPrice = avail.length ? Math.min(...avail.map(s => s.price)) : null;
+    const fromEl = card.querySelector('.from');
+    if (fromEl) fromEl.innerHTML = minPrice != null ? `<b>¥${minPrice.toFixed(2)}</b> 起` : '暂时缺货';
+    const nEl = card.querySelector('.sku-n');
+    if (nEl) nEl.textContent = avail.length + ' 个品相可售';
+    card.classList.toggle('sold-out', avail.length === 0);
+  });
+}
+
+async function refreshStockQuietly() {
+  if (refreshing) return;
+  refreshing = true;
+  try {
+    const res = await fetch(API + 'pos_catalog.php', { cache: 'no-store' });
+    const data = await res.json();
+    if (!data.success || !Array.isArray(data.products)) return;
+    mergeCatalogFresh(data);
+
+    // 商品卡：原地更新缺货/起售价
+    refreshGridStockText();
+
+    // 品相弹层开着：整体重绘（保留弹层内滚动位置），保证库存/占位最新
+    const skuMask = $('skuMask');
+    if (skuMask.classList.contains('show') && lastSkuPid) {
+      const body = $('skuBody');
+      const scrollTop = body.scrollTop;
+      openSku(lastSkuPid);
+      body.scrollTop = scrollTop;
+    }
+
+    // 购物车：更新可售快照；数量超出现售时红框提示（结算仍由服务端最终校验）
+    let cartChanged = false;
+    cart.forEach(it => {
+      const p = CATALOG.products.find(x => x.id === it.pid);
+      const sk = p ? p.skus.find(s => s.condition_type === it.cond) : null;
+      const ns = sk ? sk.stock : 0;
+      if (it.stock !== ns) { it.stock = ns; cartChanged = true; }
+    });
+    if (cartChanged) {
+      const listEl = $('cartList');
+      const scrollTop = listEl.scrollTop;
+      renderCart();
+      listEl.scrollTop = scrollTop;
+      renderSummary();
+    }
+
+    // 若正停在「确认订单」弹层，行项目金额/件数也同步刷新（不关闭弹层）
+    if ($('checkoutMask').classList.contains('show')) openCheckout();
+  } catch (e) {
+    // 静默失败：网络抖动时跳过，等下一次轮询
+  } finally {
+    refreshing = false;
   }
 }
 
@@ -487,13 +627,14 @@ function renderGrid() {
   $('grid').innerHTML = list.map((p) => {
     const avail = p.skus.filter(s => s.stock > 0);
     const minPrice = avail.length ? Math.min(...avail.map(s => s.price)) : null;
+    const soldOut = avail.length === 0;
     const img = p.image_url ? `<img src="${p.image_url}" loading="lazy" onerror="this.remove()">` : '';
-    return `<div class="pcard" onclick="openSku(${p.id})">
+    return `<div class="pcard${soldOut ? ' sold-out' : ''}" data-pid="${p.id}" onclick="openSku(${p.id})">
       <div class="img" style="background:${grad(p.series)}">${img}${img ? '' : (p.name[0] || '')}</div>
       <div class="body">
         <div class="pn">${p.name}</div>
         <div class="from">${minPrice != null ? `<b>¥${minPrice.toFixed(2)}</b> 起` : '暂时缺货'}</div>
-        <div class="sku-n">${p.skus.length} 个品相可选</div>
+        <div class="sku-n">${avail.length} 个品相可售</div>
       </div>
     </div>`;
   }).join('');
@@ -503,6 +644,7 @@ function renderGrid() {
 function openSku(pid) {
   const p = CATALOG.products.find(x => x.id === pid);
   if (!p) return;
+  lastSkuPid = pid;
   $('skuTitle').textContent = p.name;
   const requested = wishRequested(pid);
   $('skuHint').textContent = requested ? '你已为这款商品求过补货' : '点选品相即可加入购物清单';
@@ -604,11 +746,11 @@ function renderCart() {
     list.innerHTML = `<div class="empty"><div class="big">🛒</div>点击左侧商品开始点单<br>选品相后自动加入清单</div>`;
   } else {
     list.innerHTML = cart.map(it => `
-      <div class="citem">
+      <div class="citem${it.stock < it.qty ? ' short' : ''}" data-key="${it.key}">
         <div class="ci" style="background:${grad(it.series)}">${it.imgUrl ? `<img src="${it.imgUrl}" onerror="this.remove()">` : (it.name[0] || '')}</div>
         <div class="cm">
           <div class="cn">${it.name}</div>
-          <div class="cs">${it.condName}</div>
+          <div class="cs">${it.condName}${it.stock < it.qty ? `<span class="short"> · 当前可售仅 ${it.stock} 件</span>` : ''}</div>
           <div class="cp">单价 <b>¥${it.unit.toFixed(2)}</b></div>
           <div class="stepper"><button onclick="chgQty('${it.key}',-1)">−</button><span>${it.qty}</span><button onclick="chgQty('${it.key}',1)">＋</button></div>
         </div>
@@ -667,6 +809,10 @@ async function startPay(method) {
     const order = await doCheckout(phone);
     openQr(order, qrUrl);
   } catch (e) {
+    if (e.failType === 'stock' && Array.isArray(e.shortages) && e.shortages.length) {
+      handleStockShortage(e.shortages);
+      return;
+    }
     toast(e.message, true);
   }
 }
@@ -680,8 +826,58 @@ async function doCheckout(phone) {
     body: JSON.stringify({ items, pay_method: 'scan', customer_phone: phone || null })
   });
   const data = await res.json();
-  if (!data.success) throw new Error(data.error || '下单失败');
+  if (!data.success) {
+    const err = new Error(data.error || '下单失败');
+    if (data.fail_type === 'stock' && Array.isArray(data.shortages)) {
+      err.failType = 'stock';
+      err.shortages = data.shortages;
+    }
+    throw err;
+  }
   return data;
+}
+
+// ===== 结算库存不足兜底 =====
+function handleStockShortage(shortages) {
+  pendingShortages = shortages;
+  hide('checkoutMask'); // 先收起结算弹层，再展示兜底说明
+  // 先把清单调整到可售数量，避免顾客卡在无法结算的状态
+  let changed = false;
+  shortages.forEach(sh => {
+    const key = sh.product_id + '_' + sh.condition_type;
+    const it = cart.find(c => c.key === key);
+    if (!it) return;
+    const keep = Math.max(0, Math.min(it.qty, sh.available));
+    if (keep === it.qty) return;
+    changed = true;
+    if (keep <= 0) cart = cart.filter(c => c.key !== key);
+    else it.qty = keep;
+  });
+  if (changed) renderCart();
+
+  const rows = shortages.map(sh => {
+    const cartIt = cart.find(c => c.pid === sh.product_id && c.cond === sh.condition_type);
+    const name = cartIt ? cartIt.name : sh.name;
+    const condName = cartIt ? cartIt.condName
+      : ({ sealed: '原盒未拆', opened: '拆盒无瑕', boxless: '无盒无瑕', flawed: '微瑕' }[sh.condition_type] || sh.condition_type || '');
+    const occTxt = sh.occupied_live > 0 ? `（另有直播占用 ${sh.occupied_live} 件）` : '';
+    const availTxt = sh.available > 0 ? `仅剩 ${sh.available} 件` : '当前不可售';
+    return `<div class="shortage-item">
+      <span class="sn">${name}<div class="c">${condName}</div></span>
+      <span class="need">你需要 ${sh.requested} 件<br>${availTxt}${occTxt}</span>
+    </div>`;
+  }).join('');
+  $('shortageList').innerHTML = rows;
+  show('shortageMask');
+}
+function shortageContinue() {
+  hide('shortageMask');
+  openCheckout();
+}
+function shortageBack() {
+  hide('shortageMask');
+  if (!$('cart').classList.contains('open')) expandCart();
+  toast('已按当前可售数量调整清单');
 }
 
 // 收款码弹窗
@@ -700,9 +896,35 @@ function openQr(order, qrUrl) {
   $('qrHint').textContent = '付款完成后请找工作人员配货';
   closeCheckout();
   show('qrMask');
+  startQrCountdown(15 * 60);
 }
 // 纯关闭收款码弹窗（已付款成功路径）
-function closeQr() { hide('qrMask'); }
+function closeQr() {
+  clearInterval(qrTimer);
+  qrTimer = null;
+  hide('qrMask');
+}
+// 15 分钟未付款自动释放的提示倒计时（服务端为准，前端仅作提醒）
+function startQrCountdown(totalSec) {
+  clearInterval(qrTimer);
+  const el = $('qrExpiry');
+  const tick = () => {
+    if (totalSec <= 0) {
+      clearInterval(qrTimer);
+      qrTimer = null;
+      el.textContent = '本单已超时自动释放，如需购买请重新下单';
+      el.style.color = 'var(--danger)';
+      return;
+    }
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    el.textContent = `未完成付款，本单将于 ${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} 后自动释放`;
+    el.style.color = totalSec <= 60 ? 'var(--danger)' : 'var(--text-3)';
+    totalSec--;
+  };
+  tick();
+  qrTimer = setInterval(tick, 1000);
+}
 
 // 取消订单：释放锁定 + 删除订单（不进入门店待出库）
 async function cancelQr() {
@@ -738,6 +960,12 @@ async function onPaid() {
     closeQr();
     showSuccess(curOrder);
   } catch (e) {
+    const msg = e.message || '';
+    // 订单已超时释放/被取消：收起收款码，避免顾客对着失效订单继续操作
+    if (msg.indexOf('超时') !== -1 || msg.indexOf('取消') !== -1 || msg.indexOf('失效') !== -1) {
+      curOrder = null;
+      closeQr();
+    }
     toast(e.message, true);
   }
 }
@@ -827,6 +1055,7 @@ function toast(msg, isError) {
 loadCatalog();
 renderCart();
 collapseCart();
+startAutoRefresh();
 
 // 刷新后自动强制全屏（浏览器要求用户手势，首次点击/触摸时触发）
 function enterFullscreen() {

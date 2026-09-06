@@ -21,6 +21,7 @@ $discount = isset($input['staff_discount']) ? floatval($input['staff_discount'])
 if (empty($items)) error('购物清单为空');
 if (!in_array($payMethod, ['cash', 'scan'], true)) $payMethod = 'cash';
 $pdo = getDB();
+$shortages = []; // 库存不足明细（一次性回给收银台，便于展示并自动调整清单）
 
 try {
     $stmt = $pdo->prepare('SELECT name, offline_price_ratio FROM stores WHERE id = ?');
@@ -94,7 +95,18 @@ try {
         );
         $priceStmt->execute([$storeId, $productId, $cond]);
         $maxCost = $priceStmt->fetchColumn();
-        if ($maxCost === null || $maxCost === false) throw new Exception($prod['name'] . ' 该品相已售罄');
+        if ($maxCost === null || $maxCost === false) {
+            // 已无可售批次（含全部被直播占用/锁定）
+            $shortages[] = [
+                'product_id' => $productId,
+                'name' => $prod['name'],
+                'condition_type' => $cond,
+                'requested' => $qty,
+                'available' => 0,
+                'occupied_live' => 0
+            ];
+            continue;
+        }
 
         // 店员改价（仅店员态接受，合理范围校验）
         $unitPrice = round($maxCost * $ratio, 2);
@@ -114,7 +126,15 @@ try {
         }
         $sellable = max(0, $totalAvail - $occ);
         if ($sellable < $qty) {
-            throw new Exception($prod['name'] . ' 该品相可售不足：剩 ' . $sellable . ' 件' . ($occ > 0 ? '（直播占用 ' . $occ . ' 件）' : ''));
+            $shortages[] = [
+                'product_id' => $productId,
+                'name' => $prod['name'],
+                'condition_type' => $cond,
+                'requested' => $qty,
+                'available' => max(0, $sellable),
+                'occupied_live' => $occ
+            ];
+            continue;
         }
         $need = $qty;
         $lockedBatches = [];
@@ -149,6 +169,10 @@ try {
         ];
     }
 
+    if ($shortages) {
+        throw new Exception('部分商品库存不足，请调整清单');
+    }
+
     // 3) 金额结算
     $subtotal = round($subtotal, 2);
     $discountAmount = $staffDiscount < 1 ? round($subtotal * (1 - $staffDiscount), 2) : 0;
@@ -172,5 +196,16 @@ try {
 } catch (Exception $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     logError($e->getMessage(), 'pos_checkout', ['store_id' => $storeId]);
+    if ($shortages) {
+        http_response_code(409);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => false,
+            'error' => '部分商品库存不足，请调整清单',
+            'fail_type' => 'stock',
+            'shortages' => $shortages
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     error($e->getMessage(), 400);
 }

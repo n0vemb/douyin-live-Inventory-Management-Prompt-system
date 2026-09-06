@@ -19,6 +19,9 @@ function posCatAssetUrl($path) {
 }
 $pdo = getDB();
 
+// 目录轮询顺带执行 15 分钟未付款订单自动释放（多台收银机都能触发，无需后台打开页面）
+posAutoReleaseUnpaid($pdo, $storeId, 15);
+
 try {
     $stmt = $pdo->prepare('SELECT name, offline_price_ratio, pos_enabled, pos_screensaver_img, pos_screensaver_sec FROM stores WHERE id = ?');
     $stmt->execute([$storeId]);

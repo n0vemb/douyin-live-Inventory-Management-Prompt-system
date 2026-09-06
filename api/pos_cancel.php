@@ -11,6 +11,10 @@ $orderId = intval($input['order_id'] ?? 0);
 if (!$orderId) error('缺少订单ID');
 $pdo = getDB();
 
+// 与 15 分钟自动释放互斥，避免取消瞬间被重复处理
+$lockName = 'pp_pos_auto_release_' . (int)$storeId;
+$pdo->query('SELECT GET_LOCK(' . $pdo->quote($lockName) . ', 5)');
+
 try {
     $orderStmt = $pdo->prepare('SELECT * FROM pos_orders WHERE id = ?');
     $orderStmt->execute([$orderId]);
@@ -39,7 +43,9 @@ try {
         throw $e;
     }
 
+    $pdo->query('SELECT RELEASE_LOCK(' . $pdo->quote($lockName) . ')');
     success(['cancelled' => true, 'order_id' => $orderId]);
 } catch (Exception $e) {
+    try { $pdo->query('SELECT RELEASE_LOCK(' . $pdo->quote($lockName) . ')'); } catch (Exception $ignore) {}
     error($e->getMessage());
 }
