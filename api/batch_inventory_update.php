@@ -18,6 +18,20 @@ if (empty($storeId)) {
 $operatorId = $_SESSION['user_id'] ?? null;
 $remark = trim((string)($input['remark'] ?? '')) ?: '盘点调整';
 
+// 盘点前置校验：还有未结束(未下播/未打包出库)的直播场次时禁止调整
+$activeSql = "SELECT COUNT(*) FROM live_ledger_session WHERE status = 'active'";
+$activeParams = [];
+if ($storeId) {
+    $activeSql .= " AND store_id = ?";
+    $activeParams[] = $storeId;
+}
+$stmt = $pdo->prepare($activeSql);
+$stmt->execute($activeParams);
+$activeCount = (int)$stmt->fetchColumn();
+if ($activeCount > 0) {
+    error("还有 {$activeCount} 场未结束的直播场次，盘点调整已禁止。请在所有场次「下播/打包出库」结束后再盘点，避免库存数据不准确");
+}
+
 $results = [];
 $successCount = 0;
 $failedCount = 0;

@@ -1586,6 +1586,19 @@ async function openAuditModal() {
     showModal('auditModal');
     $('auditContent').innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-tertiary);">加载中...</div>';
     try {
+        // 盘点前置校验：还有未结束(未下播/未打包出库)的直播场次时禁止盘点
+        const actRes = await fetch('../api/live_ledger_list_sessions.php?status=active');
+        const actData = await actRes.json();
+        const actSessions = (actData.success && actData.data && actData.data.sessions) || [];
+        if (actSessions.length) {
+            const names = actSessions.slice(0, 3).map(s => '「' + (s.session_name || ('#' + s.id)) + '」').join('、');
+            $('auditContent').innerHTML =
+                '<div style="text-align:center; padding:36px 20px;">' +
+                '<div style="font-size:22px; margin-bottom:12px;">⛔</div>' +
+                '<div style="font-size:15px; font-weight:700; color:var(--danger); margin-bottom:10px;">还有 ' + actSessions.length + ' 场未结束的直播场次，暂时不能盘点</div>' +
+                '<div style="font-size:13px; color:var(--text-secondary); line-height:1.8;">' + names + (actSessions.length > 3 ? ' 等' : '') + '<br>请在所有场次「下播/打包出库」结束后再进行盘点，避免库存数据不准确。</div></div>';
+            return;
+        }
         const res = await fetch('../api/inventory_audit.php');
         const data = await res.json();
         if (data.success) {

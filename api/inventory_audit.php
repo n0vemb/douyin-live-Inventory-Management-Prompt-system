@@ -6,6 +6,23 @@ require_once __DIR__ . '/../auth.php';
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
 
+// 盘点前置校验：还有未结束(未下播/未打包出库)的直播场次时禁止盘点
+$activeSql = "SELECT id, session_name FROM live_ledger_session WHERE status = 'active'";
+$activeParams = [];
+if ($storeId) {
+    $activeSql .= " AND store_id = ?";
+    $activeParams[] = $storeId;
+}
+$activeSql .= " ORDER BY id LIMIT 20";
+$stmt = $pdo->prepare($activeSql);
+$stmt->execute($activeParams);
+$activeSessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+if (!empty($activeSessions)) {
+    $names = array_slice(array_map(function ($s) { return '「' . ($s['session_name'] ?: ('#' . $s['id'])) . '」'; }, $activeSessions), 0, 3);
+    $extra = count($activeSessions) > 3 ? ' 等' : '';
+    error('还有 ' . count($activeSessions) . ' 场未结束的直播场次：' . implode('、', $names) . $extra . '。请在所有场次「下播/打包出库」结束后再进行盘点，避免库存数据不准确');
+}
+
 // 加载状态配置
 $conditionTypes = [
     ['key' => 'sealed', 'name' => '原盒未拆'],
