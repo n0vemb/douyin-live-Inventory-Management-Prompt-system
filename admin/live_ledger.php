@@ -58,6 +58,14 @@ $isOperator = $user['role'] === 'operator';
         <div class="fp-chips" id="fastRecent"></div>
         <div class="fp-sec">最近添加</div>
         <div class="fp-last" id="fastLast"></div>
+        <div style="border-top:1px dashed var(--border); margin:14px 0 8px;"></div>
+        <div class="fp-sec">库存价格查询（可售含占用提示）</div>
+        <div class="fp-in">
+            <input type="text" id="fastPriceQ" class="form-input" placeholder="输入商品名称/拼音查询..." autocomplete="off" oninput="fastStockSearch()">
+        </div>
+        <div id="fastStockRes" style="margin-top:8px; max-height:300px; overflow-y:auto;">
+            <div class="ps-empty">输入关键词查看各 SKU 价格与可售库存</div>
+        </div>
         <div class="fp-note">规则：未拆袋优先，仅有已拆则已拆；多个精确拼音命中时必须数字键/点选（回车不会自动选，防误加），可继续加字缩小。同款连发：新客户设好后输入 <b>.</b> 回车。</div>
         <div class="fp-stat" id="fastStat"></div>
     </div>
@@ -2206,39 +2214,52 @@ document.addEventListener('click', function (e) {
     if (panel.contains(e.target) || e.target.closest('.ps-tab')) return;
     closeLuckyPanel();
 });
+function psRenderResults(body, products) {
+    if (!products.length) { body.innerHTML = '<div class="ps-empty">未找到匹配商品</div>'; return; }
+    body.innerHTML = products.map(p => {
+        const skus = (p.skus || []).map(s => `
+            <div class="ps-sku">
+                <span class="sname">${esc(s.condition_name)}</span>
+                <span class="sval">
+                    <span class="stock">可售 ${s.stock}</span>
+                    ${s.occupied > 0 ? `<span class="occ${s.other_occupied > 0 ? ' warn' : ''}" title="本场已录 ${s.local_occupied} · 其他场次已录 ${s.other_occupied}">(-${s.occupied})</span>` : ''}
+                    <span class="price">¥${s.price ? s.price.toFixed(2) : '-'}</span>
+                </span>
+            </div>`).join('');
+        return `<div class="ps-product">
+            <div class="ps-pname">${esc(p.name)}</div>
+            <div class="ps-pmeta">${esc(p.barcode || '')}${p.series ? ' · ' + esc(p.series) : ''}</div>
+            ${skus}
+        </div>`;
+    }).join('');
+}
+async function psFetch(q, body) {
+    try {
+        const res = await fetch('../api/live_ledger_price_stock.php?q=' + encodeURIComponent(q) + '&session_id=' + (currentSessionId || 0));
+        const data = await res.json();
+        if (!data.success) { body.innerHTML = '<div class="ps-empty">' + esc(data.error || '查询失败') + '</div>'; return; }
+        psRenderResults(body, data.data.products || []);
+    } catch (e) {
+        body.innerHTML = '<div class="ps-empty">查询失败: ' + esc(e.message) + '</div>';
+    }
+}
 function psSearch() {
     clearTimeout(psTimer);
     const q = document.getElementById('psSearchInput').value.trim();
     const body = document.getElementById('psBody');
     if (!q) { body.innerHTML = '<div class="ps-empty">输入关键词搜索商品，查看各SKU价格与库存</div>'; return; }
     body.innerHTML = '<div class="ps-empty">查询中...</div>';
-    psTimer = setTimeout(async () => {
-        try {
-            const res = await fetch('../api/live_ledger_price_stock.php?q=' + encodeURIComponent(q) + '&session_id=' + (currentSessionId || 0));
-            const data = await res.json();
-            if (!data.success) { body.innerHTML = '<div class="ps-empty">' + esc(data.error || '查询失败') + '</div>'; return; }
-            const products = data.data.products || [];
-            if (!products.length) { body.innerHTML = '<div class="ps-empty">未找到匹配商品</div>'; return; }
-            body.innerHTML = products.map(p => {
-                const skus = (p.skus || []).map(s => `
-                    <div class="ps-sku">
-                        <span class="sname">${esc(s.condition_name)}</span>
-                        <span class="sval">
-                            <span class="stock">可售 ${s.stock}</span>
-                            ${s.occupied > 0 ? `<span class="occ${s.other_occupied > 0 ? ' warn' : ''}" title="本场已录 ${s.local_occupied} · 其他场次已录 ${s.other_occupied}">(-${s.occupied})</span>` : ''}
-                            <span class="price">¥${s.price ? s.price.toFixed(2) : '-'}</span>
-                        </span>
-                    </div>`).join('');
-                return `<div class="ps-product">
-                    <div class="ps-pname">${esc(p.name)}</div>
-                    <div class="ps-pmeta">${esc(p.barcode || '')}${p.series ? ' · ' + esc(p.series) : ''}</div>
-                    ${skus}
-                </div>`;
-            }).join('');
-        } catch (e) {
-            body.innerHTML = '<div class="ps-empty">查询失败: ' + esc(e.message) + '</div>';
-        }
-    }, 300);
+    psTimer = setTimeout(() => psFetch(q, body), 300);
+}
+// 速录面板内集成：库存价格查询（与右侧价格/库存查询同一接口与展示）
+let fastPsTimer = null;
+function fastStockSearch() {
+    clearTimeout(fastPsTimer);
+    const q = document.getElementById('fastPriceQ').value.trim();
+    const body = document.getElementById('fastStockRes');
+    if (!q) { body.innerHTML = '<div class="ps-empty">输入关键词查看各 SKU 价格与可售库存</div>'; return; }
+    body.innerHTML = '<div class="ps-empty">查询中...</div>';
+    fastPsTimer = setTimeout(() => psFetch(q, body), 300);
 }
 // 客户多、滚动时实时判断是否显示底部操作栏
 window.addEventListener('scroll', syncBottomActionBar, { passive: true });
