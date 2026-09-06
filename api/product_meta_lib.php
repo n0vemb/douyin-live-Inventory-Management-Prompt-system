@@ -22,6 +22,7 @@ function pmLoadCatalog() {
     // 名称索引：原样名 + 规范化名 → 候选列表 [{ip,ip_name,series,src}]
     if (empty($cat['__idx'])) {
         $idx = [];
+        $seriesIdx = [];
         foreach (($cat['items'] ?? []) as $it) {
             $n = (string)($it['n'] ?? '');
             if ($n === '') continue;
@@ -37,7 +38,19 @@ function pmLoadCatalog() {
             $nn = pmNorm($n);
             if ($nn !== '') $idx['norm'][$nn][] = $c;
         }
+        // 系列级索引：按 ysjp 规范系列名回查（供商品名未匹配时兜底）
+        foreach (($cat['ips'] ?? []) as $ip => $iv) {
+            foreach (($iv['series'] ?? []) as $src => $disp) {
+                $seriesIdx[] = [
+                    'ip'      => $ip,
+                    'ip_name' => (string)($iv['name'] ?? $ip),
+                    'src'     => $src,
+                    'series'  => $disp,
+                ];
+            }
+        }
         $cat['__idx'] = $idx;
+        $cat['__series'] = $seriesIdx;
     }
     return $cat;
 }
@@ -50,6 +63,8 @@ function pmCatalogUpdatedAt() {
 /** 宽松规范化：NFKC + 小写 + 去空白/常见标点/连字符 */
 function pmNorm($s) {
     $s = mb_strtolower((string)$s, 'UTF-8');
+    $s = strtr($s, ['×' => 'x', '✕' => 'x', '＊' => '*', 'Ｏ' => 'o']);
+    $s = preg_replace('/dimo0/u', 'dimoo', $s); // 常见手误：DIMO0 WORLD
     $s = preg_replace('/[\s\-_－—、，,。.！!？?：:；;（）()【】\[\]『』「」\'\"`·・\/\\\\]+/u', '', $s);
     return $s;
 }
@@ -128,16 +143,22 @@ function pmMatchByName($name, $cat) {
     return pmDedupCands($cands);
 }
 
-/** 系列名宽松比较：去「第/代」干扰后互相包含即视为同一系列 */
+/** 系列核心（比较用）：取到“系列”字前 + 去掉代次/周边类型词 */
+function pmSeriesCore($s) {
+    $s = pmNorm((string)$s);
+    $s = strtr($s, ['小王子' => 'lepetitprince']); // Hirono × Le Petit Prince 中英写法互通
+    $pos = mb_strpos($s, '系列');
+    if ($pos !== false) $s = mb_substr($s, 0, $pos);
+    // 去掉代次表达：第10代 / 10代 / 第一代 / 一代 / 初代 都视为同一代
+    $s = preg_replace('/第?\s*[\d一二三四五六七八九十百]+代|初代/u', '', $s);
+    $s = preg_replace('/(套装|盒子?|手办|盲盒|周边|萌粒|冰箱贴|夹子|挂件|吊卡|卡套|挂绳|数据线|挂链|支架|摇摇乐|徽章|生日牌)$/u', '', $s);
+    return trim($s);
+}
+
+/** 系列名宽松比较：核心互相包含即视为同一系列 */
 function pmSeriesSimilar($a, $b) {
-    $strip = function ($s) {
-        // 去掉代次表达：第10代 / 10代 / 第一代 / 一代 / 初代 都视为同一代
-        $s = preg_replace('/第?\s*[\d一二三四五六七八九十百]+代|初代/u', '', $s);
-        $s = preg_replace('/(系列|套装|盒子?)$/u', '', $s);   // 去掉末尾类型词（系列/套装/盒）
-        return trim($s);
-    };
-    $na = $strip(pmNorm((string)$a));
-    $nb = $strip(pmNorm((string)$b));
+    $na = pmSeriesCore($a);
+    $nb = pmSeriesCore($b);
     if ($na === '' || $nb === '') return false;
     return $na === $nb || mb_stripos($na, $nb) !== false || mb_stripos($nb, $na) !== false;
 }
@@ -158,12 +179,50 @@ function pmSeriesSameKey($s) {
     return trim((string)preg_replace('/(系列|套装|盒子?)$/u', '', $s));
 }
 
+/** 商品名没匹配到时，按「当前系列名」回查 ysjp 系列目录 */
+function pmSeriesCandidatesFor($p, $cat) {
+    $series = trim((string)($p['series'] ?? ''));
+    if ($series === '') return [];
+    $all = $cat['__series'] ?? [];
+    if (!$all) return [];
+
+    $brandNorm = pmNorm(trim((string)($p['brand'] ?? '')));
+    $restrictIp = '';
+    foreach (($cat['ips'] ?? []) as $ip => $iv) {
+        if (pmNorm((string)($iv['name'] ?? '')) === $brandNorm && $brandNorm !== '') {
+            $restrictIp = $ip;
+            break;
+        }
+    }
+    $out = [];
+    foreach ($all as $c) {
+        if ($restrictIp !== '' && $c['ip'] !== $restrictIp) continue;
+        $same = pmSeriesSameText($series, $c['series']);
+        $sim  = !$same && pmSeriesSimilar($series, $c['series']);
+        $core = pmSeriesCore($series);
+        $needle = $core === '' ? pmNorm($series) : $core;
+        $strong = $same || ($sim && mb_strlen($needle) >= 2);
+        if (!$strong) continue;
+        $out[] = $c;
+    }
+    // 多命中按“系列字面相同 → 代次/核心最相似”排序
+    usort($out, function ($a, $b) use ($series) {
+        $sa = pmSeriesSameText($series, $a['series']) ? 2 : (pmSeriesSimilar($series, $a['series']) ? 1 : 0);
+        $sb = pmSeriesSameText($series, $b['series']) ? 2 : (pmSeriesSimilar($series, $b['series']) ? 1 : 0);
+        if ($sa !== $sb) return $sb - $sa;
+        return strlen($a['series']) <=> strlen($b['series']);
+    });
+    return pmDedupCands(array_slice($out, 0, 5));
+}
+
 /**
  * 单商品匹配：名称 → 候选；再用当前品牌/系列消歧。
  * @return array{matched:bool,cands:array,unique:bool}
  */
 function pmMatchProduct($p, $cat) {
     $cands = pmMatchByName((string)($p['name'] ?? ''), $cat);
+    // 商品名匹配不到时，用当前系列名回查目录（同源系列仍能识别）
+    if (!$cands) $cands = pmSeriesCandidatesFor($p, $cat);
     if (!$cands) return ['matched' => false, 'cands' => [], 'unique' => false];
 
     // 多候选：先用当前品牌（IP 名）消歧
