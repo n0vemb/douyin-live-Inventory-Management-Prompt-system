@@ -140,8 +140,12 @@ $isOperator = ($currentUser['role'] === 'operator');
       <span class="fsep">—</span>
       <input type="date" id="fEnd" onchange="loadProducts(1)">
       <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;white-space:nowrap;" title="仅显示均价与最新售价不一致的SKU">
-        <input type="checkbox" id="priceDiffFilter" onchange="loadProducts(1)">
+        <input type="checkbox" id="priceDiffFilter" onchange="toggleDiffFilter('diff')">
         仅看价差
+      </label>
+      <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;white-space:nowrap;" title="仅显示均价与最新售价一致的SKU">
+        <input type="checkbox" id="priceSameFilter" onchange="toggleDiffFilter('same')">
+        仅看无价差
       </label>
       <button class="btn btn-sm btn-secondary" onclick="setRange(1)">近1天</button>
       <div class="lp-sku-filters" id="skuFilters"></div>
@@ -382,14 +386,21 @@ function renderSkuFilters(){
 function setSkuFilter(k){skuFilter=k;renderSkuFilters();loadProducts(1);}
 
 // ---------- 商品/SKU 列表（照原页 get_purchase_logs 聚合行） ----------
+// 价差/无价差互斥：勾选其一自动取消另一个
+function toggleDiffFilter(mode){
+  if(mode==='diff'&&$('priceDiffFilter').checked)$('priceSameFilter').checked=false;
+  if(mode==='same'&&$('priceSameFilter').checked)$('priceDiffFilter').checked=false;
+  loadProducts(1);
+}
 async function loadProducts(page=1){
   currentPage=page;
   const startDate=$('fStart').value,endDate=$('fEnd').value,keyword=$('batchSearch').value.trim();
+  const diffMode=$('priceDiffFilter').checked?'diff':($('priceSameFilter').checked?'same':'');
   try{
     const res=await fetch('../api/get_purchase_logs.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       start_date:startDate,end_date:endDate,keyword,condition_type:skuFilter,page,page_size:50,
       sort_by:$('sortBy').value||'date',sort_dir:$('sortDir').value||'desc',
-      price_diff:$('priceDiffFilter').checked?1:0
+      price_diff_mode:diffMode
     })});
     const data=await res.json();
     if(data.success){

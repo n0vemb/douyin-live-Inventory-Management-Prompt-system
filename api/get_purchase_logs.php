@@ -19,7 +19,11 @@ try {
     $pageSize = (int)($data["page_size"] ?? 20);
     $sortBy = $data["sort_by"] ?? "date";
     $sortDir = strtolower($data["sort_dir"] ?? "desc") === "asc" ? "asc" : "desc";
-    $priceDiff = !empty($data["price_diff"]) ? 1 : 0;
+    // diff=仅看价差；same=仅看无价差；空=不过滤（兼容旧字段 price_diff）
+    $diffMode = $data["price_diff_mode"] ?? "";
+    if ($diffMode !== "diff" && $diffMode !== "same") {
+        $diffMode = !empty($data["price_diff"]) ? "diff" : "";
+    }
 
     $offset = ($page - 1) * $pageSize;
 
@@ -161,12 +165,13 @@ try {
         unset($g["avg_sum_pq"], $g["avg_qty"]);
     }
     unset($g);
-    // 仅看价差：均价与最新批次售价不一致（差异 > 0.01）的 SKU
-    if ($priceDiff) {
-        $groupedRecords = array_values(array_filter($groupedRecords, function ($g) {
+    // 仅看价差 / 仅看无价差：均价与最新批次售价差异 > 0.01 视为有价差
+    if ($diffMode === "diff" || $diffMode === "same") {
+        $groupedRecords = array_values(array_filter($groupedRecords, function ($g) use ($diffMode) {
             if ($g["avg_price"] === null) return false;
             if ($g["suggested_price"] === null) return false;
-            return abs((float)$g["avg_price"] - (float)$g["suggested_price"]) > 0.01;
+            $hasDiff = abs((float)$g["avg_price"] - (float)$g["suggested_price"]) > 0.01;
+            return $diffMode === "diff" ? $hasDiff : !$hasDiff;
         }));
     }
     $sortCmp = function ($a, $b) use ($sortBy, $sortDir) {
