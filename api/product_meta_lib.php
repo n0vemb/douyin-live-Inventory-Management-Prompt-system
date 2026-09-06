@@ -223,6 +223,22 @@ function pmMatchProduct($p, $cat) {
     $cands = pmMatchByName((string)($p['name'] ?? ''), $cat);
     // 商品名匹配不到时，用当前系列名回查目录（同源系列仍能识别）
     if (!$cands) $cands = pmSeriesCandidatesFor($p, $cat);
+    // 商品名命中多个系列但都与当前系列对不上（如“蘑菇”→DIMOO/PUCKY）：
+    // 再用系列名回查补上正确候选，交给下方系列消歧
+    if ($cands && count($cands) > 1 && trim((string)($p['series'] ?? '')) !== '') {
+        $series = trim((string)$p['series']);
+        $nameCandsMatchSeries = false;
+        foreach ($cands as $c) {
+            if (pmSeriesSimilar($series, $c['series']) || pmSeriesSameText($series, $c['series'])) {
+                $nameCandsMatchSeries = true;
+                break;
+            }
+        }
+        if (!$nameCandsMatchSeries) {
+            $extra = pmSeriesCandidatesFor($p, $cat);
+            if ($extra) $cands = array_merge($cands, $extra);
+        }
+    }
     if (!$cands) return ['matched' => false, 'cands' => [], 'unique' => false];
 
     // 多候选：先用当前品牌（IP 名）消歧

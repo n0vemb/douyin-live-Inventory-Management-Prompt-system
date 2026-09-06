@@ -81,6 +81,7 @@ $pmStoreId = $storeId ?? 0;
   <span class="pmf-chip" data-f="missing_series" onclick="setFilter('missing_series')">缺系列 <span class="n" id="fMissingSeries">0</span></span>
   <span class="pmf-chip" data-f="mismatch" onclick="setFilter('mismatch')">疑似不符/待确认 <span class="n" id="fMismatch">0</span></span>
   <span class="pmf-chip" data-f="no_source" onclick="setFilter('no_source')">ysjp 无匹配 <span class="n" id="fNoSource">0</span></span>
+  <span class="pmf-chip" id="pmfSkipBtn" onclick="restoreSkips()" title="点击恢复全部已忽略商品" style="display:none">已忽略 <span class="n" id="pmfSkipCnt">0</span> · 恢复</span>
 </div>
 
 <div id="pmfGroupsWrap"></div>
@@ -112,6 +113,9 @@ $pmStoreId = $storeId ?? 0;
 
 <script>
 let PMF = { filter: 'all', rows: [], groups: [], candRowId: null, busy: false };
+const SKIP_LS_KEY = 'ppmart_product_meta_skip_v1';
+let PMF_SKIP = new Set();
+try { const arr = JSON.parse(localStorage.getItem(SKIP_LS_KEY) || '[]'); if (Array.isArray(arr)) PMF_SKIP = new Set(arr.map(Number)); } catch (e) {}
 const $e = id => document.getElementById(id);
 
 const FLAG_TEXT = {
@@ -128,6 +132,26 @@ function toast(msg, err) {
   const t = $e('pmfToast') || (() => { const d = document.createElement('div'); d.id = 'pmfToast'; d.style.cssText = 'position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;z-index:999'; document.body.appendChild(d); return d; })();
   t.textContent = msg; t.style.background = err ? '#b3261e' : '#111827'; t.style.display = 'block';
   clearTimeout(t._t); t._t = setTimeout(() => t.style.display = 'none', err ? 6000 : 1800);
+}
+function saveSkip() { try { localStorage.setItem(SKIP_LS_KEY, JSON.stringify([...PMF_SKIP])); } catch (e) {} }
+function renderSkipInfo() {
+  const btn = $e('pmfSkipBtn');
+  $e('pmfSkipCnt').textContent = PMF_SKIP.size;
+  btn.style.display = PMF_SKIP.size ? '' : 'none';
+}
+function skipRow(id) {
+  const r = PMF.rows.find(x => x.id === id);
+  if (!confirm('将「' + (r ? r.name : id) + '」标记为忽略，之后不再提示（可点“已忽略 · 恢复”找回）。继续？')) return;
+  PMF_SKIP.add(id);
+  saveSkip();
+  reload();
+}
+function restoreSkips() {
+  if (!PMF_SKIP.size) return;
+  if (!confirm('恢复全部已忽略商品并重新扫描？')) return;
+  PMF_SKIP.clear();
+  saveSkip();
+  reload();
 }
 
 async function api(url, body) {
@@ -150,7 +174,8 @@ async function reload() {
   const btn = $e('pmfRefresh'); if (btn) btn.disabled = true;
   try {
     const q = $e('pmfQ').value.trim();
-    const d = await api('product_meta_scan.php?keyword=' + encodeURIComponent(q) + '&filter=' + PMF.filter);
+    const skip = [...PMF_SKIP].join(',');
+    const d = await api('product_meta_scan.php?keyword=' + encodeURIComponent(q) + '&filter=' + PMF.filter + '&skip=' + encodeURIComponent(skip));
     if (!d.success) { toast(d.error || '加载失败', true); return; }
     PMF.rows = d.problems || [];
     PMF.groups = d.groups || [];
@@ -158,6 +183,7 @@ async function reload() {
     renderDatalist(d.datalist || {});
     renderGroups();
     renderRows();
+    renderSkipInfo();
   } catch (e) { toast('加载失败: ' + e.message, true); }
   finally { PMF.busy = false; if (btn) btn.disabled = false; }
 }
@@ -236,6 +262,7 @@ function renderRows() {
       <span class="pmf-acts">
         <button class="pmf-btn ok" onclick="applyOne(${id})">应用</button>
         <button class="pmf-btn" onclick="showCands(${id},true)">候选/千岛</button>
+        <button class="pmf-btn" onclick="skipRow(${id})" title="匹配不准，忽略不再提示">忽略</button>
       </span>
     </div>`;
   }).join('');

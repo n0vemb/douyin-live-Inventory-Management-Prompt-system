@@ -20,6 +20,11 @@ if (!in_array($_SESSION['role'] ?? '', ['store_admin', 'super_admin'], true)) {
 $input = $_GET;
 $keyword = trim((string)($input['keyword'] ?? ''));
 $filter = (string)($input['filter'] ?? 'all');
+$skipIds = [];
+foreach (explode(',', (string)($input['skip'] ?? '')) as $sid) {
+    $sid = (int)$sid;
+    if ($sid > 0) $skipIds[$sid] = $sid;
+}
 
 try {
     $cat = pmLoadCatalog();
@@ -29,7 +34,7 @@ try {
                                   (SELECT COALESCE(SUM(b.remaining_qty),0) FROM inventory_batches b
                                    WHERE b.product_id = p.id AND b.store_id = p.store_id AND b.remaining_qty > 0) stock_total
                            FROM products p
-                           WHERE p.store_id = ?
+                           WHERE p.store_id = ?" . ($skipIds ? " AND p.id NOT IN (" . implode(',', $skipIds) . ")" : "") . "
                            ORDER BY p.name, p.id");
     $stmt->execute([$storeId]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
