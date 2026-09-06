@@ -54,6 +54,10 @@ try {
         $stmt = $pdo->prepare('DELETE FROM inventory_batches WHERE product_id = ? AND store_id = ?');
         $stmt->execute([$productId, $storeId]);
 
+        // 货架格子上已摆放的位置一并释放（外键 ON DELETE SET NULL 会留下幽灵格，须先删）
+        $stmt = $pdo->prepare('DELETE FROM warehouse_rack_cells WHERE product_id = ? AND store_id = ?');
+        $stmt->execute([$productId, $storeId]);
+
         $stmt = $pdo->prepare('DELETE FROM products WHERE id = ? AND store_id = ?');
         $stmt->execute([$productId, $storeId]);
     }

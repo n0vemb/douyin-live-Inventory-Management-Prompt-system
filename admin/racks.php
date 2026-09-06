@@ -237,6 +237,7 @@ function rkRender(){
   }).join('')+'</div>';
 }
 function rkCellHtml(c,posCls){
+  if(!c||!c.product) return ''; // 幽灵格（商品已删）：不渲染，避免读取 null.stock
   const p=c.product,stock=p.stock||0;
   return '<div class="rk-cell '+(posCls||'')+' rk-droppable" data-rack="'+esc(c._rack)+'" data-row="'+c._row+'" data-pos="'+c._pos+'" onclick="rkInfo(\''+esc(c._rack)+'\','+c._row+','+c._pos+')" title="'+esc(p.name)+(c.note?'（'+esc(c.note)+'）':'')+'">'+
     '<span class="nm">'+esc(p.name)+'</span>'+

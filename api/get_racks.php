@@ -14,6 +14,12 @@ try {
     $racks = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $rackIds = array_map(function ($r) { return (int)$r['id']; }, $racks);
 
+    // 清理幽灵格：商品被删除后外键把 product_id 置 NULL，旧数据会残留空格位并卡住页面渲染
+    if ($rackIds) {
+        $inList = implode(',', array_map('intval', $rackIds));
+        $pdo->exec("DELETE FROM warehouse_rack_cells WHERE product_id IS NULL AND rack_id IN ($inList)");
+    }
+
     // 格子（只存有商品的格）+ 商品名 + 实时库存
     $cells = [];
     if ($rackIds) {
