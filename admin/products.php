@@ -1915,11 +1915,21 @@ async function auditDoAdjust() {
         const j = await res.json();
         if (!j.success) throw new Error(j.error || '接口失败');
         const dd = j.data || {};
+        const hasFail = (dd.failed || 0) > 0;
         $('auditRsTitle').textContent = '调整完成：成功 ' + dd.success + ' 项，失败 ' + dd.failed + ' 项';
         $('auditRsList').innerHTML = (dd.results || []).map(x =>
             '<div class="audit-res-item">' + (x.ok ? '<span style="color:var(--success);">✓</span> ' : '<span style="color:var(--danger);">✗</span> ') + escapeHtml(x.name) +
             ' <span style="color:var(--text-tertiary);">(' + escapeHtml(x.condition_type) + ')</span> ' +
             (x.ok ? '（' + x.before + ' → ' + x.after + '）' : escapeHtml(x.msg || '失败')) + '</div>').join('');
+        // 全部调整成功 = 本轮盘点结束：清空草稿，下次进入即新一轮
+        if (!hasFail) {
+            auditDraft = {};
+            auditSel = {};
+            try { localStorage.removeItem(AUDIT_LS_KEY); } catch (e) {}
+            $('auditFootTip').textContent = '本轮盘点已全部调整完成，草稿已清空';
+        } else {
+            $('auditFootTip').textContent = '有 ' + dd.failed + ' 项调整失败，盘点草稿已保留，可修正后重试';
+        }
         closeModal('auditConfirmModal');
         showModal('auditResultModal');
         await openAuditModal();
