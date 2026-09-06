@@ -199,9 +199,12 @@ function renderGroups() {
         <button class="pmf-btn ok" onclick="applyGroup('${esc(g.key.replace(/[^a-zA-Z0-9]/g,'_'))}')">统一该组</button>
         <div style="width:100%;display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:6px">
           ${g.products.map(p => {
-            const def = !/萌粒/.test(p.series || '');
+            const needFix = !!(p.need);
+            if (!needFix) {
+              return `<span style="font-size:12px;color:var(--text-tertiary);opacity:.75;display:inline-flex;gap:4px;align-items:center" title="已与推荐系列一致">✓ ${esc(p.name)}${p.series ? `（${esc(p.series)}）` : ''}</span>`;
+            }
             return `<label style="font-size:12px;color:var(--text-secondary);display:inline-flex;gap:4px;align-items:center;cursor:pointer" title="${esc(p.series || '当前无系列')}">
-              <input type="checkbox" class="gchk_${g.key.replace(/[^a-zA-Z0-9]/g,'_')}" data-id="${p.id}" ${def ? 'checked' : ''}> ${esc(p.name)}${p.series ? ` <i style="color:var(--text-tertiary);font-style:normal">（${esc(p.series)}）</i>` : ''}
+              <input type="checkbox" class="gchk_${g.key.replace(/[^a-zA-Z0-9]/g,'_')}" data-id="${p.id}" ${!/萌粒/.test(p.series || '') ? 'checked' : ''}> ${esc(p.name)}${p.series ? ` <i style="color:var(--text-tertiary);font-style:normal">（${esc(p.series)}）</i>` : ''}
             </label>`;
           }).join('')}
         </div>

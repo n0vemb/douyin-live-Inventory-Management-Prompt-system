@@ -140,6 +140,7 @@ try {
                 'name'   => $p['name'],
                 'brand'  => $p['brand'],
                 'series' => $p['series'],
+                'need'   => $p['series'] === '' || !pmSeriesSameText($p['series'], $c['series']),
             ];
         }
 
