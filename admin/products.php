@@ -606,6 +606,13 @@ function requireStore() {
 /* ---------- 弹窗 ---------- */
 function showModal(id) { $(id).classList.add('show'); }
 function closeModal(id) { $(id).classList.remove('show'); }
+// 商品页弹窗：点空白处不退出（布局全局默认点遮罩关闭，这里在捕获阶段拦截）
+document.addEventListener('click', function (e) {
+    const t = e.target;
+    if (t && t.classList && t.classList.contains('modal') && t.classList.contains('show')) {
+        e.stopPropagation();
+    }
+}, true);
 
 /* ---------- 状态名称 ---------- */
 function getConditionNames() {
