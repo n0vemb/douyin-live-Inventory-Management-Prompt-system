@@ -84,18 +84,63 @@ foreach ($input['items'] as $item) {
             }
         } elseif ($qty > 0) {
             // 无批次但盘点有货 → 新建批次
+            // 新 SKU（如拆盒产生已拆/瑕疵）没有价格历史：按“同商品其他在库 SKU”抄进价/售价
+            $srcPrice = null;
+            $condOrder = ['sealed', 'opened', 'boxless', 'flawed'];
+            $cfg = $pdo->prepare('SELECT condition_types FROM stores WHERE id = ?');
+            $cfg->execute([$storeId]);
+            $ct = $cfg->fetchColumn();
+            if ($ct) {
+                $arr = json_decode((string)$ct, true);
+                if (is_array($arr) && $arr) {
+                    $keys = [];
+                    foreach ($arr as $t) if (!empty($t['key'])) $keys[] = $t['key'];
+                    if ($keys) $condOrder = $keys;
+                }
+            }
+            $srcStmt = $pdo->prepare(
+                "SELECT condition_type, purchase_price, suggested_price
+                 FROM inventory_batches
+                 WHERE store_id = ? AND product_id = ? AND condition_type <> ?
+                   AND remaining_qty > 0
+                 ORDER BY purchased_at DESC, id DESC"
+            );
+            $srcStmt->execute([$storeId, $productId, $conditionType]);
+            $srcRows = $srcStmt->fetchAll(PDO::FETCH_ASSOC);
+            if ($srcRows) {
+                $tIdx = array_search($conditionType, $condOrder, true);
+                $best = null;
+                $bestScore = null;
+                foreach ($srcRows as $sr) {
+                    $i = array_search($sr['condition_type'], $condOrder, true);
+                    if ($i === false) $i = -1;
+                    // 优先取“更接近新SKU的前一品相”（sealed→opened→boxless→flawed 方向）
+                    $score = ($tIdx !== false && $i !== false && $i < $tIdx) ? ($tIdx - $i) : (999 + abs($i - ($tIdx === false ? 0 : $tIdx)));
+                    if ($best === null || $score < $bestScore) {
+                        $best = $sr;
+                        $bestScore = $score;
+                    }
+                }
+                $srcPrice = $best;
+            }
             $batchNo = 'PD' . date('Ymd') . strtoupper(substr(uniqid(), -6));
+            $newPurchase = $srcPrice ? (float)$srcPrice['purchase_price'] : 0;
+            $newSuggested = $srcPrice ? (float)$srcPrice['suggested_price'] : 0;
             $stmt = $pdo->prepare("
                 INSERT INTO inventory_batches (product_id, condition_type, batch_no, total_qty, remaining_qty, purchase_price, suggested_price, purchased_at, remark, store_id)
-                VALUES (?, ?, ?, ?, ?, 0, 0, NOW(), '盘点新增', ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
             ");
-            $stmt->execute([$productId, $conditionType, $batchNo, $qty, $qty, $storeId]);
+            $remark = '盘点新增';
+            if ($srcPrice) {
+                $remark .= '（进价/售价参考 ' . ($srcPrice['condition_type']) . '）';
+            }
+            $stmt->execute([$productId, $conditionType, $batchNo, $qty, $qty, $newPurchase, $newSuggested, $remark, $storeId]);
 
             $stmt = $pdo->prepare("
                 INSERT INTO inventory_log (store_id, user_id, product_id, condition_type, change_type, qty_change, before_qty, after_qty, price, remark)
-                VALUES (?, ?, ?, ?, 'purchase', ?, 0, ?, 0, ?)
+                VALUES (?, ?, ?, ?, 'purchase', ?, 0, ?, ?, ?)
             ");
-            $stmt->execute([$storeId, $operatorId, $productId, $conditionType, $qty, $qty, $remark]);
+            $stmt->execute([$storeId, $operatorId, $productId, $conditionType, $qty, $qty, $newPurchase, $remark]);
         }
 
         $successCount++;
