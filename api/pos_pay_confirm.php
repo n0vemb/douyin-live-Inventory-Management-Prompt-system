@@ -4,6 +4,7 @@
  * 顾客扫码付款后点「已付款」→ pay_status=paid（一期自助模式，无需店员模式）
  */
 require_once __DIR__ . '/pos_auth.php';
+require_once __DIR__ . '/coupon_lib.php';
 $storeId = requirePosStore();
 $input = json_decode(file_get_contents('php://input'), true);
 $orderId = intval($input['order_id'] ?? 0);
@@ -23,12 +24,24 @@ try {
     if ($order['pay_status'] === 'paid') error('订单已收款');
 
     // 条件更新：若订单已被 15 分钟自动释放/店员取消/作废，则不应再标记收款
-    $upd = $pdo->prepare(
-        "UPDATE pos_orders SET pay_status = 'paid', paid_at = NOW()
-         WHERE id = ? AND store_id = ? AND outbound_status = 'pending' AND pay_status = 'pending'"
-    );
-    $upd->execute([$orderId, $storeId]);
-    if ($upd->rowCount() === 0) error('订单已超时释放或已取消，请重新下单');
+    $pdo->beginTransaction();
+    try {
+        $upd = $pdo->prepare(
+            "UPDATE pos_orders SET pay_status = 'paid', paid_at = NOW()
+             WHERE id = ? AND store_id = ? AND outbound_status = 'pending' AND pay_status = 'pending'"
+        );
+        $upd->execute([$orderId, $storeId]);
+        if ($upd->rowCount() === 0) {
+            $pdo->rollBack();
+            error('订单已超时释放或已取消，请重新下单');
+        }
+        // 扫码单顾客点「已付款」：占用中的优惠券正式核销
+        couponSetClaimsByOrder($pdo, $orderId, 'used');
+        $pdo->commit();
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
     $pdo->query('SELECT RELEASE_LOCK(' . $pdo->quote($lockName) . ')');
     success(['pay_status' => 'paid']);
 } catch (Exception $e) {

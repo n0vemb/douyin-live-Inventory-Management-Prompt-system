@@ -9,6 +9,7 @@
  */
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/coupon_lib.php';
 requireAuth();
 $storeId = getStoreId();
 $input = json_decode(file_get_contents('php://input'), true);
@@ -104,6 +105,8 @@ try {
                 $relLock->execute([(int)$lk['id']]);
             }
             $reason = trim($input['reason'] ?? '整单作废（已退款）');
+            // 已核销/占用的券退回可用
+            couponSetClaimsByOrder($pdo, $orderId, 'unused');
             $pdo->prepare("UPDATE pos_orders SET outbound_status = 'voided', void_reason = ?, completed_at = NOW() WHERE id = ?")
                 ->execute([$reason, $orderId]);
             $pdo->commit();
@@ -138,15 +141,19 @@ try {
             $actives = $active->fetchAll();
             if (!$actives) {
                 // 全部删空 → 自动作废整单
+                couponSetClaimsByOrder($pdo, $orderId, 'unused');
                 $pdo->prepare("UPDATE pos_orders SET outbound_status = 'voided', void_reason = '商品全部删除', completed_at = NOW() WHERE id = ?")->execute([$orderId]);
             } else {
                 $subtotal = 0;
                 foreach ($actives as $a) $subtotal += (float)$a['line_total'];
                 $disc = $order['staff_discount'] !== null ? floatval($order['staff_discount']) : 1;
                 $discountAmount = $disc < 1 ? round($subtotal * (1 - $disc), 2) : 0;
-                $payable = round($subtotal - $discountAmount, 2);
-                $pdo->prepare('UPDATE pos_orders SET subtotal = ?, discount_amount = ?, payable = ? WHERE id = ?')
-                    ->execute([round($subtotal, 2), $discountAmount, $payable, $orderId]);
+                $cpSum = $pdo->prepare('SELECT COALESCE(SUM(amount_off),0) FROM pos_order_coupons WHERE order_id = ?');
+                $cpSum->execute([$orderId]);
+                $couponTotal = round(min((float)$cpSum->fetchColumn(), max(0, $subtotal - $discountAmount - 0.01)), 2);
+                $payable = round($subtotal - $discountAmount - $couponTotal, 2);
+                $pdo->prepare('UPDATE pos_orders SET subtotal = ?, discount_amount = ?, coupon_amount = ?, payable = ? WHERE id = ?')
+                    ->execute([round($subtotal, 2), $discountAmount, $couponTotal, $payable, $orderId]);
             }
             $pdo->commit();
             success(['status' => 'ok']);
@@ -159,12 +166,14 @@ try {
         if (isOperator()) error('权限不足：运营账号不可删除订单', 403);
         $pdo->beginTransaction();
         try {
+            couponSetClaimsByOrder($pdo, $orderId, 'unused');
             $lockStmt = $pdo->prepare('SELECT id, batch_id, qty FROM pos_order_locks WHERE order_id = ? AND status = ? FOR UPDATE');
             $lockStmt->execute([$orderId, 'locked']);
             $relBatch = $pdo->prepare('UPDATE inventory_batches SET locked_qty = GREATEST(locked_qty - ?, 0) WHERE id = ?');
             foreach ($lockStmt->fetchAll() as $lk) {
                 $relBatch->execute([(int)$lk['qty'], (int)$lk['batch_id']]);
             }
+            $pdo->prepare('DELETE FROM pos_order_coupons WHERE order_id = ?')->execute([$orderId]);
             $pdo->prepare('DELETE FROM pos_orders WHERE id = ?')->execute([$orderId]); // 级联删 items/locks
             $pdo->commit();
             success(['deleted' => true]);

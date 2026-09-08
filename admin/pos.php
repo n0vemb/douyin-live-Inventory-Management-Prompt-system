@@ -285,7 +285,7 @@ $qrAli = posAssetUrl($qrAli);
     </div>
     <div id="checkoutBody"></div>
     <div class="field" style="margin-top:12px">
-      <input type="tel" id="customerPhone" maxlength="11" placeholder="请输入手机号" style="width:100%;padding:12px 13px;border:1px solid var(--border);border-radius:10px;font-size:15px;" onkeydown="if(event.key==='Enter')startPay('wechat')">
+      <input type="tel" id="customerPhone" maxlength="11" placeholder="请输入手机号（有券会自动带出）" style="width:100%;padding:12px 13px;border:1px solid var(--border);border-radius:10px;font-size:15px;" onkeydown="if(event.key==='Enter')startPay('wechat')" oninput="onPhoneChanged()">
     </div>
     <div class="pay-grid">
       <div class="pay-opt" onclick="startPay('wechat')"><span class="pi">
@@ -384,6 +384,9 @@ let autoTimer = null;   // 30s 静默库存刷新
 let refreshing = false; // 防止刷新重叠
 let pendingShortages = null; // 最近一次库存不足明细
 let qrTimer = null;     // 收款码未付款倒计时（15分钟自动释放）
+let posCoupons = [];    // 当前手机号可用券
+let posCouponSel = new Set(); // 已勾选券 claim_id
+let posCouponTimer = null;
 
 // ===== 加载目录 =====
 async function loadCatalog(keepFilter) {
@@ -785,13 +788,90 @@ function openCheckout() {
       <span>${it.name} · ${it.condName} ×${it.qty}</span><span>¥${(it.unit * it.qty).toFixed(2)}</span></div>`;
   });
   html += `</div>`;
-  html += `<div class="srow"><span>小计</span><span>¥${c.subtotal.toFixed(2)}</span></div>`;
-  html += `<div class="srow total"><span>应付</span><b>¥${c.payable.toFixed(2)}</b></div>`;
+  html += `<div id="couponBox" style="margin:2px 0 8px"></div>`;
+  html += `<div class="srow"><span>小计</span><span id="ckSub">¥${c.subtotal.toFixed(2)}</span></div>`;
+  html += `<div class="srow" id="ckCpnRow" style="display:none"><span>优惠券</span><span style="color:var(--ok)">-¥<span id="ckCpn">0.00</span></span></div>`;
+  html += `<div class="srow total"><span>应付</span><b id="ckPay">¥${c.payable.toFixed(2)}</b></div>`;
   html += `<div style="font-size:12.5px;color:var(--text-3);text-align:center;margin-top:8px">请选择支付方式，扫码完成付款</div>`;
   $('checkoutBody').innerHTML = html;
   show('checkoutMask');
+  onPhoneChanged();
 }
 function closeCheckout() { hide('checkoutMask'); }
+
+// ===== 优惠券：按手机号拉取/勾选 =====
+function escHtml(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+function couponDiscount() {
+  let off = 0;
+  posCoupons.forEach(c => { if (posCouponSel.has(c.claim_id) && c.usable) off += c.amount; });
+  return off;
+}
+function onPhoneChanged() {
+  clearTimeout(posCouponTimer);
+  posCouponTimer = setTimeout(loadPosCoupons, 350);
+}
+async function loadPosCoupons() {
+  const phone = ($('customerPhone').value || '').trim();
+  const box = $('couponBox');
+  posCoupons = [];
+  posCouponSel.clear();
+  if (!box) return;
+  if (!/^1[3-9]\d{9}$/.test(phone)) {
+    renderCouponBox();
+    renderCheckoutMoney();
+    return;
+  }
+  box.innerHTML = '<div class="ps-empty" style="padding:8px">查询优惠券…</div>';
+  try {
+    const res = await fetch(API + 'pos_coupons.php?phone=' + encodeURIComponent(phone) + '&subtotal=' + calc().subtotal, { cache: 'no-store' });
+    const d = await res.json();
+    if (!d.success) { box.innerHTML = '<div style="font-size:12px;color:var(--text-3)">优惠券查询失败</div>'; return; }
+    posCoupons = d.coupons || [];
+    // 只有一张可用 → 默认使用
+    const usable = posCoupons.filter(c => c.usable);
+    if (usable.length === 1) posCouponSel.add(usable[0].claim_id);
+  } catch (e) { /* 静默 */ }
+  renderCouponBox();
+  renderCheckoutMoney();
+}
+function toggleCoupon(claimId) {
+  const c = posCoupons.find(x => x.claim_id === claimId);
+  if (!c || !c.usable) return;
+  if (posCouponSel.has(claimId)) { posCouponSel.delete(claimId); }
+  else {
+    // 选中的券不可叠加时，清掉其它券
+    if (!c.stackable) posCouponSel.clear();
+    posCouponSel.add(claimId);
+  }
+  renderCouponBox();
+  renderCheckoutMoney();
+}
+function renderCouponBox() {
+  const box = $('couponBox');
+  if (!box) return;
+  const phone = ($('customerPhone').value || '').trim();
+  if (!/^1[3-9]\d{9}$/.test(phone)) { box.innerHTML = '<div style="font-size:12px;color:var(--text-3)">填写手机号后，可用优惠券会自动带出</div>'; return; }
+  if (!posCoupons.length) { box.innerHTML = '<div style="font-size:12px;color:var(--text-3)">该手机号暂无可用优惠券</div>'; return; }
+  box.innerHTML = '<div style="font-size:12px;color:var(--text-2);margin-bottom:4px">优惠券（可多选叠加）</div>' + posCoupons.map(c => {
+    const checked = posCouponSel.has(c.claim_id);
+    const condTxt = c.type === 'fixed' ? '无门槛' : '满 ¥' + Number(c.threshold).toFixed(2) + ' 可用';
+    return `<label style="display:flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid ${checked ? 'var(--primary)' : 'var(--border)'};border-radius:9px;margin-bottom:5px;background:${checked ? 'var(--primary-soft)' : 'var(--surface-2)'};cursor:pointer;opacity:${c.usable ? 1 : .55}">
+      <input type="checkbox" style="accent-color:var(--primary)" ${checked ? 'checked' : ''} ${c.usable ? '' : 'disabled'} onchange="toggleCoupon(${c.claim_id})">
+      <span style="flex:1;font-size:13px"><b style="color:var(--primary)">¥${Number(c.amount).toFixed(2)}</b> ${escHtml(c.name)}<br>
+      <span style="font-size:11.5px;color:var(--text-3)">${condTxt} · ${c.end_at ? '至 ' + c.end_at.slice(0,10) : '长期'}${c.usable ? '' : '（' + escHtml(c.reason || '不可用') + '）'}</span></span>
+    </label>`;
+  }).join('');
+}
+function renderCheckoutMoney() {
+  if (!$('ckSub')) return;
+  const subtotal = calc().subtotal;
+  const off = Math.min(couponDiscount(), Math.max(0, subtotal - 0.01));
+  $('ckSub').textContent = '¥' + subtotal.toFixed(2);
+  const row = $('ckCpnRow');
+  if (off > 0) { row.style.display = ''; $('ckCpn').textContent = off.toFixed(2); }
+  else row.style.display = 'none';
+  $('ckPay').textContent = '¥' + (subtotal - off).toFixed(2);
+}
 
 // 选支付方式 → 立即落单(pending) + 弹收款码
 async function startPay(method) {
@@ -822,7 +902,7 @@ async function doCheckout(phone) {
   const res = await fetch(API + 'pos_checkout.php', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items, pay_method: 'scan', customer_phone: phone || null })
+    body: JSON.stringify({ items, pay_method: 'scan', customer_phone: phone || null, coupon_ids: [...posCouponSel] })
   });
   const data = await res.json();
   if (!data.success) {
@@ -987,6 +1067,7 @@ function showSuccess(order) {
 }
 function backHome() {
   cart = []; curOrder = null; payMethod = 'wechat';
+  posCoupons = []; posCouponSel.clear();
   renderCart(); hide('successMask'); expandCart();
   toast('已返回');
 }

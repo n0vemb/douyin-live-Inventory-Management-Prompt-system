@@ -78,6 +78,11 @@ function posAutoReleaseUnpaid($pdo, $storeId, $minutes = 15) {
                     $relBatch->execute([(int)$lk['qty'], (int)$lk['batch_id']]);
                     $relLock->execute(['released', (int)$lk['id']]);
                 }
+                // 未付款订单释放：占用中的优惠券退回可用
+                $pdo->prepare(
+                    "UPDATE coupon_claims SET status = 'unused', released_at = NOW(), order_id = NULL, order_no = NULL
+                     WHERE order_id = ? AND status = 'locked'"
+                )->execute([$oid]);
                 // 条件更新：若顾客恰好在释放瞬间完成付款则跳过，避免误作废已收款订单
                 $upd = $pdo->prepare(
                     "UPDATE pos_orders SET outbound_status = 'voided', void_reason = '超过" . $minutes . "分钟未付款，自动释放库存', completed_at = NOW()

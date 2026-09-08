@@ -5,6 +5,7 @@
  * 仅允许取消：本店 + pay_status=pending + outbound_status=pending
  */
 require_once __DIR__ . '/pos_auth.php';
+require_once __DIR__ . '/coupon_lib.php';
 $storeId = requirePosStore();
 $input = json_decode(file_get_contents('php://input'), true);
 $orderId = intval($input['order_id'] ?? 0);
@@ -33,9 +34,12 @@ try {
         foreach ($lockStmt->fetchAll() as $lk) {
             $relBatch->execute([(int)$lk['qty'], (int)$lk['batch_id']]);
         }
+        // 优惠券退回可用
+        couponSetClaimsByOrder($pdo, $orderId, 'unused');
         // 删除订单（明细/locks 级联）
         $pdo->prepare('DELETE FROM pos_order_items WHERE order_id = ?')->execute([$orderId]);
         $pdo->prepare('DELETE FROM pos_order_locks WHERE order_id = ?')->execute([$orderId]);
+        $pdo->prepare('DELETE FROM pos_order_coupons WHERE order_id = ?')->execute([$orderId]);
         $pdo->prepare('DELETE FROM pos_orders WHERE id = ?')->execute([$orderId]);
         $pdo->commit();
     } catch (Exception $e) {

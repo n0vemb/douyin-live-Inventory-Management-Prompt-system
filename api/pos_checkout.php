@@ -7,9 +7,11 @@
  * 4. cash → pay_status=paid；scan → pending（店员确认收款后置 paid）
  */
 require_once __DIR__ . '/pos_auth.php';
+require_once __DIR__ . '/coupon_lib.php';
 $storeId = requirePosStore();
 $input = json_decode(file_get_contents('php://input'), true);
 $items = $input['items'] ?? [];
+$couponIds = array_values(array_unique(array_filter(array_map('intval', $input['coupon_ids'] ?? []))));
 $payMethod = $input['pay_method'] ?? 'cash';
 $cashierName = trim($input['cashier_name'] ?? '');
 $customerPhone = trim($input['customer_phone'] ?? '');
@@ -173,13 +175,75 @@ try {
         throw new Exception('部分商品库存不足，请调整清单');
     }
 
-    // 3) 金额结算
+    // 3) 金额结算 + 优惠券
     $subtotal = round($subtotal, 2);
     $discountAmount = $staffDiscount < 1 ? round($subtotal * (1 - $staffDiscount), 2) : 0;
-    $payable = round($subtotal - $discountAmount, 2);
+    $couponAmount = 0.0;
+    if ($couponIds) {
+        if ($customerPhone === '') {
+            throw new Exception('使用优惠券请先填写手机号');
+        }
+        // 校验可领可用：本店、该手机号、unused、活动有效、满减门槛
+        $inList = implode(',', array_fill(0, count($couponIds), '?'));
+        $q = $pdo->prepare(
+            "SELECT cc.id AS claim_id, cc.campaign_id, cc.phone, cc.status,
+                    cp.name, cp.coupon_type, cp.threshold, cp.amount, cp.stackable,
+                    cp.start_at, cp.end_at, cp.status AS camp_status
+             FROM coupon_claims cc
+             JOIN coupon_campaigns cp ON cp.id = cc.campaign_id
+             WHERE cc.id IN ($inList) AND cc.store_id = ? AND cc.phone = ? AND cc.status = 'unused'
+             FOR UPDATE"
+        );
+        $params = array_merge($couponIds, [$storeId, $customerPhone]);
+        $q->execute($params);
+        $claims = $q->fetchAll(PDO::FETCH_ASSOC);
+        if (count($claims) !== count($couponIds)) {
+            throw new Exception('部分优惠券不可用（可能已使用或不属于该手机号）');
+        }
+        $now = couponNow();
+        $sawCampaign = [];
+        foreach ($claims as $cl) {
+            if ($cl['camp_status'] !== 'active') throw new Exception('优惠券活动已结束');
+            if (!empty($cl['start_at']) && $cl['start_at'] > $now) throw new Exception('优惠券活动未开始');
+            if (!empty($cl['end_at']) && $cl['end_at'] < $now) throw new Exception('优惠券已过期');
+            if ((float)$cl['threshold'] > 0 && $subtotal < (float)$cl['threshold'] - 0.001) {
+                throw new Exception('未达满减门槛（满 ¥' . round((float)$cl['threshold'], 2) . ' 可用）');
+            }
+            if (isset($sawCampaign[$cl['campaign_id']])) throw new Exception('同一活动每单最多使用 1 张');
+            $sawCampaign[$cl['campaign_id']] = 1;
+        }
+        // 多张券叠加：仅当所选券的活动都允许叠加
+        if (count($claims) > 1) {
+            foreach ($claims as $cl) {
+                if (!(int)$cl['stackable']) throw new Exception('所选券不可叠加，请只选 1 张');
+            }
+        }
+        $lockClaim = $pdo->prepare(
+            "UPDATE coupon_claims SET status = 'locked', order_id = ?, order_no = ?
+             WHERE id = ? AND store_id = ? AND phone = ? AND status = 'unused'"
+        );
+        $insOrderCoupon = $pdo->prepare(
+            'INSERT INTO pos_order_coupons (order_id, claim_id, campaign_id, store_id, phone, amount_off)
+             VALUES (?,?,?,?,?,?)'
+        );
+        foreach ($claims as $cl) {
+            $lockClaim->execute([$orderId, $orderNo, $cl['claim_id'], $storeId, $customerPhone]);
+            if ($lockClaim->rowCount() !== 1) throw new Exception('优惠券已被其他订单占用，请刷新重选');
+            $couponAmount += (float)$cl['amount'];
+            $insOrderCoupon->execute([$orderId, $cl['claim_id'], $cl['campaign_id'], $storeId, $customerPhone, (float)$cl['amount']]);
+        }
+    }
+    // 券后最低支付 0.01（个人收款码不能收 0 元）
+    $couponAmount = round(min($couponAmount, max(0, $subtotal - $discountAmount - 0.01)), 2);
+    $payable = round($subtotal - $discountAmount - $couponAmount, 2);
 
-    $updateOrder = $pdo->prepare('UPDATE pos_orders SET subtotal = ?, discount_amount = ?, payable = ? WHERE id = ?');
-    $updateOrder->execute([$subtotal, $discountAmount, $payable, $orderId]);
+    $updateOrder = $pdo->prepare('UPDATE pos_orders SET subtotal = ?, discount_amount = ?, coupon_amount = ?, payable = ? WHERE id = ?');
+    $updateOrder->execute([$subtotal, $discountAmount, $couponAmount, $payable, $orderId]);
+
+    // 现金单（店员模式）当场核销；扫码单等顾客点「已付款」再核销
+    if ($couponAmount > 0 && $payMethod === 'cash') {
+        couponSetClaimsByOrder($pdo, $orderId, 'used');
+    }
 
     $pdo->commit();
 
@@ -189,6 +253,7 @@ try {
         'payable' => $payable,
         'subtotal' => $subtotal,
         'discount_amount' => $discountAmount,
+        'coupon_amount' => $couponAmount,
         'pay_status' => $payStatus,
         'pay_method' => $payMethod,
         'items' => $resultItems

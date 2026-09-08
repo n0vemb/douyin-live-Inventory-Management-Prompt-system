@@ -189,6 +189,15 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
                     <span class="todo-badge" id="todoBadge" style="display:none;">0</span>
                 </a>
             </div>
+            <?php if (!$isOperator): ?>
+            <div class="nav-section">
+                <div class="nav-section-title">营销</div>
+                <a href="coupons.php" class="nav-item <?= ($currentPage ?? '') === 'coupons' ? 'active' : '' ?>">
+                    <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v3h20v-3a3 3 0 0 1 0-6V6H2v3z"/><path d="M13 7v10"/></svg></span>
+                    <span class="nav-label">优惠券</span>
+                </a>
+            </div>
+            <?php endif; ?>
         </nav>
         <?php if ($isSuperAdmin || $isStoreAdmin): ?>
         <div class="nav-section">
