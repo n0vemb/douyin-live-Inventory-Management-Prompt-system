@@ -51,9 +51,20 @@ $couponAllowed = in_array($currentUser['role'] ?? '', ['store_admin', 'super_adm
         <div class="form-group"><label class="form-label">每人限领</label><input class="form-input" type="number" min="1" id="cpPer" value="1"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">开始时间</label><input class="form-input" type="datetime-local" id="cpStart"></div>
-        <div class="form-group"><label class="form-label">结束时间（券有效期）</label><input class="form-input" type="datetime-local" id="cpEnd"></div>
+        <div class="form-group" style="flex:1"><label class="form-label">开始日期（当天 0 点生效）</label><input class="form-input" type="date" id="cpStartDate" onchange="renderEndPreview()"></div>
+        <div class="form-group" style="flex:1.6">
+          <label class="form-label">有效天数（含首尾）</label>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <input class="form-input" type="number" min="1" id="cpDur" style="width:76px" oninput="renderEndPreview()">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="setDur(7)">7天</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="setDur(15)">15天</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="setDur(30)">30天</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="setDur(90)">90天</button>
+          </div>
+        </div>
       </div>
+      <div id="cpEndPreview" style="font-size:12px;color:var(--text-tertiary)"></div>
+      <input type="hidden" id="cpStart"><input type="hidden" id="cpEnd">
       <label style="display:flex;gap:6px;font-size:13px;color:var(--text-secondary)"><input type="checkbox" id="cpStack"> 允许与其它券叠加（每单同一活动最多 1 张）</label>
       <div class="form-group"><label class="form-label">备注</label><input class="form-input" id="cpRemark" placeholder="选填"></div>
       <div style="display:flex;gap:10px;justify-content:flex-end">
@@ -126,6 +137,20 @@ function render(){
   }).join('');
 }
 function toggleThreshold(){ $c('cpThrGroup').style.display=$c('cpType').value==='fixed'?'none':''; }
+function setDur(n){ $c('cpDur').value=n; renderEndPreview(); }
+function renderEndPreview(){
+  const sd=$c('cpStartDate').value;
+  const dur=Math.max(1, parseInt($c('cpDur').value)||0);
+  const pre=$c('cpEndPreview');
+  if(!sd){ pre.textContent=''; return; }
+  const start=new Date(sd+'T00:00:00');
+  const end=new Date(start.getTime()+(dur-1)*86400000);
+  const p=n=>String(n).padStart(2,'0');
+  const f=d=>d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+  $c('cpStart').value=sd+' 00:00:00';
+  $c('cpEnd').value=f(end)+' 23:59:59';
+  pre.textContent='有效期：'+sd+' 00:00 ~ '+f(end)+' 23:59（共 '+dur+' 天）';
+}
 function editCampaign(id){
   const c=id?CP.find(x=>x.id===id):null;
   $c('cpModalTitle').textContent=c?'编辑活动':'新建活动';
@@ -137,20 +162,31 @@ function editCampaign(id){
   $c('cpTotal').value=c?c.total_count:0;
   $c('cpPer').value=c?c.per_user:1;
   $c('cpStack').checked=c?!!+c.stackable:false;
-  $c('cpStart').value=c?(c.start_at||'').replace(' ','T'):'';
-  $c('cpEnd').value=c?(c.end_at||'').replace(' ','T'):'';
+  if(c && c.start_at && c.end_at){
+    const sd=(c.start_at||'').slice(0,10);
+    const ms=new Date(c.end_at.replace(' ','T')).getTime()-new Date(c.start_at.replace(' ','T')).getTime();
+    const dur=Math.max(1, Math.ceil(ms/86400000));
+    $c('cpStartDate').value=sd;
+    $c('cpDur').value=dur;
+  } else {
+    const today=new Date(); const p=n=>String(n).padStart(2,'0');
+    $c('cpStartDate').value=today.getFullYear()+'-'+p(today.getMonth()+1)+'-'+p(today.getDate());
+    $c('cpDur').value=30;
+  }
   $c('cpRemark').value=c?(c.remark||''):'';
-  toggleThreshold(); show('cpModal');
+  toggleThreshold(); renderEndPreview(); show('cpModal');
 }
 async function saveCampaign(){
+  renderEndPreview();
   const body={action:'save',id:+$c('cpId').value||0,name:$c('cpName').value.trim(),coupon_type:$c('cpType').value,
     threshold:+$c('cpThreshold').value||0,amount:+$c('cpAmount').value||0,total_count:+$c('cpTotal').value||0,
     per_user:+$c('cpPer').value||1,stackable:$c('cpStack').checked?1:0,
-    start_at:$c('cpStart').value?$c('cpStart').value.replace('T',' '):'',
-    end_at:$c('cpEnd').value?$c('cpEnd').value.replace('T',' '):'',
+    start_at:$c('cpStart').value||'',
+    end_at:$c('cpEnd').value||'',
     remark:$c('cpRemark').value.trim()};
   if(!body.name){toast('请填写活动名称',true);return;}
   if(!(body.amount>0)){toast('请填写优惠金额',true);return;}
+  if(!body.start_at || !body.end_at){toast('请选择开始日期和有效天数',true);return;}
   const d=await api(body); if(!d.success){toast(d.error||'保存失败',true);return;}
   hide('cpModal'); toast('已保存'); load();
 }
