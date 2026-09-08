@@ -487,6 +487,22 @@ $isOperator = ($currentUser['role'] === 'operator');
 .pm-warn-dot.ok{background:var(--success);}
 .pm-price{font-variant-numeric:tabular-nums;font-weight:600;color:var(--success);}
 .pm-imp-act{display:inline-block;padding:1px 8px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap}
+
+/* 商品名悬停：货架位置浮层 */
+.pm-loc-anchor{cursor:pointer;}
+.pm-loc-tip{position:fixed;z-index:4000;pointer-events:none;left:0;top:0;
+    background:var(--bg-active);color:var(--text);border:1px solid var(--border);
+    border-radius:9px;padding:9px 12px;font-size:12.5px;line-height:1.55;
+    box-shadow:0 10px 28px rgba(0,0,0,.45);opacity:0;transition:opacity .12s ease;
+    max-width:300px;white-space:nowrap;}
+.pm-loc-tip.show{opacity:1;}
+.pm-loc-tip .pm-loc-h{font-size:11px;color:var(--text-tertiary);margin-bottom:5px;}
+.pm-loc-tip .pm-loc-i{font-weight:700;color:var(--primary);font-variant-numeric:tabular-nums;}
+.pm-loc-tip .pm-loc-i + .pm-loc-i{margin-top:3px;}
+.pm-loc-tip .pm-loc-none{color:var(--text-tertiary);}
+.pm-loc-badge{display:inline-block;margin-left:6px;padding:0 6px;border-radius:5px;
+    font-size:10.5px;font-weight:600;color:var(--primary);background:rgba(94,92,230,.14);
+    vertical-align:1px;}
 .pm-imp-act.new{background:rgba(56,189,248,.16);color:#38bdf8}
 .pm-imp-act.match{background:rgba(52,211,153,.16);color:#34d399}
 .pm-imp-act.skip{background:rgba(248,113,113,.16);color:#f87171}
@@ -569,6 +585,7 @@ let systemSettings = {};
 let conditionTypes = [];
 let selectedIds = new Set();
 let currentFiltered = []; // 当前筛选可见的商品（全选只作用于这些）
+let rackLocMap = {};      // 商品 id -> 货架位置数组（悬停提示数据源，随列表一起刷新）
 
 const $ = id => document.getElementById(id);
 
@@ -657,7 +674,17 @@ async function loadSettings() {
     } catch (e) { console.error('loadSettings', e); }
 }
 
+/* 货架位置：全量拉一次，仅在列表刷新时同步（商品页本身不改动货架） */
+async function loadRackLocations() {
+    try {
+        const res = await fetch('../api/product_locations.php');
+        const data = await res.json();
+        rackLocMap = (data.success && data.data && data.data.map) ? data.data.map : {};
+    } catch (e) { console.error('loadRackLocations', e); rackLocMap = {}; }
+}
+
 async function loadProducts() {
+    await loadRackLocations();
     try {
         const res = await fetch('../api/list_products.php');
         const data = await res.json();
@@ -788,9 +815,14 @@ function renderProducts(products) {
         const imageHtml = p.image_url
             ? `<img src="../${p.image_url}" class="pm-thumb" style="object-fit:cover;">`
             : `<div class="pm-thumb"></div>`;
+        // 货架位置徽标：有位置才显示（提示可悬停查看详细格位），多位置显示 货架号×处数
+        const pLocs = rackLocMap[p.id] || [];
+        const locBadge = pLocs.length
+            ? `<span class="pm-loc-badge">${escapeHtml(pLocs[0].rack)}${pLocs.length > 1 ? '×' + pLocs.length : ''}</span>`
+            : '';
         const nameHtml = p.common_name
-            ? `<div class="pm-pname">${escapeHtml(p.common_name)}</div><div class="pm-pcommon">${escapeHtml(p.name)}</div>`
-            : `<div class="pm-pname">${escapeHtml(p.name)}</div>`;
+            ? `<div class="pm-pname">${escapeHtml(p.common_name)}${locBadge}</div><div class="pm-pcommon">${escapeHtml(p.name)}</div>`
+            : `<div class="pm-pname">${escapeHtml(p.name)}${locBadge}</div>`;
         const barcodeHtml = `<div class="pm-barcode">${escapeHtml(p.barcode)}</div>`;
         const seriesHtml = p.series ? `<span class="pm-series-tag">${escapeHtml(p.series)}</span>` : '<span class="pm-pcommon">-</span>';
         const brandHtml = p.brand ? escapeHtml(p.brand) : '<span class="pm-pcommon">-</span>';
@@ -822,7 +854,7 @@ function renderProducts(products) {
         return `<tr class="${newInClass}">
             <td><input type="checkbox" class="pm-cb" value="${p.id}" ${checked} onchange="toggleSelectOne(${p.id}, this)"></td>
             <td>${imageHtml}</td>
-            <td><div style="cursor:pointer;" onclick="openDrawer(${p.id})">${nameHtml}${barcodeHtml}</div></td>
+            <td><div class="pm-loc-anchor" data-pid="${p.id}" onclick="openDrawer(${p.id})">${nameHtml}${barcodeHtml}</div></td>
             <td>${seriesHtml}</td>
             <td>${brandHtml}</td>
             <td>${skuQtyHtml}</td>
@@ -842,6 +874,56 @@ function renderProducts(products) {
         </tr>`;
     }).join('');
 }
+
+/* ---------- 商品名悬停：显示货架位置 ---------- */
+let locTipEl = null;
+function locTip() {
+    if (!locTipEl) {
+        locTipEl = document.createElement('div');
+        locTipEl.className = 'pm-loc-tip';
+        document.body.appendChild(locTipEl);
+    }
+    return locTipEl;
+}
+function hideLocTip() { if (locTipEl) locTipEl.classList.remove('show'); }
+
+function showLocTip(anchor) {
+    const pid = parseInt(anchor.dataset.pid, 10);
+    const locs = rackLocMap[pid] || [];
+    const tip = locTip();
+    tip.innerHTML = locs.length
+        ? `<div class="pm-loc-h">货架位置${locs.length > 1 ? '（' + locs.length + ' 处）' : ''}</div>` +
+          locs.map(l => `<div class="pm-loc-i">${escapeHtml(l.label)}</div>`).join('')
+        : `<div class="pm-loc-none">未上架<br><span style="font-size:11px">去「仓库货架」页摆放</span></div>`;
+    tip.classList.add('show');
+    positionLocTip(anchor);
+}
+
+function positionLocTip(anchor) {
+    const tip = locTip();
+    if (!tip.classList.contains('show')) return;
+    const r = anchor.getBoundingClientRect();
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    // 优先放在名称下方偏左；贴近视口右/下边缘时自动翻转
+    let left = r.left;
+    let top = r.bottom + 6;
+    if (left + w > window.innerWidth - 8) left = Math.max(8, window.innerWidth - w - 8);
+    if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+}
+
+// 事件委托：列表重渲染后无需重新绑定
+document.addEventListener('mouseover', function (e) {
+    const a = e.target.closest && e.target.closest('.pm-loc-anchor');
+    if (a && a.dataset.pid) showLocTip(a);
+});
+document.addEventListener('mouseout', function (e) {
+    const a = e.target.closest && e.target.closest('.pm-loc-anchor');
+    if (a && (!e.relatedTarget || !e.relatedTarget.closest || !e.relatedTarget.closest('.pm-loc-anchor'))) hideLocTip();
+});
+// 滚动/翻页时收起，避免浮层脱离锚点
+document.addEventListener('scroll', hideLocTip, true);
 
 // SKU 明细行数据：按店铺品相配置顺序，仅取有在库的 SKU（三列共用同一顺序对齐）
 function getSkuLines(inventory) {
@@ -890,7 +972,11 @@ async function renderDrawer() {
     const p = allProducts.find(x => x.id === currentId);
     if (!p) return;
     $('dTitle').textContent = p.common_name || p.name;
-    $('dMeta').textContent = `${p.common_name ? p.name + ' · ' : ''}${p.series || ''} · 条码 ${p.barcode}`;
+    const dMetaBase = `${p.common_name ? p.name + ' · ' : ''}${p.series || ''} · 条码 ${p.barcode}`;
+    const dLocs = rackLocMap[p.id] || [];
+    $('dMeta').innerHTML = escapeHtml(dMetaBase) + (dLocs.length
+        ? ` · <b style="color:var(--primary)">${escapeHtml(dLocs.map(l => l.label).join('、'))}</b>`
+        : ' · <span style="color:var(--text-tertiary)">未上架</span>');
     const body = $('dBody');
 
     if (currentTab === 'inv') {
