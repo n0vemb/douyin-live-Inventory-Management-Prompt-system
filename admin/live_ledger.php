@@ -6,6 +6,7 @@ require_once __DIR__ . '/../auth.php';
 $user = getCurrentUser();
 $canSeeProfit = $user['can_see_profit'] ?? true;
 $isOperator = $user['role'] === 'operator';
+$canEditSessionMeta = in_array($user['role'], ['store_admin', 'super_admin'], true);
 ?>
 <div class="page-title">直播出库记账</div>
 
@@ -567,6 +568,33 @@ document.getElementById('fastInput').addEventListener('paste', function (e) {
   </div>
 </div>
 
+<!-- 编辑场次 主播/运营/账号 -->
+<div class="modal" id="sessionMetaModal">
+  <div class="modal-content" style="width:420px;">
+    <div class="modal-header">
+      <h3 class="modal-title">场次信息</h3>
+      <button class="modal-close" onclick="closeSessionMetaModal()">&times;</button>
+    </div>
+    <div style="margin-bottom:10px; font-size:13px; color:var(--text-secondary)" id="metaSessionLabel"></div>
+    <div style="margin-bottom:12px;">
+      <label>主播</label>
+      <input type="text" id="metaAnchor" class="form-input" list="anchorList" placeholder="如：张三" style="margin-top:6px;">
+    </div>
+    <div style="margin-bottom:12px;">
+      <label>运营</label>
+      <input type="text" id="metaOperator" class="form-input" list="operatorList" placeholder="如：李四" style="margin-top:6px;">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label>直播平台账号</label>
+      <input type="text" id="metaAccount" class="form-input" list="accountList" placeholder="如：@xxx 或 抖音号" style="margin-top:6px;">
+    </div>
+    <div class="flex" style="justify-content:flex-end; gap:15px;">
+      <button class="btn btn-outline" onclick="closeSessionMetaModal()">取消</button>
+      <button class="btn btn-success" onclick="saveSessionMeta()">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- 新增客户模态框 -->
 <div class="modal" id="addCustomerModal">
   <div class="modal-content" style="width:420px;">
@@ -845,6 +873,7 @@ let obSearchResults = [];
 let addMap = {};
 const CAN_SEE_PROFIT = <?= $canSeeProfit ? 'true' : 'false' ?>;
 const IS_OPERATOR = <?= $isOperator ? 'true' : 'false' ?>;
+const CAN_EDIT_META = <?= $canEditSessionMeta ? 'true' : 'false' ?>;
 
 // ===== 场次管理 =====
 async function loadSessions() {
@@ -874,6 +903,7 @@ async function loadSessions() {
                 <td class="muted">${esc(s.created_at || '-')}</td>
                 <td style="display:flex; gap:10px;">
                     <button class="btn btn-sm btn-primary" onclick="enterSession(${s.id})">进入</button>
+                    ${CAN_EDIT_META ? `<button class="btn btn-sm btn-outline" onclick="editSessionMeta(${s.id}, '${esc(s.anchor || '')}', '${esc(s.operator || '')}', '${esc(s.account || '')}')" title="修改主播/运营/账号">信息</button>` : ''}
                     ${IS_OPERATOR ? '' : `<button class="btn btn-sm btn-outline" onclick="confirmDeleteSession(${s.id}, '${esc(s.session_name)}')" style="color:var(--danger); border-color:var(--danger);">删除</button>`}
                 </td>
             </tr>`).join('');
@@ -882,6 +912,37 @@ async function loadSessions() {
 
 function enterSession(id) {
     switchToSession(id);
+}
+
+let metaSessionId = 0;
+function editSessionMeta(id, anchor, operator, account) {
+    metaSessionId = id;
+    const s = (window._ledgerSessions || []).find(x => x.id === id);
+    document.getElementById('metaSessionLabel').textContent = '场次：' + (s ? s.session_name : ('#' + id));
+    document.getElementById('metaAnchor').value = anchor || '';
+    document.getElementById('metaOperator').value = operator || '';
+    document.getElementById('metaAccount').value = account || '';
+    document.getElementById('sessionMetaModal').classList.add('show');
+}
+function closeSessionMetaModal() {
+    document.getElementById('sessionMetaModal').classList.remove('show');
+}
+async function saveSessionMeta() {
+    if (!metaSessionId) return;
+    const res = await fetch('../api/live_ledger_update_meta.php', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            session_id: metaSessionId,
+            anchor: document.getElementById('metaAnchor').value.trim(),
+            operator: document.getElementById('metaOperator').value.trim(),
+            account: document.getElementById('metaAccount').value.trim()
+        })
+    });
+    const data = await res.json();
+    if (!data.success) { toast(data.error || '保存失败', true); return; }
+    closeSessionMetaModal();
+    toast('场次信息已更新');
+    loadSessions();
 }
 
 function openNewSessionModal() {
@@ -2223,7 +2284,7 @@ function psRenderResults(body, products) {
                 <span class="sval">
                     <span class="stock">可售 ${s.stock}</span>
                     ${s.occupied > 0 ? `<span class="occ${s.other_occupied > 0 ? ' warn' : ''}" title="本场已录 ${s.local_occupied} · 其他场次已录 ${s.other_occupied}">(-${s.occupied})</span>` : ''}
-                    <span class="price">¥${s.price ? s.price.toFixed(2) : '-'}</span>
+                    <span class="price">均价 ¥${s.avg_price ? s.avg_price.toFixed(2) : '-'}</span>
                 </span>
             </div>`).join('');
         return `<div class="ps-product">

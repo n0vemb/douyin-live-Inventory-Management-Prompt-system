@@ -107,7 +107,11 @@ foreach ($products as &$p) {
                (SELECT ib3.suggested_price FROM inventory_batches ib3
                 WHERE ib3.product_id = ib.product_id AND ib3.condition_type = ib.condition_type
                   AND ib3.remaining_qty > 0 AND ib3.suggested_price > 0
-                ORDER BY ib3.purchased_at DESC, ib3.id DESC LIMIT 1) AS price
+                ORDER BY ib3.purchased_at DESC, ib3.id DESC LIMIT 1) AS price,
+               (SELECT ROUND(SUM(ib4.suggested_price * ib4.remaining_qty) / NULLIF(SUM(ib4.remaining_qty),0), 2)
+                FROM inventory_batches ib4
+                WHERE ib4.product_id = ib.product_id AND ib4.condition_type = ib.condition_type
+                  AND ib4.remaining_qty > 0 AND ib4.suggested_price > 0) AS avg_price
         FROM inventory_batches ib
         WHERE ib.product_id = ? AND ib.remaining_qty > 0
         GROUP BY ib.condition_type
@@ -131,6 +135,7 @@ foreach ($products as &$p) {
             'other_occupied' => $other,
             'cost' => $maskProfit ? null : (floatval($s['cost']) ?: null),
             'price' => floatval($s['price']) ?: null,
+            'avg_price' => floatval($s['avg_price']) ?: null,
         ];
     }, $skus);
 }
