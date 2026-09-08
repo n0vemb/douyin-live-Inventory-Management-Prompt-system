@@ -58,6 +58,12 @@ try {
     // ===== 2. 逐商品：回补批次库存 + 删出库记录 + 删销售记录 =====
     $returnedQty = 0;
     foreach ($itemsToDelete as $item) {
+        // 赠品/临时商品从未扣库存，撤单只需删明细，不参与回补
+        if (!empty($item['is_gift']) || !empty($item['is_temp'])) {
+            $stmt = $pdo->prepare('DELETE FROM live_ledger_item WHERE id = ?');
+            $stmt->execute([$item['id']]);
+            continue;
+        }
         // 该商品对应的出库记录（按 item_id 精确匹配；历史数据可能按 product+qty 匹配）
         $stmt = $pdo->prepare("SELECT lo.*, ib.condition_type, ib.purchase_price AS batch_purchase_price FROM live_ledger_outbound lo LEFT JOIN inventory_batches ib ON lo.batch_id = ib.id WHERE lo.session_id = ? AND lo.customer_id = ? AND lo.item_id = ?");
         $stmt->execute([$sessionId, $customerId, $item['id']]);
@@ -74,7 +80,7 @@ try {
         // 用该商品的 sales_log 回补库存（不依赖 outbound 记录）
         $fallbackSalesLog = null;
         if (empty($outbounds)) {
-            $stmt = $pdo->prepare("SELECT id, product_id, batch_id, qty FROM sales_log WHERE product_id = ? AND qty >= ? AND batch_id IS NOT NULL ORDER BY id LIMIT 1");
+            $stmt = $pdo->prepare("SELECT id, product_id, condition_type, batch_id, qty, purchase_cost FROM sales_log WHERE product_id = ? AND qty >= ? AND batch_id IS NOT NULL ORDER BY id LIMIT 1");
             $stmt->execute([$item['product_id'], (int)$item['qty']]);
             $fallbackSalesLog = $stmt->fetch();
         }
@@ -92,6 +98,17 @@ try {
             $params = [$processQty, (int)$ob['batch_id']];
             if ($storeId) $params[] = $storeId;
             $stmt->execute($params);
+            // 回补流水（可追溯）
+            $stmt = $pdo->prepare("SELECT remaining_qty FROM inventory_batches WHERE id = ?" . ($storeId ? " AND store_id = ?" : ""));
+            $bqParams = [(int)$ob['batch_id']];
+            if ($storeId) $bqParams[] = $storeId;
+            $stmt->execute($bqParams);
+            $afterStock = (int)$stmt->fetchColumn();
+            $logStmt = $pdo->prepare(
+                "INSERT INTO inventory_log (store_id, user_id, product_id, condition_type, change_type, qty_change, before_qty, after_qty, price, remark)
+                 VALUES (?, ?, ?, ?, 'return', ?, ?, ?, ?, ?)"
+            );
+            $logStmt->execute([$storeId, null, $ob['product_id'], $ob['condition_type'], $processQty, $afterStock - $processQty, $afterStock, $ob['batch_purchase_price'] ?? 0, '撤单/退货回补：' . ($item['product_name'] ?? '')]);
 
             // 删销售记录（按商品+成色+数量匹配，删对应数量）
             // 注：历史 outbound 回填的 batch_id 可能错位，不依赖 batch_id 匹配
@@ -131,6 +148,16 @@ try {
             $params = [$needQty, (int)$fallbackSalesLog['batch_id']];
             if ($storeId) $params[] = $storeId;
             $stmt->execute($params);
+            $stmt = $pdo->prepare("SELECT remaining_qty FROM inventory_batches WHERE id = ?" . ($storeId ? " AND store_id = ?" : ""));
+            $bqParams = [(int)$fallbackSalesLog['batch_id']];
+            if ($storeId) $bqParams[] = $storeId;
+            $stmt->execute($bqParams);
+            $afterStock = (int)$stmt->fetchColumn();
+            $logStmt = $pdo->prepare(
+                "INSERT INTO inventory_log (store_id, user_id, product_id, condition_type, change_type, qty_change, before_qty, after_qty, price, remark)
+                 VALUES (?, ?, ?, ?, 'return', ?, ?, ?, ?, ?)"
+            );
+            $logStmt->execute([$storeId, null, $fallbackSalesLog['product_id'], $item['condition_type'], $needQty, $afterStock - $needQty, $afterStock, $fallbackSalesLog['purchase_cost'] ?? 0, '撤单/退货回补(兜底)：' . ($item['product_name'] ?? '')]);
 
             $stmt = $pdo->prepare("DELETE FROM sales_log WHERE id = ?");
             $stmt->execute([$fallbackSalesLog['id']]);
@@ -139,7 +166,11 @@ try {
             $needQty = 0;
         }
 
-        // 删商品明细
+        // 找不到可回补记录：中止整笔操作，绝不允许“只删单不回库存”
+        if ($needQty > 0) {
+            throw new Exception('商品「' . ($item['product_name'] ?? ('#' . $item['product_id'])) . '」找不到可回补的出库记录，撤单已中止，库存未改动');
+        }
+        // 删商品明细（此时库存已全部回补）
         $stmt = $pdo->prepare("DELETE FROM live_ledger_item WHERE id = ?");
         $stmt->execute([$item['id']]);
     }
