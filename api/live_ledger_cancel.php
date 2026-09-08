@@ -24,6 +24,8 @@ $input = json_decode(file_get_contents('php://input'), true);
 $sessionId = isset($input['session_id']) ? (int)$input['session_id'] : 0;
 $customerId = isset($input['customer_id']) ? (int)$input['customer_id'] : 0;
 $itemId = isset($input['item_id']) ? (int)$input['item_id'] : 0;
+$compensation = max(0, round((float)($input['compensation'] ?? 0), 2));
+$compRemark = trim((string)($input['compensation_remark'] ?? ''));
 if ($sessionId <= 0 || $customerId <= 0) error('缺少参数');
 
 // 校验场次已结束
@@ -53,6 +55,21 @@ try {
         $stmt = $pdo->prepare("SELECT * FROM live_ledger_item WHERE customer_id = ?");
         $stmt->execute([$customerId]);
         $itemsToDelete = $stmt->fetchAll();
+    }
+
+    // 运费补偿（可选）：独立记录，客户随后被删也不丢失
+    if ($compensation > 0) {
+        $label = trim(($customer['nickname'] ?? '') . ' ' . ($customer['vip_no'] ?? ''));
+        $stmt = $pdo->prepare(
+            "INSERT INTO live_ledger_compensation (session_id, customer_id, customer_label, amount, remark, operator_username)
+             VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->execute([
+            $sessionId, $customerId, $label !== '' ? $label : ('客户#' . $customerId),
+            $compensation,
+            $compRemark !== '' ? $compRemark : '退货运费补偿',
+            $_SESSION['username'] ?? null,
+        ]);
     }
 
     // ===== 2. 逐商品：回补批次库存 + 删出库记录 + 删销售记录 =====

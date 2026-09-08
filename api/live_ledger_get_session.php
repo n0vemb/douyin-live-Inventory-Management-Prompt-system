@@ -26,6 +26,16 @@ if ($owner != $storeId) error('无权访问该场次');
 // 运营角色：隐藏成本/毛利
 maskLedgerData($data);
 
+// 运费补偿记录（撤单/退货时可选填写）
+$stmt = $pdo->prepare(
+    "SELECT id, customer_id, customer_label, amount, remark, operator_username, created_at
+     FROM live_ledger_compensation
+     WHERE session_id = ?
+     ORDER BY id DESC"
+);
+$stmt->execute([$sessionId]);
+$data['compensations'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
 // ===== 跨场次占用（防超卖）：其他 active 场次对同一商品+SKU 的已记账数量 =====
 // 多运营账户可同时开多个 active 场次，同一商品可能被两边都记账，
 // 结束出库 FIFO 只扣实际库存，先结束的扣走，后结束的就会库存不足。

@@ -431,6 +431,7 @@ document.getElementById('fastInput').addEventListener('paste', function (e) {
       <button class="btn btn-outline" onclick="exitSession()">返回场次列表</button>
     </div>
   </div>
+  <div id="sessionCompWrap" style="display:none; margin-top:8px; padding:8px 12px; background:rgba(240,180,41,.08); border:1px solid rgba(240,180,41,.3); border-radius:8px; font-size:12.5px;"></div>
 </div>
 
 <!-- 场次设置弹窗 -->
@@ -1085,6 +1086,7 @@ async function switchToSession(id) {
         closePriceStockPanel();
         closeLuckyPanel();
         document.getElementById('sessionInfoName').textContent = sessionData.settings.session_name + ' · 主播' + (sessionData.settings.anchor || '-') + '，运营' + (sessionData.settings.operator || '-') + (sessionData.settings.account ? '，账号' + sessionData.settings.account : '');
+        renderCompensations();
         document.getElementById('settingsCard').classList.remove('show');
         // 已结束场次：隐藏 新增客户/保存/结束直播 操作栏
         document.getElementById('actionBar').style.display = isReadOnly ? 'none' : 'flex';
@@ -1532,13 +1534,44 @@ function syncBottomActionBar() {
 
 // ===== 客户操作 =====
 
+// 撤单/退货时询问是否需要运费补偿（自定义金额）
+function askCompensation() {
+    return new Promise(resolve => {
+        const raw = prompt('是否需要补偿客户运费？如需补偿请填写金额（元）；不需要请填 0：', '0');
+        if (raw === null) { resolve(null); return; }
+        const amount = Math.max(0, parseFloat(raw) || 0);
+        if (amount <= 0) { resolve({ amount: 0, remark: '' }); return; }
+        const remark = prompt('补偿备注（选填，如：退货运费补偿）：', '') || '';
+        resolve({ amount, remark: remark.trim() });
+    });
+}
+
+function renderCompensations() {
+    const wrap = document.getElementById('sessionCompWrap');
+    if (!wrap || !sessionData) return;
+    const list = sessionData.compensations || [];
+    if (!list.length) { wrap.style.display = 'none'; return; }
+    const total = list.reduce((a, c) => a + (parseFloat(c.amount) || 0), 0);
+    wrap.style.display = '';
+    wrap.innerHTML = '<b>运费补偿记录（合计 ¥' + total.toFixed(2) + '）</b>' + list.map(function (c) {
+        let h = '<div style="margin-top:4px">· ' + esc(c.customer_label || ('客户#' + (c.customer_id || ''))) +
+            '：¥' + (parseFloat(c.amount) || 0).toFixed(2);
+        if (c.remark) h += '（' + esc(c.remark) + '）';
+        if (c.operator_username) h += ' · ' + esc(c.operator_username);
+        h += ' · ' + esc((c.created_at || '').slice(0, 16)) + '</div>';
+        return h;
+    }).join('');
+}
+
 // 撤单：整单取消（已结束场次）→ 商品回库存 + 费用重算
 function cancelOrder(cid, nickname) {
     showConfirm(`确定撤单「${nickname}」的全部订单吗？\n商品将退回库存，运费/平台扣点/包装成本将重新计算。`, async () => {
         try {
+            const comp = await askCompensation();
+            if (comp === null) return;
             const res = await fetch('../api/live_ledger_cancel.php', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ session_id: currentSessionId, customer_id: cid })
+                body: JSON.stringify({ session_id: currentSessionId, customer_id: cid, compensation: comp.amount, compensation_remark: comp.remark })
             });
             const data = await res.json();
             if (data.success) {
@@ -1553,9 +1586,11 @@ function cancelOrder(cid, nickname) {
 function returnItem(cid, iid) {
     showConfirm('确定退货该商品吗？\n商品将退回库存，运费/平台扣点/包装成本将重新计算。', async () => {
         try {
+            const comp = await askCompensation();
+            if (comp === null) return;
             const res = await fetch('../api/live_ledger_cancel.php', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ session_id: currentSessionId, customer_id: cid, item_id: iid })
+                body: JSON.stringify({ session_id: currentSessionId, customer_id: cid, item_id: iid, compensation: comp.amount, compensation_remark: comp.remark })
             });
             const data = await res.json();
             if (data.success) {
@@ -1577,6 +1612,7 @@ async function loadSessionData() {
         otherReserved = data.data.other_reserved || {};
         (sessionData.customers || []).forEach(c => { c._collapsed = true; });
         render();
+        renderCompensations();
         // 顶部汇总也刷新（场次列表数据来自快照，需重新拉取）
         await loadSessions();
         // VIP 消费映射刷新（撤单/退货影响累计消费，VIP 分档配色需同步）
