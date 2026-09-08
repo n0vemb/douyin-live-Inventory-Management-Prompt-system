@@ -562,6 +562,7 @@ const IS_SUPER = <?= $isSuper ? 'true' : 'false' ?>;
 const IS_OPERATOR = <?= $isOperator ? 'true' : 'false' ?>;
 const CURRENT_STORE_ID = <?= json_encode($storeId) ?>;
 let allProducts = [];
+let rackLocById = {}; // product_id -> 货架位置文本
 let productSort = { field: null, dir: 'asc' };
 let currentId = null;
 let currentTab = 'inv';
@@ -678,6 +679,34 @@ async function loadProducts() {
     } catch (err) { console.error(err); showErrorToast('商品列表加载失败'); }
 }
 
+// 货架位置：商品ID → “货架A · 第3层 · 第3格” （多位置顿号分隔）
+async function loadRackMap() {
+    rackLocById = {};
+    try {
+        const res = await fetch('../api/get_racks.php', { cache: 'no-store' });
+        const d = await res.json();
+        if (!d.success) return;
+        const racks = d.racks || {};
+        const order = d.order || Object.keys(racks);
+        order.forEach(code => {
+            const rowData = racks[code] || {};
+            Object.keys(rowData).forEach(rowKey => {
+                const row = rowData[rowKey] || {};
+                Object.keys(row).forEach(posKey => {
+                    const cell = row[posKey];
+                    if (!cell || !cell.product) return;
+                    const pid = cell.product.id;
+                    const span = cell.span || 1;
+                    const pos = parseInt(posKey, 10);
+                    const posTxt = span > 1 ? pos + '-' + (pos + span - 1) : String(pos);
+                    const loc = `货架${code} · 第${rowKey}层 · 第${posTxt}格`;
+                    rackLocById[pid] = rackLocById[pid] ? rackLocById[pid] + '；' + loc : loc;
+                });
+            });
+        });
+    } catch (e) { /* 货架不可用时静默，仅提示未在货架 */ }
+}
+
 async function loadStats() {
     try {
         const res = await fetch('../api/stock_overview.php');
@@ -791,6 +820,7 @@ function renderProducts(products) {
         const nameHtml = p.common_name
             ? `<div class="pm-pname">${escapeHtml(p.common_name)}</div><div class="pm-pcommon">${escapeHtml(p.name)}</div>`
             : `<div class="pm-pname">${escapeHtml(p.name)}</div>`;
+        const rackTip = rackLocById[p.id] ? '货架位置：' + rackLocById[p.id] : '未在货架';
         const barcodeHtml = `<div class="pm-barcode">${escapeHtml(p.barcode)}</div>`;
         const seriesHtml = p.series ? `<span class="pm-series-tag">${escapeHtml(p.series)}</span>` : '<span class="pm-pcommon">-</span>';
         const brandHtml = p.brand ? escapeHtml(p.brand) : '<span class="pm-pcommon">-</span>';
@@ -822,7 +852,7 @@ function renderProducts(products) {
         return `<tr class="${newInClass}">
             <td><input type="checkbox" class="pm-cb" value="${p.id}" ${checked} onchange="toggleSelectOne(${p.id}, this)"></td>
             <td>${imageHtml}</td>
-            <td><div style="cursor:pointer;" onclick="openDrawer(${p.id})">${nameHtml}${barcodeHtml}</div></td>
+            <td><div style="cursor:pointer;" title="${escapeHtml(rackTip)}" onclick="openDrawer(${p.id})">${nameHtml}${barcodeHtml}</div></td>
             <td>${seriesHtml}</td>
             <td>${brandHtml}</td>
             <td>${skuQtyHtml}</td>
@@ -2167,7 +2197,8 @@ async function exportInventory() {
 /* ---------- 初始化 ---------- */
 async function initializePage() {
     await loadSettings();
-    await loadProducts();
+    await Promise.all([loadProducts(), loadRackMap()]);
+    searchProducts(); // 货架信息就绪后刷新悬停提示
 }
 initializePage();
 </script>
