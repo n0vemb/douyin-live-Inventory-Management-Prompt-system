@@ -38,8 +38,10 @@ if ($isStoreAdmin) {
     if (!in_array($target['role'], ['operator', 'deputy_store_admin', 'warehouse']) || (int)$target['store_id'] !== (int)$currentUser['store_id']) {
         error('只能管理自己店铺的运营/副店长和仓库账号');
     }
-    // 强制：运营/副店长/仓库角色 + 自己店铺
-    $role = $target['role'];
+    // 店管可在 运营/副店长/仓库 之间调整，店铺固定为本店
+    if ($role !== null && !in_array($role, ['operator', 'deputy_store_admin', 'warehouse'])) {
+        error('店铺管理员只能把账号设为运营/副店长或仓库');
+    }
     $storeId = (int)$currentUser['store_id'];
 }
 
