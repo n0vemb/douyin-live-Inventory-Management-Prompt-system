@@ -550,6 +550,7 @@ async function rkAuditStart(){
     (d.data.products||[]).forEach(p=>auditMap[p.product_id]=p);
   }catch(e){rkToast('盘点数据加载失败：'+e.message);return;}
   const list=[];
+  const rackedIds={};
   (rkOrder.length?rkOrder:Object.keys(rkRacks)).forEach(code=>{
     const lay=rackLayoutOf(code);
     for(let row=lay.rows;row>=1;row--){
@@ -557,6 +558,7 @@ async function rkAuditStart(){
       for(let pos=1;pos<=lay.big_cols*2;pos++){
         const cell=rowData[String(pos)];
         if(!cell||!cell.product)continue;
+        rackedIds[cell.product.id]=1;
         const p=auditMap[cell.product.id];
         if(!p)continue;
         list.push({
@@ -566,6 +568,17 @@ async function rkAuditStart(){
         });
       }
     }
+  });
+  // 未上架但有库存的商品：同款 SKU 卡片，放在货架格之后
+  Object.values(auditMap).forEach(p=>{
+    if(rackedIds[p.product_id])return;
+    let total=0;Object.values(p.conditions||{}).forEach(s=>total+=(s.qty||0));
+    if(total<=0)return;
+    list.push({
+      key:'unplaced|'+p.product_id, rack:'未上架', row:0, pos:0, span:1, unplaced:true,
+      pid:p.product_id,name:p.product_name,official:p.official_name,barcode:p.barcode||'',
+      skus:(p.conditions||{})
+    });
   });
   if(!list.length){rkToast('当前没有可盘点的货架商品');return;}
   rkAudit={list,idx:0,condMap,draft:{}};
@@ -577,11 +590,12 @@ function rkAuditDraftFor(cell){return rkAudit.draft[cell.key]||(rkAudit.draft[ce
 function rkAuditRender(){
   const cell=rkAudit.list[rkAudit.idx];
   if(!cell)return;
-  $id('rkAuditProgress').textContent=(rkAudit.idx+1)+' / '+rkAudit.list.length;
+  $id('rkAuditProgress').textContent=(cell.unplaced?'未上架':'货架')+' · '+(rkAudit.idx+1)+' / '+rkAudit.list.length;
   const d=rkAuditDraftFor(cell);
   const spanTxt=cell.span>1?'第'+cell.pos+'-'+(cell.pos+1)+'格':'第'+cell.pos+'格';
+  const loc=cell.unplaced?'未上架商品':'货架'+esc(cell.rack)+' · 第'+cell.row+'层 · '+spanTxt;
   let html='<div style="font-size:15px;font-weight:700;margin-bottom:4px">'+esc(cell.name)+'</div>'+
-    '<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px">'+(cell.official&&cell.official!==cell.name?esc(cell.official)+' · ':'')+esc(cell.barcode)+' · '+esc(cell.rack)+' · 第'+cell.row+'层 · '+spanTxt+'</div>';
+    '<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px">'+(cell.official&&cell.official!==cell.name?esc(cell.official)+' · ':'')+esc(cell.barcode)+' · '+loc+'</div>';
   const keys=Object.keys(cell.skus);
   html+='<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">'+
     '<div style="display:flex;background:var(--bg-hover);padding:7px 10px;font-size:12px;font-weight:600;color:var(--text-secondary)"><span style="flex:1">品相</span><span style="width:80px;text-align:center">线上</span><span style="width:90px;text-align:center">现场实有</span></div>';
