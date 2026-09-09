@@ -55,6 +55,50 @@ try {
         }
     }
 
+    // 24 小时内盘点留痕：每格最近一次盘过记录（同格同商品才算；换商品后旧记录不生效）
+    $auditMap = [];
+    if ($rackIds) {
+        try {
+            $inList = implode(',', array_map('intval', $rackIds));
+            $cutoff = date('Y-m-d H:i:s', time() - 86400);
+            $auditSql = "SELECT a.rack_id, a.row_no, a.pos_no, a.product_id, a.result, a.created_at, u.display_name
+                         FROM rack_cell_audits a
+                         LEFT JOIN users u ON u.id = a.user_id
+                         WHERE a.rack_id IN ($inList) AND a.created_at >= ?" .
+                ($storeId ? " AND a.store_id = ?" : "") .
+                " ORDER BY a.created_at DESC";
+            $auditParams = $storeId ? [$cutoff, $storeId] : [$cutoff];
+            $stmt = $pdo->prepare($auditSql);
+            $stmt->execute($auditParams);
+            foreach ($stmt->fetchAll() as $a) {
+                $k = (int)$a['rack_id'] . '|' . (int)$a['row_no'] . '|' . (int)$a['pos_no'];
+                if (!isset($auditMap[$k])) $auditMap[$k] = $a;
+            }
+        } catch (Exception $e) {
+            // rack_cell_audits 表尚未创建时页面不报错，仅无绿框
+        }
+    }
+    foreach ($cells as $rid => &$rowsByRow) {
+        foreach ($rowsByRow as $rn => &$cellsByPos) {
+            foreach ($cellsByPos as $pn => &$cell) {
+                $k = (int)$rid . '|' . (int)$rn . '|' . (int)$pn;
+                if (isset($auditMap[$k]) && $cell['product'] && (int)$auditMap[$k]['product_id'] === (int)$cell['product']['id']) {
+                    $a = $auditMap[$k];
+                    $cell['audit'] = [
+                        'at' => $a['created_at'],
+                        'by' => $a['display_name'],
+                        'result' => $a['result'],
+                    ];
+                } else {
+                    $cell['audit'] = null;
+                }
+            }
+            unset($cell);
+        }
+        unset($cellsByPos);
+    }
+    unset($rowsByRow);
+
     $out = ['order' => [], 'racks' => []];
     $meta = [];
     foreach ($racks as $r) {

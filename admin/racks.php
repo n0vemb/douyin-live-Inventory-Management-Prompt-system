@@ -53,6 +53,21 @@ body.rk-panel-open .rk-main{width:calc(100% - 330px)}
 .rk-cell .st.zero{color:var(--danger)}
 /* 半格商品：字号略小 */
 .rk-cell.half .nm{font-size:11px}
+/* 24h 内已盘点过的格子：叠一层绿色底（一致或有差异已调整都算盘过） */
+.rk-cell.rk-audited{background:linear-gradient(135deg,rgba(52,211,153,.30),rgba(52,211,153,.10))}
+.rk-cell.rk-audited:hover{background:linear-gradient(135deg,rgba(52,211,153,.42),rgba(52,211,153,.16))}
+.rk-cell.rk-audited .st{color:var(--success)}
+/* 盘点模式：点击货架格子，点一格盘一格 */
+body.rk-auditing .rk-cell{cursor:pointer}
+body.rk-auditing .rk-cell:hover{border-color:var(--success)}
+.rk-audbar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:400;display:flex;align-items:center;gap:12px;background:var(--bg-elevated);border:1px solid var(--success);border-radius:12px;padding:10px 16px;box-shadow:0 10px 28px rgba(0,0,0,.45);font-size:13px;flex-wrap:wrap;justify-content:center;max-width:94vw}
+.rk-audbar .rk-ab-info b{color:var(--success)}
+.rk-audbar .rk-ab-ops{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.rk-aud-stat{font-size:11.5px;color:var(--text-tertiary);margin-left:8px}
+/* 未上架盘点清单 */
+.rk-upaud-item{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-hover);padding:8px 10px;margin-bottom:7px;font-size:13px}
+.rk-upaud-item .nm{flex:1;min-width:0;font-weight:600;color:var(--text);word-break:break-all}
+.rk-upaud-item .meta{font-size:11.5px;color:var(--text-tertiary);white-space:nowrap}
 /* 搜索命中闪红 */
 .rk-cell.flash{animation:rkFlash .9s ease-in-out infinite;z-index:2}
 @keyframes rkFlash{0%,100%{background:rgba(255,80,80,.45);border-color:#ff5252}50%{background:rgba(255,80,80,.85);box-shadow:0 0 10px 2px rgba(255,82,82,.6)}}
@@ -165,22 +180,43 @@ body.rk-panel-open .rk-main{width:calc(100% - 330px)}
   </div>
 </div>
 
-<!-- 货架盘点 -->
+<!-- 盘点模式操作条：点击格子，点一格盘一格 -->
+<div class="rk-audbar" id="rkAuditBar" style="display:none">
+  <div class="rk-ab-info">盘点模式 · <b>直接点击货架格子</b>，盘完一格自动保存，再点下一格<span class="rk-aud-stat" id="rkAuditStat"></span></div>
+  <div class="rk-ab-ops">
+    <button class="btn btn-sm btn-secondary" onclick="rkAuditUnplacedShow()">未上架有货</button>
+    <button class="btn btn-sm btn-outline" onclick="rkAuditModeExit()">退出盘点</button>
+  </div>
+</div>
+
+<!-- 单格盘点：点哪个格就盘哪个格 -->
 <div class="modal" id="rkAuditModal">
-  <div class="modal-content" style="width:min(760px,96vw);max-width:760px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column">
+  <div class="modal-content" style="width:min(560px,94vw);max-width:560px">
     <div class="modal-header">
-      <h3 class="modal-title">货架盘点 <span id="rkAuditProgress" style="font-size:13px;color:var(--text-tertiary);font-weight:500"></span></h3>
-      <button class="modal-close" onclick="rkAuditExit()">&times;</button>
+      <h3 class="modal-title" id="rkAuditTitle">盘点</h3>
+      <button class="modal-close" onclick="rkAuditClose()">&times;</button>
     </div>
-    <div id="rkAuditCard" style="flex:1;overflow-y:auto;padding:0 2px"></div>
-    <div style="padding:14px 0 4px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-outline" onclick="rkAuditNav(-1)" id="rkAuditPrev">上一格</button>
-      <button class="btn btn-primary" onclick="rkAuditNav(1)">保存并下一格</button>
-      <button class="btn btn-secondary" onclick="rkAuditFillOnline()">按线上</button>
+    <div style="padding:14px 18px" class="rk-modal-body" id="rkAuditCard"></div>
+    <div style="padding:0 18px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-success" onclick="rkAuditSame()">与线上一致</button>
+      <button class="btn btn-primary" onclick="rkAuditSave()">保存本格</button>
       <button class="btn btn-secondary" onclick="rkAuditFillZero()">补0</button>
       <span style="flex:1"></span>
-      <button class="btn btn-success" onclick="rkAuditFinish()">完成并提交差异</button>
+      <button class="btn btn-outline" onclick="rkAuditClose()">取消</button>
     </div>
+  </div>
+</div>
+
+<!-- 未上架有货盘点清单 -->
+<div class="modal" id="rkAuditUpModal">
+  <div class="modal-content" style="width:min(600px,94vw);max-width:600px;max-height:86vh;overflow:hidden;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <h3 class="modal-title">未上架有货盘点 <span id="rkAuditUpCnt" style="font-size:13px;color:var(--text-tertiary);font-weight:500"></span></h3>
+      <button class="modal-close" onclick="rkAuditUpClose()">&times;</button>
+    </div>
+    <div style="padding:6px 12px 8px;font-size:12px;color:var(--text-tertiary);border-bottom:1px solid var(--border)">点某一行「盘点」就开始盘这一项；盘完会自动关掉，再点下一项。</div>
+    <div style="flex:1;overflow-y:auto;padding:10px 14px" id="rkAuditUpList"></div>
+    <div style="padding:10px 14px;text-align:right"><button class="btn btn-outline" onclick="rkAuditUpClose()">关闭</button></div>
   </div>
 </div>
 
@@ -263,7 +299,9 @@ function rkRender(){
 function rkCellHtml(c,posCls){
   if(!c||!c.product) return ''; // 幽灵格（商品已删）：不渲染，避免读取 null.stock
   const p=c.product,stock=p.stock||0;
-  return '<div class="rk-cell '+(posCls||'')+' rk-droppable" data-rack="'+esc(c._rack)+'" data-row="'+c._row+'" data-pos="'+c._pos+'" onclick="rkInfo(\''+esc(c._rack)+'\','+c._row+','+c._pos+')" title="'+esc(p.name)+(c.note?'（'+esc(c.note)+'）':'')+'">'+
+  const aud=c.audit;
+  const audTitle=aud?(' · 已盘 '+esc(String(aud.at).replace('T',' ').slice(5,16))+(aud.result==='adjusted'?'（已调整）':'（一致）')):'';
+  return '<div class="rk-cell '+(posCls||'')+' rk-droppable'+(aud?' rk-audited':'')+'" data-rack="'+esc(c._rack)+'" data-row="'+c._row+'" data-pos="'+c._pos+'" onclick="rkInfo(\''+esc(c._rack)+'\','+c._row+','+c._pos+')" title="'+esc(p.name)+(c.note?'（'+esc(c.note)+'）':'')+audTitle+'">'+
     '<span class="nm">'+esc(p.name)+'</span>'+
     '<span class="st '+(stock===0?'zero':'')+'">库存 '+stock+'</span></div>';
 }
@@ -348,6 +386,7 @@ function rkPickSel(id,el){
 }
 // 录入
 function rkPut(rack,row,pos){
+  if(document.body.classList.contains('rk-auditing'))return;
   $id('rkPutTitle').textContent='录入商品 · '+rack+' 第'+row+'层';
   const lay=rackLayoutOf(rack), maxPos=lay.big_cols*2;
   $id('rkPutBody').innerHTML=
@@ -381,6 +420,7 @@ async function rkPutSave(rack,row){
 }
 // 详情：移除 / 拆分
 function rkInfo(rack,row,pos){
+  if(document.body.classList.contains('rk-auditing'))return;
   const rowData=(rkRacks[rack]&&rkRacks[rack][String(row)])||{};
   const c=rowData[String(pos)]||null;
   if(!c||!c.product)return;
@@ -515,6 +555,7 @@ function rkTogglePanel(){
 document.addEventListener('dragover',e=>{ if(e.target.closest('.rk-droppable'))e.preventDefault(); });
 document.addEventListener('drop',e=>{
   e.preventDefault();
+  if(document.body.classList.contains('rk-auditing'))return;
   const pid=e.dataTransfer.getData('text/plain');
   const cell=e.target.closest('.rk-droppable');
   if(!pid||!cell)return;
@@ -533,18 +574,21 @@ document.addEventListener('drop',e=>{ document.querySelectorAll('.rk-droppable.d
 
 document.addEventListener('click',e=>{ const list=$id('rkPickList'); if(list&&!e.target.closest('.rk-ps'))list.classList.remove('show'); });
 
-/* ================= 货架盘点（按格 × SKU） ================= */
-const RKAUDIT_KEY='ppmart_rack_audit_v1';
-let rkAudit={list:[],idx:0,condMap:{},draft:{}};
-function rkAuditSave(){try{localStorage.setItem(RKAUDIT_KEY,JSON.stringify({idx:rkAudit.idx,draft:rkAudit.draft}));}catch(e){}}
+/* ================= 仓库盘点（盘点模式：点一格盘一格；24h 内已盘绿框留痕） ================= */
+let rkAudit={pdata:{},condMap:{},unplaced:[],ctx:null,active:false};
 async function rkAuditStart(){
   if(!RACK_CAN_AUDIT){rkToast('仅副店长及以上可盘点');return;}
+  if(rkAudit.active){rkToast('盘点模式已开启，点格子即可盘点');return;}
   try{
     const act=await fetch('../api/live_ledger_list_sessions.php?status=active');
     const ad=await act.json();
     const sessions=(ad.success&&ad.data&&ad.data.sessions)||[];
     if(sessions.length){if(!confirm('还有 '+sessions.length+' 场未结束的直播场次，此时盘点会造成库存不准。仍要进入？'))return;}
   }catch(e){}
+  if(!await rkAuditLoadData())return;
+  rkAuditModeEnter();
+}
+async function rkAuditLoadData(){
   let auditMap=[];let condMap={};
   try{
     const res=await fetch('../api/inventory_audit.php',{cache:'no-store'});
@@ -552,123 +596,194 @@ async function rkAuditStart(){
     if(!d.success)throw new Error(d.error||'加载失败');
     (d.data.condition_types||[]).forEach(c=>condMap[c.key]=c.name);
     (d.data.products||[]).forEach(p=>auditMap[p.product_id]=p);
-  }catch(e){rkToast('盘点数据加载失败：'+e.message);return;}
-  const list=[];
-  const rackedIds={};
+  }catch(e){rkToast('盘点数据加载失败：'+e.message);return false;}
+  rkAudit.pdata=auditMap;rkAudit.condMap=condMap;
+  // 未上架但有库存的商品（线上库存>0 且不在任何货架格）
+  const rackedIds=new Set();
   (rkOrder.length?rkOrder:Object.keys(rkRacks)).forEach(code=>{
     const lay=rackLayoutOf(code);
     for(let row=lay.rows;row>=1;row--){
       const rowData=rkRacks[code]?rkRacks[code][String(row)]||{}:{};
       for(let pos=1;pos<=lay.big_cols*2;pos++){
         const cell=rowData[String(pos)];
-        if(!cell||!cell.product)continue;
-        rackedIds[cell.product.id]=1;
-        const p=auditMap[cell.product.id];
-        if(!p)continue;
-        list.push({
-          key:code+'|'+row+'|'+pos, rack:code,row:row,pos:pos,span:cell.span||1,
-          pid:p.product_id,name:p.product_name,official:p.official_name,barcode:p.barcode||'',
-          skus:(p.conditions||{})
-        });
+        if(cell&&cell.product)rackedIds.add(cell.product.id);
       }
     }
   });
-  // 未上架但有库存的商品：同款 SKU 卡片，放在货架格之后
-  Object.values(auditMap).forEach(p=>{
-    if(rackedIds[p.product_id])return;
+  rkAudit.unplaced=Object.values(auditMap).filter(p=>{
+    if(rackedIds.has(p.product_id))return false;
     let total=0;Object.values(p.conditions||{}).forEach(s=>total+=(s.qty||0));
-    if(total<=0)return;
-    list.push({
-      key:'unplaced|'+p.product_id, rack:'未上架', row:0, pos:0, span:1, unplaced:true,
-      pid:p.product_id,name:p.product_name,official:p.official_name,barcode:p.barcode||'',
-      skus:(p.conditions||{})
-    });
+    return total>0;
   });
-  if(!list.length){rkToast('当前没有可盘点的货架商品');return;}
-  rkAudit={list,idx:0,condMap,draft:{}};
-  try{const saved=JSON.parse(localStorage.getItem(RKAUDIT_KEY)||'null');if(saved&&saved.draft){rkAudit.draft=saved.draft||{};rkAudit.idx=Math.min(Math.max(0,saved.idx||0),list.length-1);}}catch(e){}
-  $id('rkAuditModal').classList.add('show');
-  rkAuditRender();
+  return true;
 }
-function rkAuditDraftFor(cell){return rkAudit.draft[cell.key]||(rkAudit.draft[cell.key]={});}
-function rkAuditRender(){
-  const cell=rkAudit.list[rkAudit.idx];
-  if(!cell)return;
-  $id('rkAuditProgress').textContent=(cell.unplaced?'未上架':'货架')+' · '+(rkAudit.idx+1)+' / '+rkAudit.list.length;
-  const d=rkAuditDraftFor(cell);
-  const spanTxt=cell.span>1?'第'+cell.pos+'-'+(cell.pos+1)+'格':'第'+cell.pos+'格';
-  const loc=cell.unplaced?'未上架商品':'货架'+esc(cell.rack)+' · 第'+cell.row+'层 · '+spanTxt;
-  let html='<div style="font-size:15px;font-weight:700;margin-bottom:4px">'+esc(cell.name)+'</div>'+
-    '<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px">'+(cell.official&&cell.official!==cell.name?esc(cell.official)+' · ':'')+esc(cell.barcode)+' · '+loc+'</div>';
-  const keys=Object.keys(cell.skus);
+/* ---------- 盘点模式开关 ---------- */
+function rkAuditModeEnter(){
+  rkAudit.active=true;
+  try{localStorage.removeItem('ppmart_rack_audit_v1');localStorage.removeItem('ppmart_rack_audit_v2');}catch(e){}
+  const cellN=rkAuditCellCount();
+  $id('rkAuditStat').textContent='有商品格 '+cellN+' · 未上架有货 '+rkAudit.unplaced.length;
+  $id('rkAuditBar').style.display='flex';
+  document.body.classList.add('rk-auditing');
+  rkToast('盘点模式：直接点击货架上的格子，点一格盘一格');
+}
+function rkAuditModeExit(){
+  rkAudit.active=false;
+  document.body.classList.remove('rk-auditing');
+  $id('rkAuditBar').style.display='none';
+  $id('rkAuditModal').classList.remove('show');
+  $id('rkAuditUpModal').classList.remove('show');
+}
+function rkAuditCellCount(){
+  let n=0;
+  (rkOrder.length?rkOrder:Object.keys(rkRacks)).forEach(code=>{
+    const lay=rackLayoutOf(code);
+    for(let row=lay.rows;row>=1;row--){
+      const rowData=rkRacks[code]?rkRacks[code][String(row)]||{}:{};
+      for(let pos=1;pos<=lay.big_cols*2;pos++){
+        const cell=rowData[String(pos)];
+        if(cell&&cell.product)n++;
+      }
+    }
+  });
+  return n;
+}
+/* ---------- 打开某格 / 某未上架项 ---------- */
+function rkAuditOpenCell(rack,row,pos){
+  if(!rkAudit.active)return;
+  const rowData=(rkRacks[rack]&&rkRacks[rack][String(row)])||{};
+  const cell=rowData[String(pos)];
+  if(!cell||!cell.product)return;
+  const ap=rkAudit.pdata[cell.product.id];
+  if(!ap){rkToast('该商品盘点数据缺失，请退出后重新进入盘点模式');return;}
+  rkAudit.ctx={
+    kind:'cell',rack:rack,row:row,pos:pos,span:cell.span||1,pid:cell.product.id,
+    name:ap.product_name,official:ap.official_name,barcode:ap.barcode||'',
+    skus:ap.conditions||{},audited:cell.audit||null,draft:{}
+  };
+  rkAuditShowCard();
+}
+function rkAuditUnplacedShow(){
+  if(!rkAudit.active)return;
+  if(!rkAudit.unplaced.length){rkToast('当前没有未上架但有库存的商品');return;}
+  $id('rkAuditUpCnt').textContent=rkAudit.unplaced.length+' 项';
+  $id('rkAuditUpList').innerHTML=rkAudit.unplaced.map(p=>{
+    let total=0;Object.values(p.conditions||{}).forEach(s=>total+=(s.qty||0));
+    return '<div class="rk-upaud-item"><div style="flex:1;min-width:0"><div class="nm">'+esc(p.product_name)+'</div>'+
+      '<div class="meta">'+(p.barcode?esc(p.barcode)+' · ':'')+'线上 '+total+'</div></div>'+
+      '<button class="btn btn-sm btn-primary" onclick="rkAuditOpenUp('+p.product_id+')">盘点</button></div>';
+  }).join('');
+  $id('rkAuditUpModal').classList.add('show');
+}
+function rkAuditUpClose(){$id('rkAuditUpModal').classList.remove('show');}
+function rkAuditOpenUp(pid){
+  const ap=rkAudit.pdata[pid];
+  if(!ap)return;
+  rkAuditUpClose();
+  rkAudit.ctx={kind:'unplaced',pid:pid,name:ap.product_name,official:ap.official_name,barcode:ap.barcode||'',skus:ap.conditions||{},draft:{}};
+  rkAuditShowCard();
+}
+/* ---------- 单格卡片 ---------- */
+function rkAuditShowCard(){
+  const c=rkAudit.ctx;
+  if(!c)return;
+  const d=c.draft;
+  const spanTxt=c.span>1?'第'+c.pos+'-'+(c.pos+1)+'格':'第'+c.pos+'格';
+  const loc=c.kind==='cell'?'货架 '+esc(c.rack)+' · 第'+c.row+'层 · '+spanTxt:'未上架商品';
+  $id('rkAuditTitle').textContent='盘点 · '+loc;
+  let html='<div style="font-size:15px;font-weight:700;margin-bottom:2px">'+esc(c.name)+'</div>'+
+    '<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px">'+(c.official&&c.official!==c.name?esc(c.official)+' · ':'')+esc(c.barcode)+(c.kind==='cell'?' · '+loc:'')+'</div>';
+  if(c.kind==='cell'&&c.audited){
+    html+='<div style="font-size:12px;color:var(--success);background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.35);border-radius:8px;padding:7px 10px;margin-bottom:10px">该格 24h 内已盘过：'+esc(String(c.audited.at).replace('T',' ').slice(0,16))+
+      (c.audited.result==='adjusted'?'（有差异已调整）':'（与线上一致）')+(c.audited.by?' · '+esc(c.audited.by):'')+'。如需重盘可直接继续。</div>';
+  }
+  const keys=Object.keys(c.skus);
   html+='<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">'+
-    '<div style="display:flex;background:var(--bg-hover);padding:7px 10px;font-size:12px;font-weight:600;color:var(--text-secondary)"><span style="flex:1">品相</span><span style="width:80px;text-align:center">线上</span><span style="width:90px;text-align:center">现场实有</span></div>';
+    '<div style="display:flex;background:var(--bg-hover);padding:7px 10px;font-size:12px;font-weight:600;color:var(--text-secondary)"><span style="flex:1">品相</span><span style="width:76px;text-align:center">线上</span><span style="width:96px;text-align:center">现场实有</span></div>';
   keys.forEach((k,i)=>{
-    const sk=cell.skus[k];const on=sk.qty||0;const val=d[k]!==undefined?d[k]:'';
+    const on=(c.skus[k]&&c.skus[k].qty)||0;
+    const val=d[k]!==undefined?d[k]:'';
     const diff=val!==''&&(parseInt(val,10)||0)!==on;
     html+='<div style="display:flex;align-items:center;padding:8px 10px;border-top:'+(i?'1px dashed var(--border)':'none')+'">'+
       '<span style="flex:1;font-size:13px">'+esc(rkAudit.condMap[k]||k)+'</span>'+
-      '<span style="width:80px;text-align:center;font-size:13px">'+on+'</span>'+
-      '<input type="number" min="0" step="1" value="'+val+'" placeholder="手输" data-k="'+k+'" style="width:90px;padding:6px;border:1px solid '+(diff?'#f0b429':'var(--border)')+';border-radius:7px;text-align:center;background:'+(diff?'rgba(240,180,41,.1)':'var(--bg-body)')+';color:var(--text)" oninput="rkAuditInput(this)"></div>';
+      '<span style="width:76px;text-align:center;font-size:13px">'+on+'</span>'+
+      '<input type="number" min="0" step="1" value="'+val+'" placeholder="手输" data-k="'+k+'" style="width:96px;padding:6px;border:1px solid '+(diff?'#f0b429':'var(--border)')+';border-radius:7px;text-align:center;background:'+(diff?'rgba(240,180,41,.1)':'var(--bg-body)')+';color:var(--text)" oninput="rkAuditInput(this)"></div>';
   });
-  html+='</div><div style="font-size:11.5px;color:var(--text-tertiary);margin-top:8px">逐格清点，全部 SKU 填完后“保存并下一格”；0 表示该格该品相为零。</div>';
+  html+='</div><div style="font-size:11.5px;color:var(--text-tertiary);margin-top:8px;line-height:1.6">数量与线上一致 → 「与线上一致（算盘过）」；不一致 → 改数量或用「补0」，再「保存本格」。本格保存后自动关闭，点下一个格子继续。</div>';
   $id('rkAuditCard').innerHTML=html;
+  $id('rkAuditModal').classList.add('show');
 }
 function rkAuditInput(inp){
-  const cell=rkAudit.list[rkAudit.idx];if(!cell)return;
-  const d=rkAuditDraftFor(cell);
+  const c=rkAudit.ctx;if(!c)return;
   const v=inp.value.trim();
-  d[inp.dataset.k]=v===''?undefined:Math.max(0,parseInt(v,10)||0);
-  rkAuditSave();rkAuditRender();
-}
-function rkAuditFillOnline(){
-  const cell=rkAudit.list[rkAudit.idx];if(!cell)return;
-  Object.keys(cell.skus).forEach(k=>{rkAuditDraftFor(cell)[k]=cell.skus[k].qty||0;});
-  rkAuditSave();rkAuditRender();
+  c.draft[inp.dataset.k]=v===''?undefined:Math.max(0,parseInt(v,10)||0);
 }
 function rkAuditFillZero(){
-  const cell=rkAudit.list[rkAudit.idx];if(!cell)return;
-  Object.keys(cell.skus).forEach(k=>{const d=rkAuditDraftFor(cell);if(d[k]===undefined)d[k]=0;});
-  rkAuditSave();rkAuditRender();
+  const c=rkAudit.ctx;if(!c)return;
+  Object.keys(c.skus).forEach(k=>{if(c.draft[k]===undefined)c.draft[k]=0;});
+  rkAuditShowCard();
 }
-function rkAuditNav(step){
-  const cell=rkAudit.list[rkAudit.idx];
-  if(step>0&&cell){
-    const keys=Object.keys(cell.skus);const d=rkAuditDraftFor(cell);
-    const missing=keys.filter(k=>d[k]===undefined);
-    if(missing.length&&!confirm('该格还有 '+(missing.map(k=>rkAudit.condMap[k]||k).join('、'))+' 未填写，跳过？'))return;
-  }
-  rkAudit.idx=Math.max(0,Math.min(rkAudit.list.length-1,rkAudit.idx+step));
-  rkAuditSave();rkAuditRender();
+function rkAuditMissing(c){
+  return Object.keys(c.skus).filter(k=>c.draft[k]===undefined);
 }
-function rkAuditFinish(){
-  const items=[];let diffCnt=0;const lines=[];
-  rkAudit.list.forEach(cell=>{
-    const d=rkAudit.draft[cell.key]||{};
-    Object.keys(cell.skus).forEach(k=>{
-      const v=d[k];if(v===undefined)return;
-      const on=cell.skus[k].qty||0;
-      if(v!==on){diffCnt++;items.push({product_id:cell.pid,condition_type:k,qty:v,name:cell.name});lines.push(esc(cell.name)+' '+esc(rkAudit.condMap[k]||k)+'：'+on+'→'+v);}
-    });
+async function rkAuditRecordCell(c,result){
+  if(c.kind!=='cell')return true;
+  try{
+    const res=await fetch('../api/rack_cell_audit.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'record',rack:c.rack,row:c.row,pos:c.pos,product_id:c.pid,result})});
+    const d=await res.json();
+    if(!d.success){rkToast(d.error||'盘点记录失败');return false;}
+    return true;
+  }catch(e){rkToast('盘点记录失败：'+e.message);return false;}
+}
+function rkAuditDiffItems(c){
+  const items=[];const lines=[];let diffCnt=0;
+  Object.keys(c.skus).forEach(k=>{
+    const v=c.draft[k];if(v===undefined)return;
+    const on=(c.skus[k]&&c.skus[k].qty)||0;
+    if(v!==on){diffCnt++;items.push({product_id:c.pid,condition_type:k,qty:v,name:c.name});lines.push(esc(c.name)+' '+esc(rkAudit.condMap[k]||k)+'：'+on+'→'+v);}
   });
-  if(!items.length){rkAuditExit();rkToast('盘点一致，无需调整');return;}
-  if(!confirm('共有 '+diffCnt+' 个 SKU 有差异：\n'+lines.slice(0,12).join('\n')+(lines.length>12?'\n…':'\n')+'\n确认提交调整？'))return;
-  const remark=prompt('调整备注（写入流水）：','货架盘点');
-  if(remark===null)return;
-  (async()=>{
-    try{
-      const res=await fetch('../api/batch_inventory_update.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items,remark:remark.trim()||'货架盘点'})});
-      const d=await res.json();
-      if(!d.success){rkToast(d.error||'提交失败');return;}
-      rkAuditExit();
-      try{localStorage.removeItem(RKAUDIT_KEY);}catch(e){}
-      rkToast('盘点完成：成功 '+((d.data&&d.data.success)||0)+' 项');
-      rkLoad();
-    }catch(e){rkToast('提交失败：'+e.message);}
-  })();
+  return {items,lines,diffCnt};
 }
-function rkAuditExit(){rkAuditSave();$id('rkAuditModal').classList.remove('show');}
-
+async function rkAuditSame(){
+  const c=rkAudit.ctx;if(!c)return;
+  Object.keys(c.skus).forEach(k=>{c.draft[k]=(c.skus[k]&&c.skus[k].qty)||0;});
+  const ok=c.kind!=='cell'||await rkAuditRecordCell(c,'same');
+  if(!ok)return;
+  rkAuditClose();
+  rkToast(c.kind==='cell'?'已盘：与线上一致':'已核对：与线上一致');
+  rkLoad();
+}
+async function rkAuditSave(){
+  const c=rkAudit.ctx;if(!c)return;
+  const missing=rkAuditMissing(c);
+  if(missing.length){rkToast('还有品相未填：'+missing.map(k=>rkAudit.condMap[k]||k).join('、')+'（可用补0）');return;}
+  const {items,lines,diffCnt}=rkAuditDiffItems(c);
+  if(!diffCnt){rkAuditSame();return;}
+  if(!confirm('本格有 '+diffCnt+' 个 SKU 有差异：\n'+lines.join('\n')+'\n\n确认保存调整（写入流水）？'))return;
+  try{
+    const res=await fetch('../api/batch_inventory_update.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items,remark:'货架盘点'})});
+    const d=await res.json();
+    if(!d.success){rkToast(d.error||'提交失败');return;}
+    const ok=c.kind!=='cell'||await rkAuditRecordCell(c,'adjusted');
+    if(!ok)return;
+    rkAuditClose();
+    rkToast('本格已保存并记录盘过');
+    rkLoad();
+  }catch(e){rkToast('提交失败：'+e.message);}
+}
+function rkAuditClose(){
+  rkAudit.ctx=null;
+  $id('rkAuditModal').classList.remove('show');
+}
+/* 盘点模式：点击有商品的格子直接打开该格盘点 */
+document.addEventListener('click',e=>{
+  if(!rkAudit.active||!document.body.classList.contains('rk-auditing'))return;
+  const cell=e.target.closest('.rk-cell[data-rack]');
+  if(!cell)return;
+  const rowData=(rkRacks[cell.dataset.rack]&&rkRacks[cell.dataset.rack][cell.dataset.row])||{};
+  const c=rowData[cell.dataset.pos];
+  if(c&&c.product)rkAuditOpenCell(cell.dataset.rack,+cell.dataset.row,+cell.dataset.pos);
+});
 document.body.classList.add('rk-panel-open'); // 面板默认展开，货架区让出右侧面板宽度
 rkLoad();
 </script>
