@@ -29,10 +29,10 @@ if ($isSuperAdmin) {
                s.name AS store_name
         FROM users u
         LEFT JOIN stores s ON u.store_id = s.id
-        WHERE u.role IN (?, ?) AND u.store_id = ?
+        WHERE u.role IN (?, ?, ?) AND u.store_id = ?
         ORDER BY u.id
     ');
-    $stmt->execute(['operator', 'warehouse', $currentUser['store_id']]);
+    $stmt->execute(['operator', 'deputy_store_admin', 'warehouse', $currentUser['store_id']]);
 }
 $users = $stmt->fetchAll();
 
