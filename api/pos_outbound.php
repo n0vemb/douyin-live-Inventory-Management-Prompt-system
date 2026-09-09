@@ -12,6 +12,7 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/coupon_lib.php';
 requireAuth();
 $storeId = getStoreId();
+$scopeShopId = getShopId();
 $input = json_decode(file_get_contents('php://input'), true);
 $action = $input['action'] ?? '';
 $orderId = intval($input['order_id'] ?? 0);
@@ -21,11 +22,12 @@ $pdo = getDB();
 
 try {
     // 取订单（店铺隔离）
-    $orderStmt = $pdo->prepare('SELECT * FROM pos_orders WHERE id = ?');
-    $orderStmt->execute([$orderId]);
+    $orderStmt = $pdo->prepare('SELECT * FROM pos_orders WHERE id = ?' . ($scopeShopId ? ' AND shop_id = ?' : ''));
+    $orderStmt->execute($scopeShopId ? [$orderId, $scopeShopId] : [$orderId]);
     $order = $orderStmt->fetch();
     if (!$order) error('订单不存在');
     if ($storeId && (int)$order['store_id'] !== $storeId) error('订单不属于当前店铺', 403);
+    if ($scopeShopId && (int)$order['shop_id'] !== $scopeShopId) error('订单不属于当前店铺（店级权限）', 403);
 
     if ($action === 'outbound') {
         if ($order['outbound_status'] !== 'pending') error('仅待出库订单可出库');
@@ -43,8 +45,8 @@ try {
             $setLockDone = $pdo->prepare("UPDATE pos_order_locks SET status = 'deducted' WHERE id = ?");
             // 写 outbound_log（商品库存流水）：按锁定批次一条，remark 带线下订单号，可追溯
             $insLog = $pdo->prepare(
-                "INSERT INTO outbound_log (batch_id, product_id, condition_type, qty, outbound_price, order_no, outbound_batch_no, remark, platform, account, live_session_id, store_id, shipping_fee, operator_username)
-                 VALUES (?, ?, ?, ?, ?, ?, NULL, '线下订单出库', 'pos', NULL, NULL, ?, NULL, ?)"
+                "INSERT INTO outbound_log (batch_id, product_id, condition_type, qty, outbound_price, order_no, outbound_batch_no, remark, platform, account, live_session_id, store_id, shop_id, shipping_fee, operator_username)
+                 VALUES (?, ?, ?, ?, ?, ?, NULL, '线下订单出库', 'pos', NULL, NULL, ?, ?, NULL, ?)"
             );
             // 订单明细 map（unit_price）
             $itemMap = [];
@@ -77,6 +79,7 @@ try {
                     $unitPrice,
                     $order['order_no'],
                     (int)$order['store_id'],
+                    (int)$order['shop_id'],
                     $_SESSION['username'] ?? null
                 ]);
             }

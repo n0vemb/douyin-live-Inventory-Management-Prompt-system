@@ -12,6 +12,9 @@ if (empty($sessionId)) {
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
 
+// 作用域校验：店级角色只能删除本店场次
+requireLiveSessionRow($pdo, (int)$sessionId);
+
 $pdo->beginTransaction();
 
 try {

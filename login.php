@@ -40,9 +40,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo = getDB();
             $stmt = $pdo->prepare(
-                'SELECT u.*, s.name AS store_name
+                'SELECT u.*, s.name AS store_name, sh.name AS shop_name
                  FROM users u
                  LEFT JOIN stores s ON u.store_id = s.id
+                 LEFT JOIN shops sh ON u.shop_id = sh.id
                  WHERE u.username = ? AND u.is_active = 1'
             );
             $stmt->execute([$username]);
@@ -57,6 +58,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['role']          = $user['role'];
                 $_SESSION['store_id']      = $user['store_id'] ? (int)$user['store_id'] : null;
                 $_SESSION['store_name']    = $user['store_name'];
+
+                // 店级账号（店管/副店长/运营）：绑定所属店；
+                // 存量账号缺 shop_id 时自动补本集团“默认店”
+                $shopId = !empty($user['shop_id']) ? (int)$user['shop_id'] : null;
+                if (!$shopId && in_array($user['role'], ['store_admin', 'deputy_store_admin', 'operator'], true) && !empty($user['store_id'])) {
+                    $shopId = ensureDefaultShop((int)$user['store_id']);
+                    if ($shopId) {
+                        $pdo->prepare('UPDATE users SET shop_id = ? WHERE id = ?')
+                            ->execute([$shopId, (int)$user['id']]);
+                    }
+                }
+                $_SESSION['shop_id']       = $shopId;
+                $_SESSION['shop_name']     = $shopId ? ($user['shop_name'] ?: (empty($user['shop_id']) ? '默认店' : '')) : '';
 
                 // 缓存店铺条码前缀
                 if ($user['store_id']) {

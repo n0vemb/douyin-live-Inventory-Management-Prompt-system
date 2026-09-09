@@ -9,8 +9,8 @@ require_once __DIR__ . '/../auth.php';
 $pdo = getDB();
 requireAuth();
 $storeId = getStoreId();
-if (!in_array($_SESSION['role'] ?? '', ['store_admin', 'super_admin'], true)) {
-    error('无权限：仅店管/超管可修改场次信息', 403);
+if (!in_array($_SESSION['role'] ?? '', ['store_admin', 'group_admin', 'super_admin'], true)) {
+    error('无权限：仅店管/集团管理员/超管可修改场次信息', 403);
 }
 if (!$storeId) error('请先选择店铺');
 
@@ -18,10 +18,8 @@ $input = json_decode(file_get_contents('php://input'), true) ?: [];
 $sessionId = (int)($input['session_id'] ?? 0);
 if ($sessionId <= 0) error('缺少场次ID');
 
-$stmt = $pdo->prepare('SELECT snapshot_json FROM live_ledger_session WHERE id = ? AND store_id = ?');
-$stmt->execute([$sessionId, $storeId]);
-$snapshotJson = $stmt->fetchColumn();
-if ($snapshotJson === false) error('场次不存在');
+$sessionRow = requireLedgerSessionRow($pdo, $sessionId);
+$snapshotJson = $sessionRow['snapshot_json'] ?? null;
 
 $anchor = isset($input['anchor']) ? trim((string)$input['anchor']) : null;
 $operator = isset($input['operator']) ? trim((string)$input['operator']) : null;

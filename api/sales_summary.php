@@ -5,6 +5,7 @@ require_once __DIR__ . '/../auth.php';
 try {
     $pdo = getDB();
     requireAuth(); $storeId = getStoreId();
+    $shopId = getShopId();
     $canSeeProfit = !isOperator();
     
     $today = date('Y-m-d');
@@ -14,8 +15,10 @@ try {
     $stmt->execute($storeId ? [$monthStart, $storeId] : [$monthStart]);
     $monthPurchase = $stmt->fetch() ?: ['count' => 0, 'total_qty' => 0];
 
-    $stmt = $pdo->prepare('SELECT o.qty, o.outbound_price, o.outbound_at, b.purchase_price as batch_purchase_price FROM outbound_log o LEFT JOIN inventory_batches b ON o.batch_id = b.id WHERE o.outbound_at >= ?' . ($storeId ? ' AND o.store_id = ?' : ''));
-    $stmt->execute($storeId ? [$monthStart, $storeId] : [$monthStart]);
+    $stmt = $pdo->prepare('SELECT o.qty, o.outbound_price, o.outbound_at, b.purchase_price as batch_purchase_price FROM outbound_log o LEFT JOIN inventory_batches b ON o.batch_id = b.id WHERE o.outbound_at >= ?' . ($storeId ? ' AND o.store_id = ?' : '') . ($shopId ? ' AND o.shop_id = ?' : ''));
+    $params = $storeId ? [$monthStart, $storeId] : [$monthStart];
+    if ($shopId) $params[] = $shopId;
+    $stmt->execute($params);
     $monthOutbound = $stmt->fetchAll() ?: [];
 
     $todaySalesAmount = 0;

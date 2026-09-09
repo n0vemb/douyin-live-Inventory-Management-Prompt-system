@@ -12,6 +12,9 @@ if (empty($sessionId)) {
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
 
+// 作用域校验：店级角色只能结束本店场次
+requireLiveSessionRow($pdo, (int)$sessionId);
+
 $stmt = $pdo->prepare('UPDATE live_sessions SET status = ?, ended_at = NOW() WHERE id = ? AND store_id = ?');
 $stmt->execute(['ended', $sessionId, $storeId]);
 

@@ -6,7 +6,9 @@ require_once __DIR__ . '/../auth.php';
 $user = getCurrentUser();
 $canSeeProfit = $user['can_see_profit'] ?? true;
 $isOperator = in_array($user['role'], ['operator', 'deputy_store_admin'], true);
-$canEditSessionMeta = in_array($user['role'], ['store_admin', 'super_admin'], true);
+$canEditSessionMeta = in_array($user['role'], ['store_admin', 'group_admin', 'super_admin'], true);
+$canPickShop = in_array($user['role'], ['group_admin', 'super_admin'], true);
+$myShopId = $user['shop_id'] ?? null;
 ?>
 <div class="page-title">直播出库记账</div>
 
@@ -562,6 +564,12 @@ document.getElementById('fastInput').addEventListener('paste', function (e) {
       <input type="text" id="newSessionAccount" class="form-input" list="accountList" placeholder="如：@xxx 或 抖音号" style="margin-top:6px;">
       <datalist id="accountList"></datalist>
     </div>
+    <?php if ($canPickShop): ?>
+    <div style="margin-bottom:14px;">
+      <label>归属店铺 <span style="color:var(--danger);">*</span></label>
+      <select id="newSessionShop" class="form-input" style="margin-top:6px;"></select>
+    </div>
+    <?php endif; ?>
     <div class="flex" style="justify-content:flex-end; gap:15px;">
       <button class="btn btn-outline" onclick="closeNewSessionModal()">取消</button>
       <button class="btn btn-success" onclick="createSession()">创建</button>
@@ -875,6 +883,8 @@ let addMap = {};
 const CAN_SEE_PROFIT = <?= $canSeeProfit ? 'true' : 'false' ?>;
 const IS_OPERATOR = <?= $isOperator ? 'true' : 'false' ?>;
 const CAN_EDIT_META = <?= $canEditSessionMeta ? 'true' : 'false' ?>;
+const CAN_PICK_SHOP = <?= $canPickShop ? 'true' : 'false' ?>;
+const MY_SHOP_ID = <?= $myShopId ? (int)$myShopId : 'null' ?>;
 
 // ===== 场次管理 =====
 async function loadSessions() {
@@ -892,7 +902,7 @@ async function loadSessions() {
         const statusClasses = { active: 'badge-success', ended: 'badge-info' };
         tbody.innerHTML = sessions.map(s => `
             <tr class="${s.status === 'active' ? 'tr-active' : ''}">
-                <td><strong>${esc(s.session_name)}</strong>${(parseInt(s.unshipped_count)||0) > 0 ? ` <span class="badge" style="background:#dc2626;color:#fff;margin-left:6px;" title="有 ${s.unshipped_count} 个福袋未寄出">福袋未寄出 ${s.unshipped_count}</span>` : ''}</td>
+                <td><strong>${esc(s.session_name)}</strong>${s.shop_name ? ` <span class="badge" style="background:rgba(102,126,234,.15);color:#667eea;margin-left:6px;">${esc(s.shop_name)}</span>` : ''}${(parseInt(s.unshipped_count)||0) > 0 ? ` <span class="badge" style="background:#dc2626;color:#fff;margin-left:6px;" title="有 ${s.unshipped_count} 个福袋未寄出">福袋未寄出 ${s.unshipped_count}</span>` : ''}</td>
                 <td>${esc(s.anchor || '-')}</td>
                 <td>${esc(s.operator || '-')}</td>
                 <td>${esc(s.account || '-')}</td>
@@ -964,6 +974,16 @@ function openNewSessionModal() {
     document.getElementById('newSessionOperator').value = operator;
     document.getElementById('newSessionAccount').value = account;
 
+    if (CAN_PICK_SHOP) {
+        const sel = document.getElementById('newSessionShop');
+        if (!sel.options.length) {
+            fetch('../api/list_shops.php').then(r => r.json()).then(data => {
+                const shops = (data.data && data.data.shops) || [];
+                sel.innerHTML = shops.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            });
+        }
+    }
+
     document.getElementById('newSessionModal').classList.add('show');
     setTimeout(() => document.getElementById('newSessionAnchor').focus(), 100);
 }
@@ -995,9 +1015,11 @@ async function createSession() {
     if (!anchor) { toast('请输入主播'); return; }
     if (!operator) { toast('请输入运营'); return; }
     try {
+        const payload = { session_name: name, anchor: anchor, operator: operator, account: account, activity_type: 'none' };
+        if (CAN_PICK_SHOP) payload.shop_id = parseInt(document.getElementById('newSessionShop').value) || 0;
         const res = await fetch('../api/live_ledger_save_session.php', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ session_name: name, anchor: anchor, operator: operator, account: account, activity_type: 'none' })
+            body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (data.success) {

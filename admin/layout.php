@@ -42,6 +42,7 @@ try {
 }
 
 $isSuperAdmin = ($currentUser['role'] === 'super_admin');
+$isGroupAdmin = ($currentUser['role'] === 'group_admin');
 $isStoreAdmin = ($currentUser['role'] === 'store_admin');
 $isOperator = in_array($currentUser['role'], ['operator', 'deputy_store_admin'], true);
 $allStores = [];
@@ -51,6 +52,17 @@ if ($isSuperAdmin) {
     } catch (Exception $e) {}
 }
 $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
+$currentViewShopId = $_SESSION['view_shop_id'] ?? null;
+$viewShops = [];
+if ($isSuperAdmin && $currentViewStoreId) {
+    try {
+        $stmt = getDB()->prepare('SELECT id, name FROM shops WHERE store_id = ? ORDER BY id');
+        $stmt->execute([(int)$currentViewStoreId]);
+        $viewShops = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $viewShops = [];
+    }
+}
 ?><!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -98,8 +110,22 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
                     <option value="<?= $s['id'] ?>" <?= $currentViewStoreId == $s['id'] ? 'selected' : '' ?>><?= htmlspecialchars($s['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
+                <?php if ($currentViewStoreId): ?>
+                <select onchange="switchShop(this.value)" style="padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-size:12px; background:var(--bg); color:var(--text); cursor:pointer; max-width:160px;">
+                    <option value="" <?= empty($currentViewShopId) ? 'selected' : '' ?>>🏬 集团汇总</option>
+                    <?php foreach ($viewShops as $sh): ?>
+                    <option value="<?= $sh['id'] ?>" <?= $currentViewShopId == $sh['id'] ? 'selected' : '' ?>><?= htmlspecialchars($sh['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <?php endif; ?>
                 <?php elseif ($currentUser['store_name']): ?>
-                <span style="background:var(--bg-active); padding:2px 8px; border-radius:4px; font-size:11px;"><?= htmlspecialchars($currentUser['store_name']) ?></span>
+                <span style="background:var(--bg-active); padding:2px 8px; border-radius:4px; font-size:11px;"><?= htmlspecialchars($currentUser['store_name']) ?><?= $isGroupAdmin ? ' · 集团' : '' ?></span>
+                <?php if (!empty($currentUser['shop_name']) && !in_array($currentUser['role'], ['group_admin', 'warehouse'], true)): ?>
+                <span style="background:var(--primary-light); color:var(--primary); padding:2px 8px; border-radius:4px; font-size:11px;"><?= htmlspecialchars($currentUser['shop_name']) ?></span>
+                <?php endif; ?>
+                <?php if ($isGroupAdmin): ?>
+                <span style="background:rgba(139,92,246,0.15); color:#a78bfa; padding:2px 8px; border-radius:4px; font-size:11px;">集团管理员</span>
+                <?php endif; ?>
                 <?php endif; ?>
                 <a href="#" onclick="event.preventDefault(); logout()" style="color:var(--text-tertiary); text-decoration:none; margin-left:4px;">退出</a>
             </div>
@@ -199,7 +225,7 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
             </div>
             <?php endif; ?>
         </nav>
-        <?php if ($isSuperAdmin || $isStoreAdmin): ?>
+        <?php if ($isSuperAdmin || $isGroupAdmin || $isStoreAdmin): ?>
         <div class="nav-section">
             <div class="nav-section-title">账号管理</div>
             <a href="users.php" class="nav-item <?= ($currentPage ?? '') === 'users' ? 'active' : '' ?>">
@@ -210,20 +236,22 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
                 <span class="nav-label">角色权限</span>
             </a>
+            <?php if ($isSuperAdmin || $isGroupAdmin): ?>
+            <a href="shops.php" class="nav-item <?= ($currentPage ?? '') === 'shops' ? 'active' : '' ?>">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M4 11v9h16v-9"/><path d="M9 20v-5h6v5"/></svg></span>
+                <span class="nav-label">店管理</span>
+            </a>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
         <?php if ($isSuperAdmin): ?>
-        <div class="nav-section">
-            <div class="nav-section-title">平台管理</div>
-            <a href="stores.php" class="nav-item <?= ($currentPage ?? '') === 'stores' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
-                <span class="nav-label">店铺管理</span>
-            </a>
-            <a href="mobile.php" class="nav-item <?= ($currentPage ?? '') === 'mobile' ? 'active' : '' ?>">
-                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></span>
-                <span class="nav-label">📱 移动端管理</span>
-            </a>
-        </div>
+            <div class="nav-section">
+                <div class="nav-section-title">平台管理</div>
+                <a href="stores.php" class="nav-item <?= ($currentPage ?? '') === 'stores' ? 'active' : '' ?>">
+                    <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+                    <span class="nav-label">集团管理</span>
+                </a>
+            </div>
         <?php endif; ?>
         <div class="sidebar-footer">
             <?php if (!$isOperator): ?>
@@ -263,6 +291,24 @@ $currentViewStoreId = $_SESSION['view_store_id'] ?? null;
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ store_id: storeId ? parseInt(storeId) : null })
+            });
+            const data = await res.json();
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('切换店铺失败: ' + (data.error || '未知错误'));
+            }
+        } catch (err) {
+            alert('切换店铺失败: ' + err.message);
+        }
+    }
+
+    async function switchShop(shopId) {
+        try {
+            const res = await fetch('../api/switch_shop.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shop_id: shopId ? parseInt(shopId) : null })
             });
             const data = await res.json();
             if (data.success) {

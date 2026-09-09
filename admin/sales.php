@@ -154,7 +154,7 @@ $canSeeProfit = $currentUser['can_see_profit'] ?? true;
             const profitColor = profit >= 0 ? 'var(--success)' : 'var(--danger)';
             return `
             <tr>
-                <td>${s.sold_at}</td>
+                <td>${s.sold_at}${s.shop_name ? ` <span style="font-size:11px;color:var(--primary);border:1px solid var(--border);border-radius:9px;padding:0 6px;white-space:nowrap;">${s.shop_name}</span>` : ''}</td>
                 <td><strong>${s.product_name || '未知'}</strong></td>
                 <td><code style="background:var(--bg-hover);padding:4px 8px;border-radius:4px;">${s.barcode || '-'}</code></td>
                 <td><span class="condition-badge condition-${s.condition_type}">${typeNames[s.condition_type] || s.condition_type}</span></td>

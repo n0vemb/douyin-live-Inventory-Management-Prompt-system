@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
 
 // 如果已登录，直接跳转
 if (!empty($_SESSION['user_id'])) {
@@ -68,13 +69,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$storeName, $prefix, $vipSyncToken, $posToken]);
             $storeId = (int)$pdo->lastInsertId();
 
+            // 自动创建“默认店”
+            $defaultShopId = ensureDefaultShop($storeId);
+
             // 创建管理员用户
             $hash = password_hash($password, PASSWORD_DEFAULT);
             $stmt = $pdo->prepare(
-                'INSERT INTO users (username, password_hash, display_name, role, store_id, is_active)
-                 VALUES (?, ?, ?, \'store_admin\', ?, 1)'
+                'INSERT INTO users (username, password_hash, display_name, role, store_id, shop_id, is_active)
+                 VALUES (?, ?, ?, \'store_admin\', ?, ?, 1)'
             );
-            $stmt->execute([$username, $hash, $displayName, $storeId]);
+            $stmt->execute([$username, $hash, $displayName, $storeId, $defaultShopId]);
 
             $pdo->commit();
 

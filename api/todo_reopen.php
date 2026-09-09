@@ -19,11 +19,15 @@ $storeId = getStoreId();
 if ($storeId === null) {
     error('请先选择店铺再操作');
 }
+$shopId = getShopId();
+if ($shopId === null) {
+    error('待办归属具体店铺：集团管理员只能跨店查看，不能操作');
+}
 
 $pdo = getDB();
 
-$stmt = $pdo->prepare("SELECT id, status FROM todo_items WHERE id = ? AND store_id = ?");
-$stmt->execute([$id, $storeId]);
+$stmt = $pdo->prepare("SELECT id, status FROM todo_items WHERE id = ? AND store_id = ? AND shop_id = ?");
+$stmt->execute([$id, $storeId, $shopId]);
 $todo = $stmt->fetch();
 if (!$todo) {
     error('未找到该待办');
@@ -37,8 +41,8 @@ if ($userId <= 0) {
     error('登录状态异常');
 }
 
-$stmt = $pdo->prepare("UPDATE todo_items SET status = 'pending', completed_by = NULL, completion_detail = NULL, completed_at = NULL WHERE id = ? AND store_id = ?");
-$stmt->execute([$id, $storeId]);
+$stmt = $pdo->prepare("UPDATE todo_items SET status = 'pending', completed_by = NULL, completion_detail = NULL, completed_at = NULL WHERE id = ? AND store_id = ? AND shop_id = ?");
+$stmt->execute([$id, $storeId, $shopId]);
 
 // 重新打开时写入一条更新记录（系统记录）
 $stmt = $pdo->prepare("INSERT INTO todo_updates (todo_id, content, updated_by) VALUES (?, ?, ?)");

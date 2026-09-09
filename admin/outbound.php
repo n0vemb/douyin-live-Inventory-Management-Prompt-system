@@ -2,6 +2,8 @@
 $pageTitle = '商品出库';
 $currentPage = 'outbound';
 require_once __DIR__ . '/layout.php';
+$obRole = $currentUser['role'] ?? '';
+$obPick = in_array($obRole, ['group_admin', 'super_admin'], true);
 ?>
         <div class="page-title">商品出库</div>
 
@@ -13,6 +15,12 @@ require_once __DIR__ . '/layout.php';
 
         <div class="ob-layout" style="display:flex; gap:20px; align-items:flex-start;">
             <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:12px;">
+                <?php if ($obPick): ?>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <label style="font-size:13px; color:var(--text-secondary); white-space:nowrap;">出库归属店</label>
+                    <select id="obShop" class="form-input" style="width:180px;"></select>
+                </div>
+                <?php endif; ?>
                 <!-- 扫码区（在待出库商品上方） -->
                 <div class="scan-bar">
             <div class="scan-bar-inner">
@@ -449,6 +457,17 @@ require_once __DIR__ . '/layout.php';
 
     <script>
     let cart = [];
+    let obShopId = null;
+    const OB_PICK = <?= $obPick ? 'true' : 'false' ?>;
+    if (OB_PICK) {
+        fetch('../api/list_shops.php').then(r => r.json()).then(d => {
+            const shops = (d.data && d.data.shops) || [];
+            const sel = document.getElementById('obShop');
+            sel.innerHTML = shops.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            if (shops.length) { obShopId = shops[0].id; sel.value = shops[0].id; }
+            sel.onchange = () => { obShopId = parseInt(sel.value) || null; };
+        }).catch(() => {});
+    }
     let stockData = [];
     let stockSortAsc = true;
     let scanTimer = null;
@@ -1123,7 +1142,7 @@ require_once __DIR__ . '/layout.php';
             const res = await fetch('../api/outbound_batch.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ items, order_no: orderNo || null, remark, platform: platform || null, account: account || null, gmv, order_count: orderCount, ad_spend: adSpend })
+                body: JSON.stringify({ items, order_no: orderNo || null, remark, platform: platform || null, account: account || null, gmv, order_count: orderCount, ad_spend: adSpend, shop_id: OB_PICK ? obShopId : null })
             });
 
             const result = await res.json();

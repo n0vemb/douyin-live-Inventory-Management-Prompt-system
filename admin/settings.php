@@ -1,7 +1,12 @@
 <?php $pageTitle = '系统配置'; $currentPage = 'settings'; ?>
 <?php require_once __DIR__ . '/../auth.php'; requireNonOperator(); ?>
 <?php require_once __DIR__ . '/layout.php'; ?>
-<?php $isSuperAdmin = ($currentUser['role'] ?? '') === 'super_admin'; ?>
+<?php
+$isSuperAdmin = ($currentUser['role'] ?? '') === 'super_admin';
+$stShopId = getShopId();
+$stShopName = getShopName();
+$stIsShop = !empty($stShopId);
+?>
 
 <style>
 .config-section {
@@ -346,7 +351,7 @@ input:checked + .toggle-slider:before {
 </div>
 
 <div class="card">
-    <h3 class="card-title">线下收银台</h3>
+    <h3 class="card-title">线下收银台<?= $stIsShop ? '（当前店铺：' . htmlspecialchars($stShopName) . '）' : '' ?></h3>
     <div class="form-row">
         <div class="form-group">
             <label class="form-label">收银台开关</label>
@@ -424,12 +429,19 @@ input:checked + .toggle-slider:before {
     </div>
     <div class="form-row">
         <div class="form-group" style="flex:1">
+            <label class="form-label">8 位数字码（顾客平板/手机输入进店）</label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+                <input type="text" id="posCode" class="form-input" readonly
+                    style="width:150px; background:var(--bg-hover); font-size:18px; letter-spacing:3px; text-align:center;">
+                <button class="btn btn-secondary btn-sm" onclick="copyPosCode()">复制码</button>
+            </div>
             <label class="form-label">收银台访问链接（顾客触屏 / 门店平板，免登录）</label>
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                 <input type="text" id="posLink" class="form-input" readonly style="flex:1; min-width:220px; background:var(--bg-hover);">
                 <button class="btn btn-secondary btn-sm" onclick="copyPosLink()">复制</button>
                 <button class="btn btn-secondary btn-sm" onclick="resetPosToken()">重置链接</button>
             </div>
+            <span style="font-size:11px; color:var(--text-tertiary);"><?= $stIsShop ? '重置后本店 8 位码与链接立即更新，旧码失效。' : '集团视角重置的是默认店旧链接；各店 8 位码请到「店管理」查看/重置。' ?></span>
         </div>
     </div>
 </div>
@@ -712,8 +724,16 @@ function applySettings() {
     const aliPrev = document.getElementById('qrAliPreview');
     if (aliPrev && tempSettings.offline_pay_qr_ali) { aliPrev.src = assetUrl(tempSettings.offline_pay_qr_ali); aliPrev.style.display = ''; }
     const plEl = document.getElementById('posLink');
-    if (plEl && tempSettings.pos_token) {
-        plEl.value = location.origin + '/admin/pos.php?t=' + tempSettings.pos_token;
+    if (plEl) {
+        if (tempSettings.pos_code) {
+            plEl.value = location.origin + '/admin/pos.php?c=' + tempSettings.pos_code;
+        } else if (tempSettings.pos_token) {
+            plEl.value = location.origin + '/admin/pos.php?t=' + tempSettings.pos_token;
+        }
+    }
+    const pcEl = document.getElementById('posCode');
+    if (pcEl) {
+        pcEl.value = tempSettings.pos_code || '';
     }
     renderConditionTypes();
     renderElementList();
@@ -1132,6 +1152,18 @@ function copyPosLink() {
         el.select();
         document.execCommand('copy');
         alert('收银台链接已复制');
+    }
+}
+
+function copyPosCode() {
+    const el = document.getElementById('posCode');
+    if (!el || !el.value) { alert('8 位数字码未生成，请刷新或联系集团管理员'); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(el.value).then(() => alert('8 位数字码已复制：' + el.value));
+    } else {
+        el.select();
+        document.execCommand('copy');
+        alert('8 位数字码已复制');
     }
 }
 

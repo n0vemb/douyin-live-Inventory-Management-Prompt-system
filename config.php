@@ -166,6 +166,45 @@ function generateStoreBarcodePrefix($pdo) {
 }
 
 /**
+ * 生成收银台 8 位数字码（平台内唯一，可重置）
+ * @return string 8位数字
+ */
+function generateShopPosCode(PDO $pdo): string {
+    $maxAttempts = 30;
+    for ($i = 0; $i < $maxAttempts; $i++) {
+        $code = str_pad((string)mt_rand(0, 99999999), 8, '0', STR_PAD_LEFT);
+        $stmt = $pdo->prepare('SELECT id FROM shops WHERE pos_code = ?');
+        $stmt->execute([$code]);
+        if (!$stmt->fetch()) {
+            return $code;
+        }
+    }
+    // 保底：时间戳末8位去重
+    $ts = (string)time();
+    return substr($ts, -8);
+}
+
+/**
+ * 幂等保证店有收银台 8 位数字码（迁移回填/新建/读取时兜底）
+ */
+function ensureShopPosCode(PDO $pdo, int $shopId): ?string {
+    try {
+        $stmt = $pdo->prepare('SELECT pos_code FROM shops WHERE id = ?');
+        $stmt->execute([$shopId]);
+        $code = $stmt->fetchColumn();
+        if ($code) {
+            return (string)$code;
+        }
+        $code = generateShopPosCode($pdo);
+        $stmt = $pdo->prepare('UPDATE shops SET pos_code = ? WHERE id = ?');
+        $stmt->execute([$code, $shopId]);
+        return $code;
+    } catch (Exception $e) {
+        return null; // pos_code 列尚未迁移时降级
+    }
+}
+
+/**
  * 删除本地上传的商品图片文件
  * @param string $imageUrl 数据库中的 image_url 值（如 uploads/xxx.jpg）
  */

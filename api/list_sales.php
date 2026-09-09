@@ -10,22 +10,29 @@ $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 100;
 
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
+$shopId = getShopId();
 $canSeeProfit = !isOperator();
 
 $sql = 'SELECT s.*,
             (s.qty - s.returned_qty) as qty,
             p.name as product_name, p.barcode, p.series,
             ib.batch_no as batch_no,
-            ib.purchase_price as batch_purchase_price
+            ib.purchase_price as batch_purchase_price,
+            sh2.name as shop_name
         FROM sales_log s
         LEFT JOIN products p ON s.product_id = p.id
         LEFT JOIN inventory_batches ib ON s.batch_id = ib.id
+        LEFT JOIN shops sh2 ON sh2.id = s.shop_id
         WHERE s.qty > s.returned_qty';
 $params = [];
 
 if ($storeId) {
     $sql .= ' AND s.store_id = ?';
     $params[] = $storeId;
+}
+if ($shopId) {
+    $sql .= ' AND s.shop_id = ?';
+    $params[] = $shopId;
 }
 
 if (!empty($productId)) {

@@ -9,6 +9,7 @@ $currentPage = 'pos_outbound';
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/layout.php';
 $IS_OPERATOR = isOperator(); // 运营：隐藏成本列，不可删订单
+$poPick = in_array($currentUser['role'] ?? '', ['group_admin', 'super_admin'], true);
 ?>
 <div class="page-title">门店待出库</div>
 
@@ -30,7 +31,14 @@ $IS_OPERATOR = isOperator(); // 运营：隐藏成本列，不可删订单
             <button class="btn btn-sm filter-btn" data-f="done" onclick="setFilter('done')">已出库</button>
             <button class="btn btn-sm filter-btn" data-f="voided" onclick="setFilter('voided')">已作废</button>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="load()">刷新</button>
+        <div style="display:flex; gap:8px; align-items:center;">
+            <?php if ($poPick): ?>
+            <select id="posShopFilter" class="form-input" style="width:130px;" onchange="setFilter(filter)">
+                <option value="">全部店</option>
+            </select>
+            <?php endif; ?>
+            <button class="btn btn-secondary btn-sm" onclick="load()">刷新</button>
+        </div>
     </div>
 </div>
 
@@ -85,6 +93,7 @@ $IS_OPERATOR = isOperator(); // 运营：隐藏成本列，不可删订单
 
 <script>
 const IS_OPERATOR = <?= $IS_OPERATOR ? 'true' : 'false' ?>;
+const PO_PICK = <?= $poPick ? 'true' : 'false' ?>;
 let filter = 'pending';
 let posMap = {}; // product_id -> 货架位置 label（货架分布加载）
 const STATUS_BADGE = { pending: ['待出库', '#6366f1', '#fff'], done: ['已出库', '#10b981', '#fff'], voided: ['已作废', '#dc2626', '#fff'] };
@@ -116,7 +125,10 @@ async function loadRacks() {
 async function load() {
     try {
         await loadRacks();
-        const res = await fetch('../api/pos_orders.php?outbound_status=' + filter, { cache: 'no-store' });
+        let url = '../api/pos_orders.php?outbound_status=' + filter;
+        const sf = document.getElementById('posShopFilter');
+        if (sf && sf.value) url += '&shop_id=' + sf.value;
+        const res = await fetch(url, { cache: 'no-store' });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || '加载失败');
         render(data);
@@ -195,6 +207,7 @@ function render(d) {
             <div class="customer-header" onclick="toggle(${o.id})">
                 <span class="toggle-arrow">▼</span>
                 <span class="nickname">${esc(o.order_no)}</span>
+                ${o.shop_name ? `<span class="badge" style="background:#eef2ff;color:#4f46e5">${esc(o.shop_name)}</span>` : ''}
                 ${o.customer_phone ? `<span class="badge" style="background:#eef2ff;color:#4f46e5">📱 ${esc(o.customer_phone)}</span>` : ''}
                 <span class="badge" style="background:${bg};color:${fg}">${bl}</span>
                 <span class="summary">
@@ -218,6 +231,17 @@ function render(d) {
         </div>`;
     }).join('');
 }
+
+(async function initPosShopFilter() {
+    if (!PO_PICK) return;
+    try {
+        const res = await fetch('../api/list_shops.php');
+        const d = await res.json();
+        const sel = document.getElementById('posShopFilter');
+        sel.innerHTML = '<option value="">全部店</option>' + (d.data?.shops || []).map(s =>
+            '<option value="' + s.id + '">' + esc(s.name) + '</option>').join('');
+    } catch (e) {}
+})();
 
 function toggle(id) {
     const el = $('ord-' + id);

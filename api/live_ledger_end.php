@@ -25,6 +25,9 @@ $input = json_decode(file_get_contents('php://input'), true);
 $sessionId = isset($input['session_id']) ? (int)$input['session_id'] : 0;
 if ($sessionId <= 0) error('缺少场次ID');
 
+// 作用域校验：店级角色只能结束本店场次
+requireLedgerSessionRow($pdo, $sessionId);
+
 // 校验场次
 $stmt = $pdo->prepare("SELECT * FROM live_ledger_session WHERE id = ? AND store_id = ?");
 $stmt->execute([$sessionId, $storeId]);
@@ -117,8 +120,8 @@ try {
                 $stmt->execute($upParams);
 
                 // 写 outbound_log（带场次 id + 场次账号 + 登录操作账号，便于商品流水追溯"哪场直播/哪个运营/哪个登录账号"）
-                $stmt = $pdo->prepare("INSERT INTO outbound_log (batch_id, product_id, condition_type, qty, outbound_price, order_no, outbound_batch_no, remark, platform, account, live_session_id, store_id, shipping_fee, operator_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$batch['id'], $pid, $batch['condition_type'], $take, $price, null, $outboundBatchNo, '直播出库(' . $session['session_name'] . ')', 'live', $session['account'] ?? '', (int)$session['id'], $storeId, null, $_SESSION['username'] ?? null]);
+                $stmt = $pdo->prepare("INSERT INTO outbound_log (batch_id, product_id, condition_type, qty, outbound_price, order_no, outbound_batch_no, remark, platform, account, live_session_id, store_id, shop_id, shipping_fee, operator_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$batch['id'], $pid, $batch['condition_type'], $take, $price, null, $outboundBatchNo, '直播出库(' . $session['session_name'] . ')', 'live', $session['account'] ?? '', (int)$session['id'], $storeId, $session['shop_id'], null, $_SESSION['username'] ?? null]);
 
                 // 写 live_ledger_outbound 关联（带 customer_id + item_id）
                 $outboundLogId = (int)$pdo->lastInsertId();
@@ -128,8 +131,8 @@ try {
                 // 写 sales_log（live_session_id 置 NULL：sales_log 外键指向旧 live_sessions 表，
                 // 直播记账有独立历史体系，不关联旧场次，避免外键冲突）
                 // 记录当时批次 batch_id + 固化进价 purchase_cost，销售记录页可精确追溯
-                $stmt = $pdo->prepare("INSERT INTO sales_log (store_id, product_id, condition_type, sale_price, purchase_cost, batch_id, qty, live_session_id) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)");
-                $stmt->execute([$storeId, $pid, $batch['condition_type'], $price, $batch['purchase_price'], $batch['id'], $take]);
+                $stmt = $pdo->prepare("INSERT INTO sales_log (store_id, shop_id, product_id, condition_type, sale_price, purchase_cost, batch_id, qty, live_session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)");
+                $stmt->execute([$storeId, $session['shop_id'], $pid, $batch['condition_type'], $price, $batch['purchase_price'], $batch['id'], $take]);
 
                 $remaining -= $take;
             }

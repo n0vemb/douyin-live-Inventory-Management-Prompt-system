@@ -56,10 +56,10 @@ try {
 
     $stmt = $pdo->prepare('
         INSERT INTO sales_log
-        (product_id, condition_type, sale_price, qty, live_session_id, store_id)
-        VALUES (?, ?, ?, ?, ?, ?)
+        (product_id, condition_type, sale_price, qty, live_session_id, store_id, shop_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ');
-    $stmt->execute([$productId, $conditionType, $salePrice, $qty, $liveSessionId, $storeId]);
+    $stmt->execute([$productId, $conditionType, $salePrice, $qty, $liveSessionId, $storeId, $liveInv['shop_id'] ?? null]);
 
     $pdo->commit();
 

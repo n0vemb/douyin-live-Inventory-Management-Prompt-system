@@ -14,6 +14,20 @@ if (empty($storeId)) error('请先选择店铺后再操作');
 $productId = isset($_GET['product_id']) ? (int)$_GET['product_id'] : 0;
 if ($productId <= 0) error('缺少商品ID');
 
+$shopId = getShopId();
+if (!$shopId) {
+    $reqShop = isset($_GET['shop_id']) ? (int)$_GET['shop_id'] : 0;
+    if ($reqShop <= 0) {
+        error('线下定价按店读取：请先选择具体店铺');
+    }
+    $chk = $pdo->prepare('SELECT id FROM shops WHERE id = ? AND store_id = ?');
+    $chk->execute([$reqShop, $storeId]);
+    if (!$chk->fetch()) {
+        error('所选店铺不属于当前集团');
+    }
+    $shopId = $reqShop;
+}
+
 // 校验商品归属
 $stmt = $pdo->prepare('SELECT id FROM products WHERE id = ? AND store_id = ?');
 $stmt->execute([$productId, $storeId]);
@@ -24,8 +38,8 @@ if (isOperator()) {
     success(['configured' => []]);
 }
 
-$stmt = $pdo->prepare('SELECT condition_type, offline_price FROM product_offline_prices WHERE product_id = ?');
-$stmt->execute([$productId]);
+$stmt = $pdo->prepare('SELECT condition_type, offline_price FROM product_offline_prices WHERE store_id = ? AND shop_id = ? AND product_id = ?');
+$stmt->execute([$storeId, $shopId, $productId]);
 $configured = [];
 foreach ($stmt->fetchAll() as $row) {
     $configured[$row['condition_type']] = round(floatval($row['offline_price']), 2);

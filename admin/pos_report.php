@@ -7,6 +7,7 @@
 $pageTitle = '线下销售报表';
 $currentPage = 'pos_report';
 require_once __DIR__ . '/layout.php';
+$prPick = in_array($currentUser['role'] ?? '', ['group_admin', 'super_admin'], true);
 ?>
 <div class="page-title">线下销售报表</div>
 
@@ -23,6 +24,11 @@ require_once __DIR__ . '/layout.php';
             <button class="btn btn-sm period-btn" data-days="this_month" onclick="setPreset('this_month')">本月</button>
             <button class="btn btn-sm period-btn" data-days="last_month" onclick="setPreset('last_month')">上月</button>
         </div>
+        <?php if ($prPick): ?>
+        <select id="prShopFilter" class="form-input" style="width:130px;" onchange="load()">
+            <option value="">全部店</option>
+        </select>
+        <?php endif; ?>
         <button class="btn btn-primary btn-sm" onclick="load()">查询</button>
         <span style="font-size:12px; color:var(--text-tertiary);">销售额 = 已收款且未作废订单；毛利仅含已出库订单（实际扣减批次进价）</span>
     </div>
@@ -143,7 +149,10 @@ async function load() {
     const from = $('fromDate').value, to = $('toDate').value;
     if (!from || !to) { toast('请选择日期范围', true); return; }
     try {
-        const res = await fetch(`../api/pos_report.php?from=${from}&to=${to}`, { cache: 'no-store' });
+        let url = `../api/pos_report.php?from=${from}&to=${to}`;
+        const sf = $('prShopFilter');
+        if (sf && sf.value) url += '&shop_id=' + sf.value;
+        const res = await fetch(url, { cache: 'no-store' });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || '加载失败');
         render(data);
@@ -200,6 +209,15 @@ function toast(msg, isError) {
     t.style.cssText = `position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:${isError ? '#b3261e' : '#1c2230'};color:#fff;padding:10px 18px;border-radius:10px;font-size:13.5px;z-index:999;max-width:90vw`;
     clearTimeout(toastT);
     toastT = setTimeout(() => { t.textContent = ''; t.style.cssText = 'display:none'; }, isError ? 10000 : 2000);
+}
+
+const PR_PICK = <?= $prPick ? 'true' : 'false' ?>;
+if (PR_PICK) {
+    fetch('../api/list_shops.php').then(r => r.json()).then(d => {
+        const sel = $('prShopFilter');
+        sel.innerHTML = '<option value="">全部店</option>' + ((d.data && d.data.shops) || []).map(s =>
+            '<option value="' + s.id + '">' + s.name + '</option>').join('');
+    }).catch(() => {});
 }
 
 setDefaultRange();

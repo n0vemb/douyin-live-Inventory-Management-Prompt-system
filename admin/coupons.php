@@ -2,7 +2,8 @@
 $pageTitle = '优惠券';
 $currentPage = 'coupons';
 require_once __DIR__ . '/layout.php';
-$couponAllowed = in_array($currentUser['role'] ?? '', ['store_admin', 'super_admin'], true);
+$couponAllowed = in_array($currentUser['role'] ?? '', ['store_admin', 'group_admin', 'super_admin'], true);
+$couponPickShop = in_array($currentUser['role'] ?? '', ['group_admin', 'super_admin'], true);
 ?>
 <div class="page-title">优惠券 <span class="sub" style="font-size:12px;color:var(--text-tertiary);font-weight:500">后台配置活动 · 公开页领券 · 收银台输入手机号自动核销</span></div>
 <?php if (!$couponAllowed || !$storeId): ?>
@@ -23,6 +24,9 @@ $couponAllowed = in_array($currentUser['role'] ?? '', ['store_admin', 'super_adm
 
 <div class="cp-toolbar">
   <input id="cpQ" placeholder="搜索活动名称…" oninput="render()">
+  <?php if ($couponPickShop): ?>
+  <select id="cpShop" style="height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg-body);color:var(--text);padding:0 8px;" onchange="load()"></select>
+  <?php endif; ?>
   <button class="btn btn-primary" onclick="editCampaign(null)">+ 新建活动</button>
 </div>
 <div class="card">
@@ -42,6 +46,11 @@ $couponAllowed = in_array($currentUser['role'] ?? '', ['store_admin', 'super_adm
         <div class="form-group" style="flex:2"><label class="form-label">活动名称 *</label><input class="form-input" id="cpName" placeholder="如：开业满100减20"></div>
         <div class="form-group"><label class="form-label">类型</label><select class="form-input" id="cpType" onchange="toggleThreshold()"><option value="threshold">满减</option><option value="fixed">无门槛立减</option></select></div>
       </div>
+      <?php if ($couponPickShop): ?>
+      <div class="form-row">
+        <div class="form-group" style="flex:1"><label class="form-label">归属店铺 *</label><select class="form-input" id="cpShopNew"></select></div>
+      </div>
+      <?php endif; ?>
       <div class="form-row">
         <div class="form-group" id="cpThrGroup"><label class="form-label">满减门槛 ¥</label><input class="form-input" type="number" min="0" step="0.01" id="cpThreshold" value="0"></div>
         <div class="form-group"><label class="form-label">优惠金额 ¥ *</label><input class="form-input" type="number" min="0.01" step="0.01" id="cpAmount"></div>
@@ -95,6 +104,7 @@ $couponAllowed = in_array($currentUser['role'] ?? '', ['store_admin', 'super_adm
 <div id="cpToast" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;z-index:3000;display:none"></div>
 <script>
 let CP = [];
+const CP_PICK = <?= $couponPickShop ? 'true' : 'false' ?>;
 const $c = id => document.getElementById(id);
 function toast(m, err){ const t=$c('cpToast'); t.textContent=m; t.style.background=err?'#b3261e':'#111827'; t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',2200); }
 function hide(id){ $c(id).classList.remove('show'); }
@@ -105,7 +115,10 @@ async function api(body){
   return res.json();
 }
 async function load(){
-  const d=await api({action:'list'}); if(!d.success){toast(d.error||'加载失败',true);return;}
+  const body={action:'list'};
+  const shopSel=$c('cpShop');
+  if (CP_PICK && shopSel && shopSel.value) body.shop_id=parseInt(shopSel.value);
+  const d=await api(body); if(!d.success){toast(d.error||'加载失败',true);return;}
   CP=d.campaigns||[]; render();
 }
 function typeTxt(t,th){ return t==='fixed' ? '无门槛' : '满'+fmt(th)+'可用'; }
@@ -121,7 +134,7 @@ function render(){
   $c('cpRows').innerHTML=list.map(c=>{
     const link=location.origin + '/coupon_claim.php?token=' + c.claim_token;
     return `<tr>
-      <td><b>${esc(c.name)}</b><br><span class="cp-link">${esc(link)}</span></td>
+      <td>${c.shop_name ? `<span style="font-size:11px;color:var(--primary);border:1px solid var(--border);border-radius:10px;padding:0 6px;margin-right:4px;">${esc(c.shop_name)}</span>` : ''}<b>${esc(c.name)}</b><br><span class="cp-link">${esc(link)}</span></td>
       <td>${typeTxt(c.coupon_type,c.threshold)}</td>
       <td>¥${fmt(c.amount)}</td>
       <td>${c.total_count>0?c.total_count:'不限'} / ${c.issued}</td>
@@ -171,9 +184,13 @@ function editCampaign(id){
   } else {
     const today=new Date(); const p=n=>String(n).padStart(2,'0');
     $c('cpStartDate').value=today.getFullYear()+'-'+p(today.getMonth()+1)+'-'+p(today.getDate());
-    $c('cpDur').value=30;
+  $c('cpDur').value=30;
   }
   $c('cpRemark').value=c?(c.remark||''):'';
+  if (CP_PICK) {
+    const shopSel=$c('cpShopNew');
+    if (shopSel && c && c.shop_id) shopSel.value=c.shop_id;
+  }
   toggleThreshold(); renderEndPreview(); show('cpModal');
 }
 async function saveCampaign(){
@@ -184,6 +201,11 @@ async function saveCampaign(){
     start_at:$c('cpStart').value||'',
     end_at:$c('cpEnd').value||'',
     remark:$c('cpRemark').value.trim()};
+  const shopSel=CP_PICK?$c('cpShopNew'):null;
+  if (shopSel) {
+    body.shop_id=parseInt(shopSel.value)||0;
+    if (!body.id && !body.shop_id) { toast('请选择归属店铺',true); return; }
+  }
   if(!body.name){toast('请填写活动名称',true);return;}
   if(!(body.amount>0)){toast('请填写优惠金额',true);return;}
   if(!body.start_at || !body.end_at){toast('请选择开始日期和有效天数',true);return;}
@@ -201,6 +223,14 @@ async function doIssue(){
   if(!/^1[3-9]\d{9}$/.test(body.phone)){toast('手机号格式不正确',true);return;}
   const d=await api(body); if(!d.success){toast(d.error||'补发失败',true);return;}
   hide('cpIssueModal'); toast(d.message||'已补发'); load();
+}
+if (CP_PICK) {
+  fetch('../api/list_shops.php').then(r=>r.json()).then(d=>{
+    const shops=(d.data&&d.data.shops)||[];
+    const sel=$c('cpShop'); const selNew=$c('cpShopNew');
+    if (sel) sel.innerHTML='<option value="">全部店</option>'+shops.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+    if (selNew) selNew.innerHTML=shops.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  }).catch(()=>{});
 }
 load();
 </script>

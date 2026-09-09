@@ -443,7 +443,7 @@ function render(newIds = null) {
   const groups = [];
   for (const t of pending) {
     let g = groups.find(x => x.session_id === t.session_id);
-    if (!g) { g = { session_id: t.session_id, session_name: t.session_name, session_status: t.session_status, tasks: [] }; groups.push(g); }
+    if (!g) { g = { session_id: t.session_id, session_name: t.session_name, session_status: t.session_status, shop_name: t.shop_name, tasks: [] }; groups.push(g); }
     g.tasks.push(t);
   }
 
@@ -456,7 +456,7 @@ function render(newIds = null) {
       head.className = 'session-header';
       head.innerHTML = `
         <span class="live-tag ${g.session_status === 'active' ? '' : 'ended'}">${g.session_status === 'active' ? '直播中' : '已结束'}</span>
-        <span class="sname">${escapeHtml(g.session_name)}</span>
+        <span class="sname">${escapeHtml(g.session_name)}</span>${g.shop_name ? `<span class="sname" style="font-size:10px;opacity:.7;margin-left:5px;">${escapeHtml(g.shop_name)}</span>` : ''}
         <span class="scount">${g.tasks.length} 单</span>
       `;
       $('taskList').appendChild(head);

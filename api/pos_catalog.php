@@ -8,6 +8,7 @@ require_once __DIR__ . '/pos_auth.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 $storeId = requirePosStore();
+$shopId = posShopId();
 
 // 补全相对路径为完整 URL（库中存 uploads/... 相对路径）
 function posCatAssetUrl($path) {
@@ -23,8 +24,15 @@ $pdo = getDB();
 posAutoReleaseUnpaid($pdo, $storeId, 15);
 
 try {
-    $stmt = $pdo->prepare('SELECT name, offline_price_ratio, pos_enabled, pos_screensaver_img, pos_screensaver_sec FROM stores WHERE id = ?');
-    $stmt->execute([$storeId]);
+    $stmt = $pdo->prepare('SELECT s.name,
+        COALESCE(sh.offline_price_ratio, s.offline_price_ratio) AS offline_price_ratio,
+        COALESCE(sh.pos_enabled, s.pos_enabled) AS pos_enabled,
+        COALESCE(NULLIF(sh.pos_screensaver_img, \'\'), s.pos_screensaver_img) AS pos_screensaver_img,
+        COALESCE(sh.pos_screensaver_sec, s.pos_screensaver_sec) AS pos_screensaver_sec
+        FROM stores s
+        LEFT JOIN shops sh ON sh.id = ?
+        WHERE s.id = ?');
+    $stmt->execute([$shopId, $storeId]);
     $store = $stmt->fetch();
     $storeName = $store['name'] ?? '';
     $posEnabled = (int)($store['pos_enabled'] ?? 1);
@@ -37,7 +45,8 @@ try {
 
     // 线下售价配置（SKU级手动定价，仅店长/超管可设；收银台始终生效）
     $offlinePrices = [];
-    $opStmt = $pdo->query('SELECT product_id, condition_type, offline_price FROM product_offline_prices');
+    $opStmt = $pdo->prepare('SELECT product_id, condition_type, offline_price FROM product_offline_prices WHERE store_id = ? AND shop_id = ?');
+    $opStmt->execute([$storeId, $shopId]);
     if ($opStmt) {
         foreach ($opStmt->fetchAll() as $op) {
             $offlinePrices[$op['product_id'] . '|' . $op['condition_type']] = round(floatval($op['offline_price']), 2);

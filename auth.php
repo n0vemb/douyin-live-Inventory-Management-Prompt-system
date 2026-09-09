@@ -12,9 +12,11 @@ if (session_status() === PHP_SESSION_NONE) {
  * 角色体系（2026-08-06 扩展）：
  *   super_admin  — 超级管理员（全平台，可看成本利润）
  *   store_admin  — 店铺管理员（本店铺，可看成本利润）
- *   operator     — 运营（本店铺，可看销售额，但成本/毛利/毛利率全隐藏）
- *   deputy_store_admin — 副店长（本店铺，能力等同运营 + 可进行库存盘点）
- *   warehouse    — 仓库（2026-08-21 新增：本店铺，登录后只能进仓库出库台，看不到价格成本）
+ *   group_admin  — 集团管理员（本集团/租户，跨店看汇总报表；待办跨店只读不派）
+ *   store_admin  — 店铺管理员/店管（本店，可看成本利润；店间互不可见）
+ *   operator     — 运营（本店，可看销售额，但成本/毛利/毛利率全隐藏）
+ *   deputy_store_admin — 副店长（本店，能力等同运营 + 可进行库存盘点）
+ *   warehouse    — 仓库（2026-08-21 新增：集团级，登录后只能进仓库出库台，看不到价格成本）
  */
 
 /**
@@ -106,6 +108,20 @@ function isSuperAdmin(): bool {
 }
 
 /**
+ * 是否为集团管理员（本集团/租户，跨店汇总）
+ */
+function isGroupAdmin(): bool {
+    return ($_SESSION['role'] ?? '') === 'group_admin';
+}
+
+/**
+ * 是否为店管（本店管理员）
+ */
+function isStoreAdmin(): bool {
+    return ($_SESSION['role'] ?? '') === 'store_admin';
+}
+
+/**
  * 是否为运营角色
  */
 function isOperator(): bool {
@@ -138,19 +154,20 @@ function requireInventoryAudit(): void {
  */
 function defaultPermMap(): array {
     return [
-        'audit.inventory'   => ['super_admin', 'store_admin', 'deputy_store_admin'],
-        'audit.rack'        => ['super_admin', 'store_admin', 'deputy_store_admin'],
-        'product.export'    => ['super_admin', 'store_admin'],
-        'product.delete'    => ['super_admin', 'store_admin'],
-        'product.offline_price' => ['super_admin', 'store_admin'],
-        'product.batch_edit'=> ['super_admin', 'store_admin'],
-        'live.session_meta' => ['super_admin', 'store_admin'],
-        'pos.delete_order'  => ['super_admin', 'store_admin'],
-        'finance.view_cost' => ['super_admin', 'store_admin'],
-        'finance.report'    => ['super_admin', 'store_admin'],
-        'user.manage'       => ['super_admin', 'store_admin'],
-        'coupon.issue'      => ['super_admin', 'store_admin', 'deputy_store_admin'],
-        'compensate.shipping' => ['super_admin', 'store_admin', 'deputy_store_admin', 'operator'],
+        'audit.inventory'   => ['super_admin', 'group_admin', 'store_admin', 'deputy_store_admin'],
+        'audit.rack'        => ['super_admin', 'group_admin', 'store_admin', 'deputy_store_admin'],
+        'product.export'    => ['super_admin', 'group_admin', 'store_admin'],
+        'product.delete'    => ['super_admin', 'group_admin', 'store_admin'],
+        'product.offline_price' => ['super_admin', 'group_admin', 'store_admin'],
+        'product.batch_edit'=> ['super_admin', 'group_admin', 'store_admin'],
+        'live.session_meta' => ['super_admin', 'group_admin', 'store_admin'],
+        'pos.delete_order'  => ['super_admin', 'group_admin', 'store_admin'],
+        'finance.view_cost' => ['super_admin', 'group_admin', 'store_admin'],
+        'finance.report'    => ['super_admin', 'group_admin', 'store_admin'],
+        'user.manage'       => ['super_admin', 'group_admin', 'store_admin'],
+        'todo.cross_shop_view' => ['super_admin', 'group_admin'],
+        'coupon.issue'      => ['super_admin', 'group_admin', 'store_admin', 'deputy_store_admin'],
+        'compensate.shipping' => ['super_admin', 'group_admin', 'store_admin', 'deputy_store_admin', 'operator'],
     ];
 }
 
@@ -227,6 +244,157 @@ function getStoreId(): ?int {
 }
 
 /**
+ * 获取当前生效店ID（业务数据按店隔离时的过滤维度）
+ * - super_admin：view_shop_id（可空；空=看当前集团/全平台汇总）
+ * - group_admin / warehouse：NULL（集团级：跨店汇总 / 仓库共用）
+ * - store_admin / deputy_store_admin / operator：本人所属店
+ */
+function getShopId(): ?int {
+    $role = $_SESSION['role'] ?? '';
+    if ($role === 'super_admin') {
+        return isset($_SESSION['view_shop_id']) && $_SESSION['view_shop_id'] !== '' ? (int)$_SESSION['view_shop_id'] : null;
+    }
+    return isset($_SESSION['shop_id']) && $_SESSION['shop_id'] !== '' ? (int)$_SESSION['shop_id'] : null;
+}
+
+/**
+ * 获取当前生效店名（页面角标/筛选用）
+ */
+function getShopName(): string {
+    $role = $_SESSION['role'] ?? '';
+    if ($role === 'super_admin') {
+        return (string)($_SESSION['view_shop_name'] ?? '');
+    }
+    return (string)($_SESSION['shop_name'] ?? '');
+}
+
+/**
+ * 幂等创建集团“默认店”（新注册集团或迁移未跑时兜底）
+ * @return int|null 店ID；表不存在/失败时返回 null（老版本降级）
+ */
+function ensureDefaultShop(int $storeId): ?int {
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->prepare("SELECT id FROM shops WHERE store_id = ? AND name = '默认店' ORDER BY id LIMIT 1");
+        $stmt->execute([$storeId]);
+        $shopId = $stmt->fetchColumn();
+        if ($shopId) {
+            ensureShopPosCode($pdo, (int)$shopId);
+            return (int)$shopId;
+        }
+
+        $stmt = $pdo->prepare('INSERT INTO shops (store_id, name, remark) VALUES (?, ?, ?)');
+        $stmt->execute([$storeId, '默认店', '注册/迁移自动生成']);
+        $newId = (int)$pdo->lastInsertId();
+        ensureShopPosCode($pdo, $newId);
+        return $newId;
+    } catch (Exception $e) {
+        return null; // shops 表尚未迁移：降级为老版本行为
+    }
+}
+
+/**
+ * 当前账号可管理的用户范围（null=无用户管理权）
+ * - super_admin：全平台
+ * - group_admin：本集团（可管 店管/副店长/运营/仓库，不可管超管与其他集团管理员）
+ * - store_admin：仅本店（副店长/运营）
+ */
+function userManageScope(): ?array {
+    $role = $_SESSION['role'] ?? '';
+    $storeId = isset($_SESSION['store_id']) && $_SESSION['store_id'] !== '' ? (int)$_SESSION['store_id'] : null;
+    if ($role === 'super_admin') {
+        return [
+            'scope' => 'platform',
+            'store_id' => null,
+            'shop_id' => null,
+            'roles' => ['super_admin', 'group_admin', 'store_admin', 'operator', 'deputy_store_admin', 'warehouse'],
+        ];
+    }
+    if ($role === 'group_admin' && $storeId) {
+        return [
+            'scope' => 'group',
+            'store_id' => $storeId,
+            'shop_id' => null,
+            'roles' => ['store_admin', 'operator', 'deputy_store_admin', 'warehouse'],
+        ];
+    }
+    if ($role === 'store_admin' && $storeId) {
+        return [
+            'scope' => 'shop',
+            'store_id' => $storeId,
+            'shop_id' => getShopId(),
+            'roles' => ['operator', 'deputy_store_admin'],
+        ];
+    }
+    return null;
+}
+
+/** 目标用户是否在当前管理范围内（scope 来自 userManageScope） */
+function targetInManageScope(array $scope, array $target): bool {
+    if (!in_array($target['role'], $scope['roles'], true)) {
+        return false;
+    }
+    if ($scope['scope'] === 'platform') {
+        return true;
+    }
+    if ($scope['scope'] === 'group') {
+        return (int)$target['store_id'] === $scope['store_id'];
+    }
+    return (int)$target['store_id'] === $scope['store_id']
+        && (int)($target['shop_id'] ?? 0) === $scope['shop_id'];
+}
+
+/**
+ * 读取台账场次（live_ledger_session）并按当前作用域校验：
+ * - 店级角色（店管/副店长/运营）只能取本店场次
+ * - 集团管理员/仓库取本集团任意场次；超管按 view_store/view_shop
+ */
+function requireLedgerSessionRow(PDO $pdo, int $sessionId): array {
+    $storeId = getStoreId();
+    $shopId = getShopId();
+    $sql = 'SELECT * FROM live_ledger_session WHERE id = ?';
+    $params = [$sessionId];
+    if ($storeId) {
+        $sql .= ' AND store_id = ?';
+        $params[] = $storeId;
+    }
+    if ($shopId) {
+        $sql .= ' AND shop_id = ?';
+        $params[] = $shopId;
+    }
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $row = $stmt->fetch();
+    if (!$row) {
+        error('场次不存在或无权访问');
+    }
+    return $row;
+}
+
+/** 同上，用于旧直播链路 live_sessions */
+function requireLiveSessionRow(PDO $pdo, int $sessionId): array {
+    $storeId = getStoreId();
+    $shopId = getShopId();
+    $sql = 'SELECT * FROM live_sessions WHERE id = ?';
+    $params = [$sessionId];
+    if ($storeId) {
+        $sql .= ' AND store_id = ?';
+        $params[] = $storeId;
+    }
+    if ($shopId) {
+        $sql .= ' AND shop_id = ?';
+        $params[] = $shopId;
+    }
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $row = $stmt->fetch();
+    if (!$row) {
+        error('场次不存在或无权访问');
+    }
+    return $row;
+}
+
+/**
  * 获取当前用户信息
  * @return array
  */
@@ -235,6 +403,10 @@ function getCurrentUser(): array {
     if (($_SESSION['role'] ?? '') === 'super_admin' && !empty($_SESSION['view_store_id'])) {
         $viewStoreName = $_SESSION['view_store_name'] ?? '';
     }
+    $viewShopName = '';
+    if (($_SESSION['role'] ?? '') === 'super_admin' && !empty($_SESSION['view_shop_id'])) {
+        $viewShopName = $_SESSION['view_shop_name'] ?? '';
+    }
     return [
         'id'           => $_SESSION['user_id'] ?? null,
         'username'     => $_SESSION['username'] ?? null,
@@ -242,8 +414,12 @@ function getCurrentUser(): array {
         'role'         => $_SESSION['role'] ?? null,
         'store_id'     => $_SESSION['store_id'] ?? null,
         'store_name'   => $_SESSION['store_name'] ?? null,
+        'shop_id'      => $_SESSION['shop_id'] ?? null,
+        'shop_name'    => $_SESSION['shop_name'] ?? null,
         'view_store_id'   => $_SESSION['view_store_id'] ?? null,
         'view_store_name' => $viewStoreName,
+        'view_shop_id'    => $_SESSION['view_shop_id'] ?? null,
+        'view_shop_name'  => $viewShopName,
         'can_see_profit'  => canSeeProfit(),
     ];
 }

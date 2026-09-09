@@ -9,6 +9,20 @@ $accountFilter  = $_GET['account'] ?? null;
 
 $pdo = getDB();
 requireNonOperator(); $storeId = getStoreId();
+$shopId = getShopId();
+
+// 集团/超管可在页面传 shop_id 只看某个店；店管强制本店
+$reqShop = null;
+if (!$shopId && isset($_GET['shop_id']) && $_GET['shop_id'] !== '' && $storeId) {
+    $reqShop = (int)$_GET['shop_id'];
+    $chk = $pdo->prepare('SELECT id FROM shops WHERE id = ? AND store_id = ?');
+    $chk->execute([$reqShop, $storeId]);
+    if (!$chk->fetch()) {
+        error('店铺不存在或不属于当前集团');
+    }
+} elseif ($shopId) {
+    $reqShop = $shopId;
+}
 
 try {
     // 加载店铺财务设置
@@ -36,6 +50,8 @@ try {
     $sql = "
         SELECT
             o.outbound_batch_no,
+            o.shop_id,
+            sh.name AS shop_name,
             MIN(o.outbound_at) as outbound_at,
             SUM(o.qty) as total_qty,
             SUM(o.qty * o.outbound_price) as total_amount,
@@ -43,6 +59,7 @@ try {
             MIN(o.shipping_fee) as shipping_fee
         FROM outbound_log o
         LEFT JOIN inventory_batches b ON o.batch_id = b.id
+        LEFT JOIN shops sh ON sh.id = o.shop_id
         WHERE DATE(o.outbound_at) BETWEEN ? AND ?
     ";
     $params = [$dateFrom, $dateTo];
@@ -50,7 +67,11 @@ try {
         $sql .= " AND o.store_id = ?";
         $params[] = $storeId;
     }
-    $sql .= " GROUP BY o.outbound_batch_no ORDER BY outbound_at DESC LIMIT 500";
+    if ($reqShop) {
+        $sql .= " AND o.shop_id = ?";
+        $params[] = $reqShop;
+    }
+    $sql .= " GROUP BY o.outbound_batch_no, o.shop_id ORDER BY outbound_at DESC LIMIT 500";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -71,22 +92,24 @@ try {
 
     // 财务数据
     $financeMap = [];
-    $stmt = $pdo->prepare("SELECT outbound_batch_no, gmv, order_count, ad_spend FROM outbound_finance WHERE outbound_batch_no IN ($placeholders)" . ($storeId ? " AND store_id = ?" : ""));
+    $stmt = $pdo->prepare("SELECT outbound_batch_no, shop_id, gmv, order_count, ad_spend FROM outbound_finance WHERE outbound_batch_no IN ($placeholders)" . ($storeId ? " AND store_id = ?" : ""));
     $fParams = $batchNos;
     if ($storeId) $fParams[] = $storeId;
+    if ($reqShop) { $stmt = $pdo->prepare("SELECT outbound_batch_no, shop_id, gmv, order_count, ad_spend FROM outbound_finance WHERE outbound_batch_no IN ($placeholders) AND store_id = ? AND shop_id = ?"); $fParams[] = $reqShop; }
     $stmt->execute($fParams);
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $f) {
-        $financeMap[$f['outbound_batch_no']] = $f;
+        $financeMap[$f['outbound_batch_no'] . '|' . (int)($f['shop_id'] ?? 0)] = $f;
     }
 
     // 订单号、备注、平台、账号
     $metaMap = [];
-    $stmt = $pdo->prepare("SELECT outbound_batch_no, order_no, remark, platform, account FROM outbound_log WHERE outbound_batch_no IN ($placeholders)" . ($storeId ? " AND store_id = ?" : "") . " GROUP BY outbound_batch_no");
+    $stmt = $pdo->prepare("SELECT outbound_batch_no, shop_id, order_no, remark, platform, account FROM outbound_log WHERE outbound_batch_no IN ($placeholders)" . ($storeId ? " AND store_id = ?" : "") . ($reqShop ? " AND shop_id = ?" : "") . " GROUP BY outbound_batch_no, shop_id");
     $mParams = $batchNos;
     if ($storeId) $mParams[] = $storeId;
+    if ($reqShop) $mParams[] = $reqShop;
     $stmt->execute($mParams);
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $m) {
-        $metaMap[$m['outbound_batch_no']] = $m;
+        $metaMap[$m['outbound_batch_no'] . '|' . (int)($m['shop_id'] ?? 0)] = $m;
     }
 
     // Step 3: 合并数据并计算利润
@@ -95,12 +118,13 @@ try {
 
     foreach ($batches as &$b) {
         $batchNo = $b['outbound_batch_no'];
+        $bkey = $batchNo . '|' . (int)($b['shop_id'] ?? 0);
         $b['total_qty'] = (int)$b['total_qty'];
         $b['total_amount'] = decimal($b['total_amount']);
         $b['total_cost'] = decimal($b['total_cost']);
 
         // 财务数据
-        $fin = $financeMap[$batchNo] ?? null;
+        $fin = $financeMap[$bkey] ?? null;
         $b['gmv'] = $fin ? decimal($fin['gmv']) : null;
         $b['order_count'] = $fin ? (int)$fin['order_count'] : null;
         $b['ad_spend'] = $fin ? decimal($fin['ad_spend']) : null;
@@ -109,7 +133,7 @@ try {
         $b['profit'] = null;
 
         // 元数据
-        $meta = $metaMap[$batchNo] ?? null;
+        $meta = $metaMap[$bkey] ?? null;
         $b['order_no'] = $meta ? $meta['order_no'] : null;
         $b['remark'] = $meta ? $meta['remark'] : null;
         $b['platform'] = $meta ? $meta['platform'] : null;

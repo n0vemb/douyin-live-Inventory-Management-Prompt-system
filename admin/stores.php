@@ -1,9 +1,9 @@
-<?php $pageTitle = '店铺管理'; $currentPage = 'stores'; ?>
+<?php $pageTitle = '集团管理'; $currentPage = 'stores'; ?>
 <?php require_once __DIR__ . '/layout.php'; ?>
 
 <div class="page-header">
-    <h1>🏪 店铺管理</h1>
-    <p>查看和管理所有注册店铺</p>
+    <h1>🏪 集团管理</h1>
+    <p>平台上的“店铺”即集团/客户，集团下可建 A店、B店等多个店</p>
 </div>
 
 <div class="card">

@@ -60,10 +60,10 @@ try {
 
         $ip = $_SERVER['REMOTE_ADDR'] ?? '';
         $ins = $pdo->prepare(
-            "INSERT INTO coupon_claims (store_id, campaign_id, phone, status, issue_type, ip, remark)
-             VALUES (?,?,?, 'unused', 'claim', ?, '活动领取')"
+            "INSERT INTO coupon_claims (store_id, shop_id, campaign_id, phone, status, issue_type, ip, remark)
+             VALUES (?,?,?,?, 'unused', 'claim', ?, '活动领取')"
         );
-        $ins->execute([(int)$camp['store_id'], (int)$camp['id'], $phone, $ip]);
+        $ins->execute([(int)$camp['store_id'], (int)($camp['shop_id'] ?? null), (int)$camp['id'], $phone, $ip]);
         success(['message' => '领取成功', 'claim_id' => (int)$pdo->lastInsertId()]);
     }
 } catch (Exception $e) {

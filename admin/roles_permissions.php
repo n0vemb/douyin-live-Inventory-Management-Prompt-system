@@ -2,7 +2,7 @@
 $pageTitle = '角色权限配置';
 $currentPage = 'roles_permissions';
 require_once __DIR__ . '/layout.php';
-$rpCan = in_array($currentUser['role'] ?? '', ['store_admin', 'super_admin'], true);
+$rpCan = in_array($currentUser['role'] ?? '', ['store_admin', 'group_admin', 'super_admin'], true);
 
 $RP_GROUPS = [
   ['name'=>'盘点','items'=>[
@@ -22,14 +22,15 @@ $RP_GROUPS = [
   ['name'=>'财务/系统','items'=>[
     ['finance.view_cost','查看成本/毛利','涉及成本（默认仅店管/超管）'],
     ['finance.report','线下销售报表','报表查看导出（待接入）'],
-    ['user.manage','用户管理','账号管理（待接入）']
+    ['user.manage','用户管理','账号管理（待接入）'],
+    ['todo.cross_shop_view','跨店待办只读','集团管理员跨店看待办（同店规则不变）']
   ]],
   ['name'=>'营销/补偿','items'=>[
     ['coupon.issue','优惠券配置/补发','券管理（待接入）'],
     ['compensate.shipping','直播运费补偿','撤单/退货补偿（默认全员）']
   ]],
 ];
-$ROLE_LABELS = ['super_admin'=>'超管','store_admin'=>'店管','deputy_store_admin'=>'副店长','operator'=>'运营','warehouse'=>'仓库'];
+$ROLE_LABELS = ['super_admin'=>'超管','group_admin'=>'集团管理员','store_admin'=>'店管','deputy_store_admin'=>'副店长','operator'=>'运营','warehouse'=>'仓库'];
 $DEFAULTS = [];
 foreach (defaultPermMap() as $perm=>$roles) $DEFAULTS[$perm] = $roles;
 $OVERRIDES = [];

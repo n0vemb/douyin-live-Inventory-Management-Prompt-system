@@ -37,6 +37,29 @@ try {
             $formatted['pos_screensaver_img'] = $store['pos_screensaver_img'] ?? '';
             $formatted['pos_screensaver_sec'] = (int)($store['pos_screensaver_sec'] ?? 30);
             $formatted['pos_hide_price'] = (int)($store['pos_hide_price'] ?? 0);
+
+            // 店级视角：收银台设置以本店为准（店没配的项回退集团值），并带出 8 位码
+            $shopId = getShopId();
+            if ($shopId) {
+                $sh = $pdo->prepare('SELECT * FROM shops WHERE id = ? AND store_id = ?');
+                $sh->execute([$shopId, $storeId]);
+                $shopRow = $sh->fetch();
+                if ($shopRow) {
+                    $code = ensureShopPosCode($pdo, (int)$shopRow['id']);
+                    $formatted['pos_code'] = $code;
+                    $formatted['pos_url'] = $code ? '/admin/pos.php?c=' . $code : null;
+                    $formatted['pos_shop_name'] = $shopRow['name'] ?? '';
+                    $formatted['is_shop_config'] = true;
+                    $formatted['offline_price_ratio'] = $shopRow['offline_price_ratio'] !== null ? floatval($shopRow['offline_price_ratio']) : $formatted['offline_price_ratio'];
+                    $formatted['offline_staff_pwd_set'] = !empty($shopRow['offline_staff_pwd']);
+                    $formatted['offline_pay_qr_wx'] = $shopRow['offline_pay_qr_wx'] ?: $formatted['offline_pay_qr_wx'];
+                    $formatted['offline_pay_qr_ali'] = $shopRow['offline_pay_qr_ali'] ?: $formatted['offline_pay_qr_ali'];
+                    $formatted['pos_enabled'] = $shopRow['pos_enabled'] !== null ? (int)$shopRow['pos_enabled'] : $formatted['pos_enabled'];
+                    $formatted['pos_screensaver_img'] = $shopRow['pos_screensaver_img'] ?: $formatted['pos_screensaver_img'];
+                    $formatted['pos_screensaver_sec'] = $shopRow['pos_screensaver_sec'] !== null ? (int)$shopRow['pos_screensaver_sec'] : $formatted['pos_screensaver_sec'];
+                    $formatted['pos_hide_price'] = $shopRow['pos_hide_price'] !== null ? (int)$shopRow['pos_hide_price'] : $formatted['pos_hide_price'];
+                }
+            }
         }
 
         // 填充默认值

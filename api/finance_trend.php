@@ -8,6 +8,13 @@ $dateTo   = $_GET['date_to'] ?? date('Y-m-d');
 
 $pdo = getDB();
 requireNonOperator(); $storeId = getStoreId();
+$shopId = getShopId();
+$reqShop = null;
+if (!$shopId && isset($_GET['shop_id']) && $_GET['shop_id'] !== '' && $storeId) {
+    $reqShop = (int)$_GET['shop_id'];
+} else {
+    $reqShop = $shopId;
+}
 
 try {
     // 加载店铺设置
@@ -43,7 +50,7 @@ try {
             MAX(f.ad_spend) as ad_spend
         FROM outbound_log o
         LEFT JOIN inventory_batches b ON o.batch_id = b.id
-        LEFT JOIN outbound_finance f ON o.outbound_batch_no = f.outbound_batch_no
+        LEFT JOIN outbound_finance f ON o.outbound_batch_no = f.outbound_batch_no AND o.store_id = f.store_id AND o.shop_id = f.shop_id
         WHERE DATE(o.outbound_at) BETWEEN ? AND ?
     ";
     $params = [$dateFrom, $dateTo];
@@ -51,7 +58,11 @@ try {
         $sql .= " AND o.store_id = ?";
         $params[] = $storeId;
     }
-    $sql .= " GROUP BY o.outbound_batch_no ORDER BY outbound_at ASC";
+    if ($reqShop) {
+        $sql .= " AND o.shop_id = ?";
+        $params[] = $reqShop;
+    }
+    $sql .= " GROUP BY o.outbound_batch_no, o.shop_id ORDER BY outbound_at ASC";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);

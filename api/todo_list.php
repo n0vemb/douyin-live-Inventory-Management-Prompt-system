@@ -3,14 +3,16 @@
  * todo_list.php — 待办事项列表
  * GET { filter: all|pending|done, q: 内容模糊搜索 }
  * 返回 { items, members }
- * - 店铺管理员/运营：只看本店
- * - 超管未选店(null)：看全部店铺（item 带 store_name），members 为全部用户
+ * - 店管/运营/副店长：只看本店
+ * - 集团管理员：跨店只读（可看本集团全部店）
+ * - 超管未选店(null)：看全部（item 带 store_name/shop_name）
  */
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../auth.php';
 
 requireAuth();
 $storeId = getStoreId();
+$shopId = getShopId();
 
 $filter = $_GET['filter'] ?? 'all';
 $q      = trim($_GET['q'] ?? '');
@@ -21,10 +23,11 @@ if (!in_array($filter, ['all', 'pending', 'done'], true)) {
 
 $pdo = getDB();
 
-$sql = "SELECT t.*, s.name AS store_name,
+$sql = "SELECT t.*, s.name AS store_name, sh.name AS shop_name,
                u1.display_name AS creator_name, u2.display_name AS completor_name
         FROM todo_items t
         JOIN stores s ON s.id = t.store_id
+        LEFT JOIN shops sh ON sh.id = t.shop_id
         LEFT JOIN users u1 ON u1.id = t.creator_id
         LEFT JOIN users u2 ON u2.id = t.completed_by
         WHERE 1=1";
@@ -33,6 +36,10 @@ $params = [];
 if ($storeId !== null) {
     $sql .= " AND t.store_id = ?";
     $params[] = $storeId;
+}
+if ($shopId !== null) {
+    $sql .= " AND t.shop_id = ?";
+    $params[] = $shopId;
 }
 if ($filter !== 'all') {
     $sql .= " AND t.status = ?";
@@ -55,6 +62,8 @@ $items = array_map(function ($r) {
         'id'               => (int)$r['id'],
         'store_id'         => (int)$r['store_id'],
         'store_name'       => $r['store_name'] ?? '',
+        'shop_id'          => $r['shop_id'] !== null ? (int)$r['shop_id'] : null,
+        'shop_name'        => $r['shop_name'] ?? '',
         'content'          => $r['content'],
         'priority'         => $r['priority'],
         'status'           => $r['status'],
@@ -97,8 +106,11 @@ foreach ($items as &$it) {
 }
 unset($it);
 
-// 本店成员（用于 @ 指定执行人 / 渲染姓名）
-if ($storeId !== null) {
+// 本店成员（用于 @ 指定执行人 / 渲染姓名）：店级账号只列本店成员
+if ($storeId !== null && $shopId !== null) {
+    $mStmt = $pdo->prepare("SELECT id, username, display_name FROM users WHERE store_id = ? AND shop_id = ? AND is_active = 1 ORDER BY display_name, username");
+    $mStmt->execute([$storeId, $shopId]);
+} elseif ($storeId !== null) {
     $mStmt = $pdo->prepare("SELECT id, username, display_name FROM users WHERE store_id = ? AND is_active = 1 ORDER BY display_name, username");
     $mStmt->execute([$storeId]);
 } else {
@@ -121,6 +133,15 @@ if ($storeId !== null) {
         $current = ['store_id' => (int)$s['id'], 'store_name' => $s['name']];
     }
 }
+$currentShop = null;
+if ($shopId !== null) {
+    $sStmt = $pdo->prepare("SELECT id, name FROM shops WHERE id = ?");
+    $sStmt->execute([$shopId]);
+    $s = $sStmt->fetch();
+    if ($s) {
+        $currentShop = ['shop_id' => (int)$s['id'], 'shop_name' => $s['name']];
+    }
+}
 
 // 当前登录用户（前端据此判断可编辑项）
 $cuId = (int)($_SESSION['user_id'] ?? 0);
@@ -135,4 +156,11 @@ if ($cuId > 0) {
 }
 $currentUser = ['id' => $cuId, 'name' => $cuName];
 
-success(['items' => $items, 'members' => $members, 'current_store' => $current, 'current_user' => $currentUser]);
+success([
+    'items' => $items,
+    'members' => $members,
+    'current_store' => $current,
+    'current_shop' => $currentShop,
+    'can_write' => $shopId !== null,
+    'current_user' => $currentUser,
+]);

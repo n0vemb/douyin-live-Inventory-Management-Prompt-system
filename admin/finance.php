@@ -4,6 +4,9 @@ $currentPage = 'finance';
 require_once __DIR__ . '/../auth.php';
 requireNonOperator();
 require_once __DIR__ . '/layout.php';
+$fpRole = $currentUser['role'] ?? '';
+$fpCanPickShop = in_array($fpRole, ['group_admin', 'super_admin'], true);
+$fpStoreId = $currentUser['view_store_id'] ?? ($currentUser['store_id'] ?? null);
 ?>
         <div class="page-title">财务管理</div>
 
@@ -33,6 +36,12 @@ require_once __DIR__ . '/layout.php';
                 <select id="remarkFilter" class="form-input" style="width:130px;" onchange="loadFinance()">
                     <option value="">全部</option>
                 </select>
+                <?php if ($fpCanPickShop): ?>
+                <span style="font-size:13px; color:var(--text-secondary); white-space:nowrap;">店铺</span>
+                <select id="shopFilter" class="form-input" style="width:110px;" onchange="loadFinance()">
+                    <option value="">全部店</option>
+                </select>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -93,6 +102,7 @@ require_once __DIR__ . '/layout.php';
                         <tr>
                             <th>出库时间</th>
                             <th>批次号</th>
+                            <th>店铺</th>
                             <th>订单号</th>
                             <th>平台</th>
                             <th>账号</th>
@@ -178,6 +188,19 @@ require_once __DIR__ . '/layout.php';
         <script>
         let profitChart = null;
         let currentTrendPeriod = 'day';
+        const FP_CAN_PICK = <?= $fpCanPickShop ? 'true' : 'false' ?>;
+        const FP_STORE_ID = <?= $fpStoreId ? (int)$fpStoreId : 'null' ?>;
+
+        (async function initShopFilter() {
+            if (!FP_CAN_PICK || !FP_STORE_ID) return;
+            try {
+                const res = await fetch('../api/list_shops.php?store_id=' + FP_STORE_ID);
+                const data = await res.json();
+                const sel = document.getElementById('shopFilter');
+                sel.innerHTML = '<option value="">全部店</option>' + (data.data?.shops || []).map(s =>
+                    '<option value="' + s.id + '">' + escHtml(s.name) + '</option>').join('');
+            } catch (e) {}
+        })();
 
         // 本地日期（YYYY-MM-DD），避免 toISOString() 的 UTC 偏移问题
         function localDate(d) {
@@ -230,6 +253,11 @@ require_once __DIR__ . '/layout.php';
                 if (pf) url += '&platform=' + encodeURIComponent(pf === '__empty__' ? '' : pf);
                 const ac = document.getElementById('accountFilter').value;
                 if (ac) url += '&account=' + encodeURIComponent(ac === '__empty__' ? '' : ac);
+                const shp = document.getElementById('shopFilter');
+                if (shp) {
+                    const sv = shp.value;
+                    if (sv) url += '&shop_id=' + sv;
+                }
                 const res = await fetch(url);
                 const data = await res.json();
                 if (!data.success) return;
@@ -281,13 +309,14 @@ require_once __DIR__ . '/layout.php';
                 }
 
                 if (!filtered.length) {
-                    tbody.innerHTML = '<tr><td colspan="16" style="text-align:center; padding:30px; color:var(--text-tertiary);">暂无数据</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="17" style="text-align:center; padding:30px; color:var(--text-tertiary);">暂无数据</td></tr>';
                 } else {
                     tbody.innerHTML = filtered.map(b => {
                         const hasFinance = b.gmv !== null;
                         return `<tr>
                             <td>${(b.outbound_at || '').slice(0,16)}</td>
                             <td><code>${b.outbound_batch_no || '-'}</code></td>
+                            <td>${escHtml(b.shop_name || '-')}</td>
                             <td>${escHtml(b.order_no || '-')}</td>
                             <td>${escHtml(b.platform || '-')}</td>
                             <td>${escHtml(b.account || '-')}</td>
@@ -322,7 +351,10 @@ require_once __DIR__ . '/layout.php';
             const dateFrom = document.getElementById('dateFrom').value;
             const dateTo = document.getElementById('dateTo').value;
             try {
-                const res = await fetch('../api/finance_trend.php?period=' + currentTrendPeriod + '&date_from=' + dateFrom + '&date_to=' + dateTo);
+                let url = '../api/finance_trend.php?period=' + currentTrendPeriod + '&date_from=' + dateFrom + '&date_to=' + dateTo;
+                const shp = document.getElementById('shopFilter');
+                if (shp && shp.value) url += '&shop_id=' + shp.value;
+                const res = await fetch(url);
                 const data = await res.json();
                 if (!data.success) return;
 

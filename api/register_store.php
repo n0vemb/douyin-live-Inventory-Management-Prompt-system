@@ -43,13 +43,16 @@ try {
     $stmt->execute([$storeName, $prefix, $vipSyncToken, $posToken]);
     $storeId = (int)$pdo->lastInsertId();
 
+    // 自动创建“默认店”（shops 表迁移后生效；未迁移时返回 null 走老逻辑）
+    $defaultShopId = ensureDefaultShop($storeId);
+
     // 创建管理员用户
     $hash = password_hash($password, PASSWORD_DEFAULT);
     $stmt = $pdo->prepare(
-        'INSERT INTO users (username, password_hash, display_name, role, store_id, is_active)
-         VALUES (?, ?, ?, \'store_admin\', ?, 1)'
+        'INSERT INTO users (username, password_hash, display_name, role, store_id, shop_id, is_active)
+         VALUES (?, ?, ?, \'store_admin\', ?, ?, 1)'
     );
-    $stmt->execute([$username, $hash, $displayName, $storeId]);
+    $stmt->execute([$username, $hash, $displayName, $storeId, $defaultShopId]);
 
     $pdo->commit();
 

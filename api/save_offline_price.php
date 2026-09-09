@@ -19,6 +19,21 @@ $productId = isset($input['product_id']) ? (int)$input['product_id'] : 0;
 $conditionType = trim($input['condition_type'] ?? '');
 $offlinePrice = $input['offline_price'] ?? null;
 
+// 店级定价：店管自动本店；集团/超管需指定店
+$shopId = getShopId();
+if (!$shopId) {
+    $reqShop = (int)($input['shop_id'] ?? 0);
+    if ($reqShop <= 0) {
+        error('线下定价按店保存：请先选择具体店铺');
+    }
+    $chk = $pdo->prepare('SELECT id FROM shops WHERE id = ? AND store_id = ?');
+    $chk->execute([$reqShop, $storeId]);
+    if (!$chk->fetch()) {
+        error('所选店铺不属于当前集团');
+    }
+    $shopId = $reqShop;
+}
+
 if ($productId <= 0 || $conditionType === '') error('参数不完整');
 
 // 校验商品归属本店
@@ -43,8 +58,8 @@ if (!$valid) error('品相不存在于本店配置');
 
 // offline_price 为空或 <=0 → 删除配置（恢复自动 进价×比例）
 if ($offlinePrice === null || $offlinePrice === '' || floatval($offlinePrice) <= 0) {
-    $del = $pdo->prepare('DELETE FROM product_offline_prices WHERE product_id = ? AND condition_type = ?');
-    $del->execute([$productId, $conditionType]);
+    $del = $pdo->prepare('DELETE FROM product_offline_prices WHERE store_id = ? AND shop_id = ? AND product_id = ? AND condition_type = ?');
+    $del->execute([$storeId, $shopId, $productId, $conditionType]);
     success(['message' => '已恢复自动定价', 'configured' => false]);
 }
 
@@ -52,8 +67,8 @@ $price = round(floatval($offlinePrice), 2);
 if ($price <= 0) error('售价无效');
 
 $upsert = $pdo->prepare(
-    'INSERT INTO product_offline_prices (product_id, condition_type, offline_price) VALUES (?, ?, ?)
+    'INSERT INTO product_offline_prices (store_id, shop_id, product_id, condition_type, offline_price) VALUES (?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE offline_price = VALUES(offline_price)'
 );
-$upsert->execute([$productId, $conditionType, $price]);
+$upsert->execute([$storeId, $shopId, $productId, $conditionType, $price]);
 success(['message' => '线下售价已保存', 'configured' => true, 'offline_price' => $price]);

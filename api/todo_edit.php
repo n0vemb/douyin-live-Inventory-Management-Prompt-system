@@ -28,12 +28,16 @@ $storeId = getStoreId();
 if ($storeId === null) {
     error('请先选择店铺再操作');
 }
+$shopId = getShopId();
+if ($shopId === null) {
+    error('待办归属具体店铺：集团管理员只能跨店查看，不能编辑');
+}
 
 $pdo = getDB();
 
 // 校验归属店铺 + 状态 + 发起人
-$stmt = $pdo->prepare("SELECT id, status, creator_id FROM todo_items WHERE id = ? AND store_id = ?");
-$stmt->execute([$id, $storeId]);
+$stmt = $pdo->prepare("SELECT id, status, creator_id FROM todo_items WHERE id = ? AND store_id = ? AND shop_id = ?");
+$stmt->execute([$id, $storeId, $shopId]);
 $todo = $stmt->fetch();
 if (!$todo) {
     error('未找到该待办');
@@ -55,15 +59,15 @@ if (is_array($assigneeIds) && count($assigneeIds) > 0) {
     $ids = array_unique(array_map('intval', $assigneeIds));
     if (count($ids) > 0) {
         $ph = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE store_id = ? AND id IN ($ph)");
-        $stmt->execute(array_merge([$storeId], $ids));
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE store_id = ? AND shop_id = ? AND id IN ($ph)");
+        $stmt->execute(array_merge([$storeId, $shopId], $ids));
         $validAssignees = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     }
 }
 
 $assigneesJson = count($validAssignees) > 0 ? json_encode($validAssignees, JSON_UNESCAPED_UNICODE) : null;
 
-$stmt = $pdo->prepare("UPDATE todo_items SET content = ?, priority = ?, assignees = ? WHERE id = ? AND store_id = ?");
-$stmt->execute([$content, $priority, $assigneesJson, $id, $storeId]);
+$stmt = $pdo->prepare("UPDATE todo_items SET content = ?, priority = ?, assignees = ? WHERE id = ? AND store_id = ? AND shop_id = ?");
+$stmt->execute([$content, $priority, $assigneesJson, $id, $storeId, $shopId]);
 
 success(['message' => '已保存']);

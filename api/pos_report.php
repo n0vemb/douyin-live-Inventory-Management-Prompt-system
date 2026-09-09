@@ -9,9 +9,18 @@ require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../config.php';
 requireNonOperator();
 $storeId = getStoreId();
+$shopId = getShopId();
 $from = $_GET['from'] ?? date('Y-m-d', strtotime('-30 days'));
 $to = $_GET['to'] ?? date('Y-m-d');
 $pdo = getDB();
+if (!$shopId && isset($_GET['shop_id']) && $_GET['shop_id'] !== '' && $storeId) {
+    $reqShop = (int)$_GET['shop_id'];
+    $chk = $pdo->prepare('SELECT id FROM shops WHERE id = ? AND store_id = ?');
+    $chk->execute([$reqShop, $storeId]);
+    if ($chk->fetch()) {
+        $shopId = $reqShop;
+    }
+}
 
 try {
     $where = "po.created_at >= ? AND po.created_at < DATE_ADD(?, INTERVAL 1 DAY)";
@@ -19,6 +28,10 @@ try {
     if ($storeId) {
         $where .= " AND po.store_id = ?";
         $params[] = $storeId;
+    }
+    if ($shopId) {
+        $where .= " AND po.shop_id = ?";
+        $params[] = $shopId;
     }
 
     // 按日：订单数/销售额（仅查 pos_orders，避免 JOIN 放大）

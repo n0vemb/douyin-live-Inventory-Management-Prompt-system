@@ -41,11 +41,10 @@ function couponIssuedCount($pdo, $campaignId) {
  * 手机号可用券列表（收银台用）
  * @param float $subtotal 优惠前合计（用于满减门槛判断）
  */
-function couponUsableClaims($pdo, $storeId, $phone, $subtotal = 0, $now = null) {
+function couponUsableClaims($pdo, $storeId, $phone, $subtotal = 0, $now = null, $shopId = null) {
     $now = $now ?: couponNow();
     if (!couponPhoneValid($phone)) return [];
-    $stmt = $pdo->prepare(
-        "SELECT cc.id AS claim_id, cc.phone, cc.status, cc.claimed_at,
+    $sql = "SELECT cc.id AS claim_id, cc.phone, cc.status, cc.claimed_at,
                 cp.id AS campaign_id, cp.store_id, cp.name, cp.coupon_type,
                 cp.threshold, cp.amount, cp.stackable, cp.end_at, cp.remark AS campaign_remark
          FROM coupon_claims cc
@@ -53,10 +52,15 @@ function couponUsableClaims($pdo, $storeId, $phone, $subtotal = 0, $now = null) 
          WHERE cc.store_id = ? AND cc.phone = ? AND cc.status = 'unused'
            AND cp.store_id = ? AND cp.status = 'active'
            AND (cp.start_at IS NULL OR cp.start_at <= ?)
-           AND (cp.end_at IS NULL OR cp.end_at >= ?)
-         ORDER BY cp.end_at ASC, cc.id ASC"
-    );
-    $stmt->execute([$storeId, $phone, $storeId, $now, $now]);
+           AND (cp.end_at IS NULL OR cp.end_at >= ?)";
+    $params = [$storeId, $phone, $storeId, $now, $now];
+    if ($shopId) {
+        $sql .= ' AND cp.shop_id = ?';
+        $params[] = $shopId;
+    }
+    $sql .= ' ORDER BY cp.end_at ASC, cc.id ASC';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
     $out = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $amount = round((float)$r['amount'], 2);

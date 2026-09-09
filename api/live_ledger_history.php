@@ -17,6 +17,7 @@ require_once __DIR__ . '/permission_helper.php';
 
 $pdo = getDB();
 requireAuth(); $storeId = getStoreId();
+$shopId = getShopId();
 
 $startDate = $_GET['start_date'] ?? null;
 $endDate = $_GET['end_date'] ?? null;
@@ -29,9 +30,10 @@ $view = $_GET['view'] ?? 'session';
 $limit = isset($_GET['limit']) ? min(200, (int)$_GET['limit']) : 100;
 
 // ===== 基础查询：场次列表（含汇总） =====
-$sql = "SELECT ls.* FROM live_ledger_session ls WHERE 1=1";
+$sql = "SELECT ls.*, sh.name AS shop_name FROM live_ledger_session ls LEFT JOIN shops sh ON sh.id = ls.shop_id WHERE 1=1";
 $params = [];
 if ($storeId) { $sql .= " AND ls.store_id = ?"; $params[] = $storeId; }
+if ($shopId) { $sql .= " AND ls.shop_id = ?"; $params[] = $shopId; }
 if ($startDate) { $sql .= " AND ls.created_at >= ?"; $params[] = $startDate . ' 00:00:00'; }
 if ($endDate) { $sql .= " AND ls.created_at <= ?"; $params[] = $endDate . ' 23:59:59'; }
 if ($sessionId > 0) { $sql .= " AND ls.id = ?"; $params[] = $sessionId; }

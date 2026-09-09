@@ -19,11 +19,8 @@ $input = json_decode(file_get_contents('php://input'), true);
 $sessionId = isset($input['session_id']) ? (int)$input['session_id'] : 0;
 if ($sessionId <= 0) error('缺少场次ID');
 
-// 校验场次存在且属于本店铺
-$stmt = $pdo->prepare("SELECT id, session_name FROM live_ledger_session WHERE id = ? AND store_id = ?");
-$stmt->execute([$sessionId, $storeId]);
-$session = $stmt->fetch();
-if (!$session) error('场次不存在');
+// 校验场次存在且在本人作用域内（店管只能删本店）
+$session = requireLedgerSessionRow($pdo, $sessionId);
 
 $pdo->beginTransaction();
 try {

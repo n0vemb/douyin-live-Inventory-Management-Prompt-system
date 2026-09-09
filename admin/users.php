@@ -1,10 +1,18 @@
 <?php $pageTitle = '用户管理'; $currentPage = 'users'; ?>
 <?php require_once __DIR__ . '/layout.php'; ?>
-<?php $isSuperAdmin = ($currentUser['role'] === 'super_admin'); $myStoreId = $currentUser['store_id'] ?? null; ?>
+<?php
+$isSuperAdmin = ($currentUser['role'] === 'super_admin');
+$isGroupAdmin = ($currentUser['role'] === 'group_admin');
+$isStoreAdmin = ($currentUser['role'] === 'store_admin');
+$canManageUsers = $isSuperAdmin || $isGroupAdmin || $isStoreAdmin;
+$myStoreId = $currentUser['store_id'] ?? null;
+$myShopId = $currentUser['shop_id'] ?? null;
+?>
 
 <style>
 .user-role-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:500; }
 .role-super { background:rgba(239,68,68,0.15); color:#ef4444; }
+.role-group { background:rgba(139,92,246,0.15); color:#a78bfa; }
 .role-store { background:rgba(102,126,234,0.15); color:#667eea; }
 .role-operator { background:rgba(16,185,129,0.15); color:#10b981; }
 .role-deputy { background:rgba(99,102,241,0.15); color:#818cf8; }
@@ -24,7 +32,7 @@
 
 <div class="page-header">
     <h1>👥 用户管理</h1>
-    <p>管理系统中的所有用户</p>
+    <p>按 平台 / 集团 / 店 三级管理账号</p>
 </div>
 
 <div class="card">
@@ -32,7 +40,8 @@
         <input type="text" class="form-input users-search" id="searchInput" placeholder="搜索用户名、显示名..." oninput="applyFilter()">
         <div class="users-filter">
             <span class="filter-tag active" data-filter="all" onclick="setFilter(this, 'all')">全部</span>
-            <?php if ($isSuperAdmin): ?><span class="filter-tag" data-filter="store_admin" onclick="setFilter(this, 'store_admin')">店铺管理员</span><?php endif; ?>
+            <?php if ($canManageUsers && !$isStoreAdmin): ?><span class="filter-tag" data-filter="store_admin" onclick="setFilter(this, 'store_admin')">店管</span><?php endif; ?>
+            <?php if ($isSuperAdmin || $isGroupAdmin): ?><span class="filter-tag" data-filter="group_admin" onclick="setFilter(this, 'group_admin')">集团管理员</span><?php endif; ?>
             <span class="filter-tag" data-filter="operator" onclick="setFilter(this, 'operator')">运营</span>
             <span class="filter-tag" data-filter="deputy_store_admin" onclick="setFilter(this, 'deputy_store_admin')">副店长</span>
             <span class="filter-tag" data-filter="warehouse" onclick="setFilter(this, 'warehouse')">仓库</span>
@@ -48,7 +57,7 @@
                 <th style="width:50px;">ID</th>
                 <th>用户</th>
                 <th>角色</th>
-                <th>所属店铺</th>
+                <th>所属集团 / 店</th>
                 <th>状态</th>
                 <th>最后登录</th>
                 <th style="width:160px;">操作</th>
@@ -84,20 +93,29 @@
             <div class="form-group">
                 <label class="form-label">角色</label>
                 <select class="form-input" id="newRole" onchange="toggleCreateStoreSelect()">
-                    <?php if ($isSuperAdmin): ?><option value="store_admin">店铺管理员</option><?php endif; ?>
+                    <?php if ($canManageUsers && !$isStoreAdmin): ?><option value="store_admin">店管</option><?php endif; ?>
+                    <?php if ($isSuperAdmin): ?><option value="group_admin">集团管理员</option><?php endif; ?>
                     <option value="operator">运营</option>
                     <option value="deputy_store_admin">副店长</option>
-                    <option value="warehouse">仓库</option>
+                    <?php if ($isSuperAdmin || $isGroupAdmin): ?><option value="warehouse">仓库</option><?php endif; ?>
                     <?php if ($isSuperAdmin): ?><option value="super_admin">超级管理员</option><?php endif; ?>
                 </select>
             </div>
             <?php if ($isSuperAdmin): ?>
             <div class="form-group" id="createStoreSelectGroup">
-                <label class="form-label">所属店铺</label>
+                <label class="form-label">所属集团</label>
                 <select class="form-input" id="newStoreId"></select>
             </div>
             <?php else: ?>
-            <input type="hidden" id="newStoreId">
+            <input type="hidden" id="newStoreId" value="<?= (int)$myStoreId ?>">
+            <?php endif; ?>
+            <?php if ($isSuperAdmin || $isGroupAdmin): ?>
+            <div class="form-group" id="createShopSelectGroup" style="display:none;">
+                <label class="form-label">所属店</label>
+                <select class="form-input" id="newShopId"></select>
+            </div>
+            <?php else: ?>
+            <input type="hidden" id="newShopId" value="<?= (int)$myShopId ?>">
             <?php endif; ?>
             <div style="display:flex; gap:10px; margin-top:20px;">
                 <button type="submit" class="btn btn-primary" style="flex:1;">创建</button>
@@ -131,20 +149,29 @@
             <div class="form-group">
                 <label class="form-label">角色</label>
                 <select class="form-input" id="editRole" onchange="toggleEditStoreSelect()">
-                    <?php if ($isSuperAdmin): ?><option value="store_admin">店铺管理员</option><?php endif; ?>
+                    <?php if ($canManageUsers && !$isStoreAdmin): ?><option value="store_admin">店管</option><?php endif; ?>
+                    <?php if ($isSuperAdmin): ?><option value="group_admin">集团管理员</option><?php endif; ?>
                     <option value="operator">运营</option>
                     <option value="deputy_store_admin">副店长</option>
-                    <option value="warehouse">仓库</option>
+                    <?php if ($isSuperAdmin || $isGroupAdmin): ?><option value="warehouse">仓库</option><?php endif; ?>
                     <?php if ($isSuperAdmin): ?><option value="super_admin">超级管理员</option><?php endif; ?>
                 </select>
             </div>
             <?php if ($isSuperAdmin): ?>
             <div class="form-group" id="editStoreSelectGroup">
-                <label class="form-label">所属店铺</label>
+                <label class="form-label">所属集团</label>
                 <select class="form-input" id="editStoreId"></select>
             </div>
             <?php else: ?>
-            <input type="hidden" id="editStoreId">
+            <input type="hidden" id="editStoreId" value="<?= (int)$myStoreId ?>">
+            <?php endif; ?>
+            <?php if ($isSuperAdmin || $isGroupAdmin): ?>
+            <div class="form-group" id="editShopSelectGroup" style="display:none;">
+                <label class="form-label">所属店</label>
+                <select class="form-input" id="editShopId"></select>
+            </div>
+            <?php else: ?>
+            <input type="hidden" id="editShopId" value="<?= (int)$myShopId ?>">
             <?php endif; ?>
             <div style="display:flex; gap:10px; margin-top:20px;">
                 <button type="submit" class="btn btn-primary" style="flex:1;">保存</button>
@@ -175,10 +202,21 @@
 
 <script>
 const IS_SUPER_ADMIN = <?= $isSuperAdmin ? 'true' : 'false' ?>;
+const IS_GROUP_ADMIN = <?= $isGroupAdmin ? 'true' : 'false' ?>;
+const IS_STORE_ADMIN = <?= $isStoreAdmin ? 'true' : 'false' ?>;
 const MY_STORE_ID = <?= $myStoreId ? (int)$myStoreId : 'null' ?>;
+const MY_SHOP_ID = <?= $myShopId ? (int)$myShopId : 'null' ?>;
+const SHOP_ROLES = ['store_admin', 'operator', 'deputy_store_admin'];
 let allUsers = [];
 let currentFilter = 'all';
 let currentSearch = '';
+
+function roleLabel(r) {
+    return {super_admin:'超管', group_admin:'集团管理员', store_admin:'店管', deputy_store_admin:'副店长', operator:'运营', warehouse:'仓库'}[r] || r;
+}
+function roleClass(r) {
+    return {super_admin:'role-super', group_admin:'role-group', store_admin:'role-store', deputy_store_admin:'role-deputy', operator:'role-operator', warehouse:'role-warehouse'}[r] || 'role-store';
+}
 
 async function loadUsers() {
     try {
@@ -207,6 +245,7 @@ function applyFilter() {
 
     // 筛选标签过滤
     if (currentFilter === 'store_admin') filtered = filtered.filter(u => u.role === 'store_admin');
+    else if (currentFilter === 'group_admin') filtered = filtered.filter(u => u.role === 'group_admin');
     else if (currentFilter === 'operator') filtered = filtered.filter(u => u.role === 'operator');
     else if (currentFilter === 'deputy_store_admin') filtered = filtered.filter(u => u.role === 'deputy_store_admin');
     else if (currentFilter === 'warehouse') filtered = filtered.filter(u => u.role === 'warehouse');
@@ -249,8 +288,8 @@ function renderUsers(users) {
                     </div>
                 </div>
             </td>
-            <td><span class="user-role-badge ${u.role === 'super_admin' ? 'role-super' : u.role === 'operator' ? 'role-operator' : u.role === 'deputy_store_admin' ? 'role-deputy' : u.role === 'warehouse' ? 'role-warehouse' : 'role-store'}">${u.role === 'super_admin' ? '超管' : u.role === 'operator' ? '运营' : u.role === 'deputy_store_admin' ? '副店长' : u.role === 'warehouse' ? '仓库' : '店铺管理员'}</span></td>
-            <td>${u.store_name || '-'}</td>
+            <td><span class="user-role-badge ${roleClass(u.role)}">${roleLabel(u.role)}</span></td>
+            <td>${u.store_name || '-'}${u.shop_name ? ' · ' + u.shop_name : ''}</td>
             <td>${u.is_active
                 ? '<span style="display:inline-flex;align-items:center;gap:4px;color:var(--success);"><span style="width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block;"></span>启用</span>'
                 : '<span style="display:inline-flex;align-items:center;gap:4px;color:var(--text-tertiary);"><span style="width:6px;height:6px;border-radius:50%;background:var(--text-tertiary);display:inline-block;"></span>禁用</span>'}</td>
@@ -278,19 +317,59 @@ async function loadStores(selectId) {
     } catch(e) {}
 }
 
+async function loadShops(selectId, storeId) {
+    try {
+        const q = storeId ? '?store_id=' + storeId : '';
+        const res = await fetch('../api/list_shops.php' + q);
+        const data = await res.json();
+        const shops = (data.success ? data.data.shops : []) || [];
+        const select = document.getElementById(selectId);
+        select.innerHTML = shops.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        return shops;
+    } catch(e) { return []; }
+}
+
+function needsStoreSelect(role) {
+    return IS_SUPER_ADMIN && role !== 'super_admin';
+}
+
+function needsShopSelect(role) {
+    return (IS_SUPER_ADMIN || IS_GROUP_ADMIN || IS_STORE_ADMIN) && SHOP_ROLES.includes(role);
+}
+
+function currentStoreForShops() {
+    if (IS_SUPER_ADMIN) {
+        const v = parseInt(document.getElementById('newStoreId')?.value || '');
+        return v || null;
+    }
+    return MY_STORE_ID;
+}
+
 function toggleCreateStoreSelect() {
-    if (!IS_SUPER_ADMIN) return;
     const r = document.getElementById('newRole').value;
-    document.getElementById('createStoreSelectGroup').style.display =
-        (r === 'store_admin' || r === 'operator' || r === 'deputy_store_admin' || r === 'warehouse') ? 'block' : 'none';
+    if (IS_SUPER_ADMIN) {
+        document.getElementById('createStoreSelectGroup').style.display = needsStoreSelect(r) ? 'block' : 'none';
+    }
+    const shopGroup = document.getElementById('createShopSelectGroup');
+    if (shopGroup && (IS_SUPER_ADMIN || IS_GROUP_ADMIN)) {
+        shopGroup.style.display = needsShopSelect(r) ? 'block' : 'none';
+        if (needsShopSelect(r)) {
+            const sid = IS_SUPER_ADMIN ? (parseInt(document.getElementById('newStoreId').value) || null) : MY_STORE_ID;
+            loadShops('newShopId', sid);
+        }
+    }
 }
 
 function openCreateModal() {
-    if (IS_SUPER_ADMIN) loadStores('newStoreId');
     document.getElementById('newUsername').value = '';
     document.getElementById('newDisplayName').value = '';
     document.getElementById('newPassword').value = '';
     document.getElementById('newRole').value = 'operator';
+    if (IS_SUPER_ADMIN) {
+        loadStores('newStoreId').then(() => toggleCreateStoreSelect());
+    } else if (IS_GROUP_ADMIN) {
+        loadShops('newShopId', MY_STORE_ID).then(() => toggleCreateStoreSelect());
+    }
     toggleCreateStoreSelect();
     document.getElementById('createUserModal').classList.add('show');
 }
@@ -301,12 +380,14 @@ function closeCreateModal() {
 
 async function createUser(e) {
     e.preventDefault();
+    const role = document.getElementById('newRole').value;
     const data = {
         username: document.getElementById('newUsername').value,
         display_name: document.getElementById('newDisplayName').value,
         password: document.getElementById('newPassword').value,
-        role: document.getElementById('newRole').value,
-        store_id: IS_SUPER_ADMIN ? (parseInt(document.getElementById('newStoreId').value) || null) : MY_STORE_ID
+        role: role,
+        store_id: IS_SUPER_ADMIN ? (parseInt(document.getElementById('newStoreId').value) || null) : MY_STORE_ID,
+        shop_id: needsShopSelect(role) ? (parseInt(document.getElementById('newShopId').value) || null) : null
     };
     try {
         const res = await fetch('../api/create_user.php', {
@@ -329,10 +410,21 @@ async function createUser(e) {
 
 // ── 编辑用户 ──
 function toggleEditStoreSelect() {
-    if (!IS_SUPER_ADMIN) return;
     const r = document.getElementById('editRole').value;
-    document.getElementById('editStoreSelectGroup').style.display =
-        (r === 'store_admin' || r === 'operator' || r === 'deputy_store_admin' || r === 'warehouse') ? 'block' : 'none';
+    if (IS_SUPER_ADMIN) {
+        document.getElementById('editStoreSelectGroup').style.display = needsStoreSelect(r) ? 'block' : 'none';
+        if (needsShopSelect(r)) {
+            const sid = parseInt(document.getElementById('editStoreId').value) || null;
+            loadShops('editShopId', sid);
+        }
+    }
+    const shopGroup = document.getElementById('editShopSelectGroup');
+    if (shopGroup && (IS_SUPER_ADMIN || IS_GROUP_ADMIN)) {
+        shopGroup.style.display = needsShopSelect(r) ? 'block' : 'none';
+        if (IS_GROUP_ADMIN && needsShopSelect(r)) {
+            loadShops('editShopId', MY_STORE_ID);
+        }
+    }
 }
 
 function openEditModal(userId) {
@@ -347,15 +439,25 @@ function openEditModal(userId) {
 
     if (IS_SUPER_ADMIN) {
         loadStores('editStoreId').then(() => {
-            if (u.store_id) {
-                document.getElementById('editStoreId').value = u.store_id;
+            if (u.store_id) document.getElementById('editStoreId').value = u.store_id;
+            toggleEditStoreSelect();
+            const sid = parseInt(document.getElementById('editStoreId').value) || null;
+            if (sid && needsShopSelect(u.role)) {
+                loadShops('editShopId', sid).then(() => {
+                    if (u.shop_id) document.getElementById('editShopId').value = u.shop_id;
+                });
             }
+        });
+    } else if (IS_GROUP_ADMIN) {
+        document.getElementById('editStoreId').value = MY_STORE_ID;
+        loadShops('editShopId', MY_STORE_ID).then(() => {
+            if (u.shop_id) document.getElementById('editShopId').value = u.shop_id;
+            toggleEditStoreSelect();
         });
     } else {
         document.getElementById('editStoreId').value = MY_STORE_ID;
     }
 
-    toggleEditStoreSelect();
     document.getElementById('editUserModal').classList.add('show');
 }
 
@@ -366,12 +468,14 @@ function closeEditModal() {
 async function editUser(e) {
     e.preventDefault();
     const userId = parseInt(document.getElementById('editUserId').value);
+    const role = document.getElementById('editRole').value;
     const data = {
         user_id: userId,
         username: document.getElementById('editUsername').value,
         display_name: document.getElementById('editDisplayName').value,
-        role: document.getElementById('editRole').value,
-        store_id: IS_SUPER_ADMIN ? (parseInt(document.getElementById('editStoreId').value) || null) : MY_STORE_ID
+        role: role,
+        store_id: IS_SUPER_ADMIN ? (parseInt(document.getElementById('editStoreId').value) || null) : MY_STORE_ID,
+        shop_id: needsShopSelect(role) ? (parseInt(document.getElementById('editShopId').value) || null) : null
     };
     const password = document.getElementById('editPassword').value;
     if (password) data.password = password;

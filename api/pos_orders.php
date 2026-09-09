@@ -10,18 +10,35 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/pos_auth.php';
 requireAuth();
 $storeId = getStoreId();
+$shopId = getShopId();
 $status = $_GET['outbound_status'] ?? 'pending';
 if (!in_array($status, ['pending', 'done', 'voided', 'all'], true)) $status = 'pending';
 $pdo = getDB();
+if (!$shopId && isset($_GET['shop_id']) && $_GET['shop_id'] !== '' && $storeId) {
+    $reqShop = (int)$_GET['shop_id'];
+    $chk = $pdo->prepare('SELECT id FROM shops WHERE id = ? AND store_id = ?');
+    $chk->execute([$reqShop, $storeId]);
+    if ($chk->fetch()) {
+        $shopId = $reqShop;
+    }
+}
 
 try {
     // ---- 超时自动作废（24h）----
-    $expireStmt = $pdo->prepare(
-        "SELECT id FROM pos_orders
-         WHERE outbound_status = 'pending' AND created_at < (NOW() - INTERVAL 24 HOUR)
-         ORDER BY id ASC LIMIT 50"
-    );
-    $expireStmt->execute();
+    $expireSql = "SELECT id FROM pos_orders
+         WHERE outbound_status = 'pending' AND created_at < (NOW() - INTERVAL 24 HOUR)";
+    $expireParams = [];
+    if ($storeId) {
+        $expireSql .= ' AND store_id = ?';
+        $expireParams[] = $storeId;
+    }
+    if ($shopId) {
+        $expireSql .= ' AND shop_id = ?';
+        $expireParams[] = $shopId;
+    }
+    $expireSql .= ' ORDER BY id ASC LIMIT 50';
+    $expireStmt = $pdo->prepare($expireSql);
+    $expireStmt->execute($expireParams);
     $expired = $expireStmt->fetchAll();
     if ($expired) {
         foreach ($expired as $ord) {
@@ -50,12 +67,15 @@ try {
     // ---- 列表（仅显示已付款订单：收银台未点「已付款」的订单不进待出库）----
     $condNames = conditionNames($pdo, $storeId ?: 1);
     $where = "po.store_id" . ($storeId ? " = " . (int)$storeId : " IS NOT NULL");
+    if ($shopId) $where .= " AND po.shop_id = " . (int)$shopId;
     // 待出库必须已收款（未收款不能出库）；已作废/已出库不要求收款状态
     if ($status === 'pending') $where .= " AND po.pay_status = 'paid'";
     if ($status !== 'all') $where .= " AND po.outbound_status = '" . $status . "'";
     $orders = $pdo->query(
-        "SELECT po.*, (SELECT COUNT(*) FROM pos_order_items pi WHERE pi.order_id = po.id AND pi.status = 'active') AS active_items
-         FROM pos_orders po WHERE " . $where . " ORDER BY po.created_at DESC LIMIT 200"
+        "SELECT po.*, sh.name AS shop_name, (SELECT COUNT(*) FROM pos_order_items pi WHERE pi.order_id = po.id AND pi.status = 'active') AS active_items
+         FROM pos_orders po
+         LEFT JOIN shops sh ON sh.id = po.shop_id
+         WHERE " . $where . " ORDER BY po.created_at DESC LIMIT 200"
     )->fetchAll();
 
     $itemStmt = $pdo->prepare(
@@ -72,6 +92,8 @@ try {
         foreach ($items as $it) $qty += (int)$it['qty'];
         $result[] = [
             'id' => (int)$o['id'],
+            'shop_id' => $o['shop_id'] !== null ? (int)$o['shop_id'] : null,
+            'shop_name' => $o['shop_name'] ?? '',
             'order_no' => $o['order_no'],
             'created_at' => $o['created_at'],
             'cashier_name' => $o['cashier_name'],
@@ -106,6 +128,7 @@ try {
 
     // ---- 统计（待出库口径：仅已收款订单）----
     $statWhere = $storeId ? " AND store_id = " . (int)$storeId : "";
+    if ($shopId) $statWhere .= " AND shop_id = " . (int)$shopId;
     $stat = $pdo->query(
         "SELECT COUNT(*) AS order_count,
                 COALESCE(SUM(payable), 0) AS total_payable
@@ -113,11 +136,11 @@ try {
     )->fetch();
     $totalQty = 0;
     if ((int)$stat['order_count'] > 0) {
-        $totalQty = (int)$pdo->query(
-            "SELECT COALESCE(SUM(pi.qty), 0) FROM pos_order_items pi
+        $qtySql = "SELECT COALESCE(SUM(pi.qty), 0) FROM pos_order_items pi
              JOIN pos_orders po ON po.id = pi.order_id
-             WHERE po.outbound_status = 'pending' AND po.pay_status = 'paid' AND pi.status = 'active'" . ($storeId ? " AND po.store_id = " . (int)$storeId : "")
-        )->fetchColumn();
+             WHERE po.outbound_status = 'pending' AND po.pay_status = 'paid' AND pi.status = 'active'" . ($storeId ? " AND po.store_id = " . (int)$storeId : "");
+        if ($shopId) $qtySql .= " AND po.shop_id = " . (int)$shopId;
+        $totalQty = (int)$pdo->query($qtySql)->fetchColumn();
     }
 
     success([

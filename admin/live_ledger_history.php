@@ -157,7 +157,7 @@ function renderSessions(sessions) {
         html += `
         <div class="session-block">
             <div class="session-head" onclick="this.parentElement.classList.toggle('open')">
-                <div style="display:flex; align-items:center;"><span class="toggle-arrow">▶</span><span class="session-title">${esc(s.session_name)}</span> <span class="muted" style="margin-left:8px;">#${s.id}</span></div>
+                <div style="display:flex; align-items:center;"><span class="toggle-arrow">▶</span><span class="session-title">${esc(s.session_name)}</span>${s.shop_name ? `<span style="font-size:11px;color:var(--primary);border:1px solid var(--border);border-radius:9px;padding:0 6px;margin-left:6px;">${esc(s.shop_name)}</span>` : ''}<span class="muted" style="margin-left:8px;">#${s.id}</span></div>
                 <div class="muted">${esc(actLabel)} · ${esc(s.created_at)}${dur ? ' · 播出时长 ' + dur : ''} · 出库批次 ${esc(s.outbound_batch_no || '-')}</div>
             </div>
             <div class="session-body">

@@ -12,8 +12,11 @@ if ($pwd === '') error('请输入店员密码');
 
 $pdo = getDB();
 try {
-    $stmt = $pdo->prepare('SELECT offline_staff_pwd FROM stores WHERE id = ?');
-    $stmt->execute([$storeId]);
+    $stmt = $pdo->prepare('SELECT COALESCE(NULLIF(sh.offline_staff_pwd, \'\'), s.offline_staff_pwd) AS offline_staff_pwd
+                           FROM stores s
+                           LEFT JOIN shops sh ON sh.id = ?
+                           WHERE s.id = ?');
+    $stmt->execute([posShopId(), $storeId]);
     $row = $stmt->fetch();
     $stored = $row['offline_staff_pwd'] ?? '';
     if ($stored === '') error('本店未设置店员模式密码，请店长在店铺设置中配置', 403);

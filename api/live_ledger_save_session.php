@@ -18,6 +18,24 @@ if (!is_array($input)) {
     error('无效请求');
 }
 
+// 仓库账号不建场次；店级账号固定本店；集团管理员/超管需指定目标店
+if (($_SESSION['role'] ?? '') === 'warehouse') {
+    error('仓库账号不能创建或编辑场次', 403);
+}
+$shopId = getShopId();
+if (!$shopId) {
+    $inputShop = isset($input['shop_id']) ? (int)$input['shop_id'] : 0;
+    if ($inputShop <= 0) {
+        error('请选择所属店（场次必须归属 A店/B店）');
+    }
+    $stmt = $pdo->prepare('SELECT id FROM shops WHERE id = ? AND store_id = ?');
+    $stmt->execute([$inputShop, $storeId]);
+    if (!$stmt->fetch()) {
+        error('所选店铺不属于当前集团');
+    }
+    $shopId = $inputShop;
+}
+
 $sessionId = isset($input['session_id']) ? (int)$input['session_id'] : 0;
 $sessionName = trim($input['session_name'] ?? '');
 $anchor = trim($input['anchor'] ?? '');
@@ -53,10 +71,7 @@ $platformFeeRate = $platformFeeRate / 100;
 
 if ($sessionId > 0) {
     // 更新已有场次（仅 active 状态可改配置）
-    $stmt = $pdo->prepare("SELECT status, anchor, operator, account FROM live_ledger_session WHERE id = ? AND store_id = ?");
-    $stmt->execute([$sessionId, $storeId]);
-    $existing = $stmt->fetch();
-    if (!$existing) error('场次不存在');
+    $existing = requireLedgerSessionRow($pdo, $sessionId);
     if ($existing['status'] !== 'active') error('已结束的场次不能修改');
 
     // 前端未传 anchor/operator/account 时保留原值（防止设置保存误清空）
@@ -78,12 +93,12 @@ if ($sessionId > 0) {
     // 赠品预设与费用参数自动带上一次的值，减少重复填写
     $prev = null;
     if (!isset($input['gift_presets']) || !isset($input['gift_every_n'])) {
-        $stmt = $pdo->prepare("SELECT activity_type, gift_every_n, reduce_threshold, reduce_amount,
-                                      platform_fee_rate, packing_cost, shipping_fee_8, shipping_fee_9, gift_presets_json
-                               FROM live_ledger_session
-                               WHERE store_id = ? AND id != ?
-                               ORDER BY id DESC LIMIT 1");
-        $stmt->execute([$storeId, $sessionId]);
+    $stmt = $pdo->prepare("SELECT activity_type, gift_every_n, reduce_threshold, reduce_amount,
+                                  platform_fee_rate, packing_cost, shipping_fee_8, shipping_fee_9, gift_presets_json
+                           FROM live_ledger_session
+                           WHERE store_id = ? AND shop_id = ? AND id != ?
+                           ORDER BY id DESC LIMIT 1");
+        $stmt->execute([$storeId, $shopId, $sessionId]);
         $prev = $stmt->fetch();
     }
     if ($prev) {
@@ -103,10 +118,10 @@ if ($sessionId > 0) {
     }
 
     $stmt = $pdo->prepare("INSERT INTO live_ledger_session
-        (store_id, session_name, anchor, operator, account, activity_type, gift_every_n, reduce_threshold, reduce_amount,
+        (store_id, shop_id, session_name, anchor, operator, account, activity_type, gift_every_n, reduce_threshold, reduce_amount,
          platform_fee_rate, packing_cost, shipping_fee_8, shipping_fee_9, gift_presets_json, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')");
-    $stmt->execute([$storeId, $sessionName, $anchor, $operator, $account, $activityType, $giftEveryN, $reduceThreshold, $reduceAmount,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')");
+    $stmt->execute([$storeId, $shopId, $sessionName, $anchor, $operator, $account, $activityType, $giftEveryN, $reduceThreshold, $reduceAmount,
         $platformFeeRate, $packingCost, $shippingFee8, $shippingFee9, $giftPresetsJson]);
     $newId = (int)$pdo->lastInsertId();
     success(['data' => ['session_id' => $newId]]);

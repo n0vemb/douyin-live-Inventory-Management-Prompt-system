@@ -10,5 +10,5 @@ $pdo = getDB();
 $phone = trim((string)($_GET['phone'] ?? ''));
 $subtotal = max(0, round((float)($_GET['subtotal'] ?? 0), 2));
 
-$list = couponUsableClaims($pdo, $storeId, $phone, $subtotal);
+$list = couponUsableClaims($pdo, $storeId, $phone, $subtotal, null, posShopId());
 success(['phone' => $phone, 'subtotal' => $subtotal, 'coupons' => $list]);

@@ -19,16 +19,20 @@ $storeId = getStoreId();
 if ($storeId === null) {
     error('请先选择店铺再操作');
 }
+$shopId = getShopId();
+if ($shopId === null) {
+    error('待办归属具体店铺：集团管理员只能跨店查看，不能删除');
+}
 
 $pdo = getDB();
 
-$stmt = $pdo->prepare("SELECT id FROM todo_items WHERE id = ? AND store_id = ?");
-$stmt->execute([$id, $storeId]);
+$stmt = $pdo->prepare("SELECT id FROM todo_items WHERE id = ? AND store_id = ? AND shop_id = ?");
+$stmt->execute([$id, $storeId, $shopId]);
 if (!$stmt->fetch()) {
     error('未找到该待办');
 }
 
-$stmt = $pdo->prepare("DELETE FROM todo_items WHERE id = ? AND store_id = ?");
-$stmt->execute([$id, $storeId]);
+$stmt = $pdo->prepare("DELETE FROM todo_items WHERE id = ? AND store_id = ? AND shop_id = ?");
+$stmt->execute([$id, $storeId, $shopId]);
 
 success(['message' => '已删除']);

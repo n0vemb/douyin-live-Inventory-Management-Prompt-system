@@ -7,6 +7,7 @@
 require_once __DIR__ . '/pos_auth.php';
 require_once __DIR__ . '/coupon_lib.php';
 $storeId = requirePosStore();
+$shopId = posShopId();
 $input = json_decode(file_get_contents('php://input'), true);
 $orderId = intval($input['order_id'] ?? 0);
 if (!$orderId) error('缺少订单ID');
@@ -17,8 +18,8 @@ $lockName = 'pp_pos_auto_release_' . (int)$storeId;
 $pdo->query('SELECT GET_LOCK(' . $pdo->quote($lockName) . ', 5)');
 
 try {
-    $orderStmt = $pdo->prepare('SELECT * FROM pos_orders WHERE id = ?');
-    $orderStmt->execute([$orderId]);
+    $orderStmt = $pdo->prepare('SELECT * FROM pos_orders WHERE id = ?' . ($shopId ? ' AND shop_id = ?' : ''));
+    $orderStmt->execute($shopId ? [$orderId, $shopId] : [$orderId]);
     $order = $orderStmt->fetch();
     if (!$order) error('订单不存在');
     if ((int)$order['store_id'] !== $storeId) error('订单不属于当前店铺', 403);

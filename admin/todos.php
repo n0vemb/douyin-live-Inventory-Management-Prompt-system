@@ -85,7 +85,7 @@ require_once __DIR__ . '/layout.php';
     </style>
 
     <script>
-    let items = [], members = [], currentStore = null, currentUser = null;
+    let items = [], members = [], currentStore = null, currentShop = null, canWrite = false, currentUser = null;
     let filter = 'pending', q = '', adding = false, completeId = null;
     let updateId = null, openUpdates = new Set();
     let editTodoId = null, editUpdateId = null;
@@ -112,11 +112,18 @@ require_once __DIR__ . '/layout.php';
             items = data.items || [];
             members = data.members || [];
             currentStore = data.current_store || null;
+            currentShop = data.current_shop || null;
+            canWrite = !!data.can_write;
             currentUser = data.current_user || null;
             // 全平台视角提示（超管未选店）
             const hint = $('storeHint');
             if (currentStore) {
-                hint.style.display = 'none'; hint.innerHTML = '';
+                if (canWrite) {
+                    hint.style.display = 'none'; hint.innerHTML = '';
+                } else {
+                    hint.style.display = 'block';
+                    hint.innerHTML = '<div class="store-hint-box">当前为集团汇总视角（跨店只读）：可查看各店待办，新增 / 完成 / 编辑请用各店账号操作</div>';
+                }
             } else {
                 hint.style.display = 'block';
                 hint.innerHTML = '<div class="store-hint-box">当前为全平台视角，新增 / 完成 / 删除操作前请先在右上角切换到具体店铺</div>';
@@ -134,6 +141,7 @@ require_once __DIR__ . '/layout.php';
 
     function toggleAdd() {
         if (!currentStore) { toast('请先切换到具体店铺'); return; }
+        if (!canWrite) { toast('当前为集团汇总视角（只读），新增待办请用具体店铺账号'); return; }
         adding = !adding; completeId = null; updateId = null; editTodoId = null; editUpdateId = null; render();
     }
 
@@ -200,7 +208,10 @@ require_once __DIR__ . '/layout.php';
             const sBadge = it.status === 'done'
                 ? '<span class="badge badge-success">已完成</span>'
                 : '<span class="badge badge-warning">待完成</span>';
-            const storeTag = (!currentStore && it.store_name) ? `<span class="todo-store-tag">${esc(it.store_name)}</span>` : '';
+            const scopeTags = [];
+            if (!currentStore && it.store_name) scopeTags.push(`<span class="todo-store-tag">${esc(it.store_name)}</span>`);
+            if (it.shop_name && (!currentShop || currentShop.shop_id !== it.shop_id)) scopeTags.push(`<span class="todo-store-tag">${esc(it.shop_name)}</span>`);
+            const storeTag = scopeTags.join('');
             const asgNames = assigneeNames(it.assignees);
             const asgHtml = asgNames.length
                 ? `<div class="todo-assignees"><span class="al">执行人</span>${asgNames.map(n => `<span class="todo-atag">@${esc(n)}</span>`).join('')}</div>`
@@ -215,11 +226,11 @@ require_once __DIR__ . '/layout.php';
                 detail = `<div class="todo-detail-box"><div class="dh">完成详情</div>${esc(it.completion_detail)}</div>`;
             }
             let acts = '';
-            if (it.status === 'pending') {
+            if (it.status === 'pending' && canWrite) {
                 const canEditTodo = currentUser && it.creator_id === currentUser.id;
                 const editBtn = canEditTodo ? `<button class="btn btn-outline btn-sm" onclick="startEditTodo(${it.id})">编辑</button>` : '';
                 acts = `<div class="todo-acts">${editBtn}<button class="btn btn-outline btn-sm" onclick="startUpdate(${it.id})">更新进展</button><button class="btn btn-primary btn-sm" onclick="startComplete(${it.id})">完成</button><button class="btn btn-danger btn-sm" onclick="del(${it.id})">删除</button></div>`;
-            } else {
+            } else if (it.status === 'done' && canWrite) {
                 acts = `<div class="todo-acts"><button class="btn btn-secondary btn-sm" onclick="reopen(${it.id})">重新打开</button><button class="btn btn-danger btn-sm" onclick="del(${it.id})">删除</button></div>`;
             }
             const edit = (completeId === it.id) ? `

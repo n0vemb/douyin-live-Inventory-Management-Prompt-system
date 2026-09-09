@@ -3,9 +3,8 @@ require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../config.php';
 
 $currentUser = getCurrentUser();
-$isSuperAdmin = ($currentUser['role'] === 'super_admin');
-$isStoreAdmin = ($currentUser['role'] === 'store_admin');
-if (!$isSuperAdmin && !$isStoreAdmin) {
+$scope = userManageScope();
+if (!$scope) {
     http_response_code(403);
     header('Content-Type: application/json');
     echo json_encode(['success' => false, 'error' => '权限不足']);
@@ -14,26 +13,28 @@ if (!$isSuperAdmin && !$isStoreAdmin) {
 
 $pdo = getDB();
 
-if ($isSuperAdmin) {
-    $stmt = $pdo->query('
-        SELECT u.id, u.username, u.display_name, u.role, u.store_id, u.is_active, u.last_login_at, u.created_at,
-               s.name AS store_name
-        FROM users u
-        LEFT JOIN stores s ON u.store_id = s.id
-        ORDER BY u.id
-    ');
-} else {
-    // 店铺管理员只能看自己店铺的运营/仓库账号
-    $stmt = $pdo->prepare('
-        SELECT u.id, u.username, u.display_name, u.role, u.store_id, u.is_active, u.last_login_at, u.created_at,
-               s.name AS store_name
-        FROM users u
-        LEFT JOIN stores s ON u.store_id = s.id
-        WHERE u.role IN (?, ?, ?) AND u.store_id = ?
-        ORDER BY u.id
-    ');
-    $stmt->execute(['operator', 'deputy_store_admin', 'warehouse', $currentUser['store_id']]);
+$sql = '
+    SELECT u.id, u.username, u.display_name, u.role, u.store_id, u.shop_id, u.is_active,
+           u.last_login_at, u.created_at,
+           s.name AS store_name, sh.name AS shop_name
+    FROM users u
+    LEFT JOIN stores s ON u.store_id = s.id
+    LEFT JOIN shops sh ON u.shop_id = sh.id
+    WHERE 1=1';
+$params = [];
+
+if ($scope['scope'] === 'group') {
+    $sql .= ' AND u.store_id = ?';
+    $params[] = $scope['store_id'];
+} elseif ($scope['scope'] === 'shop') {
+    $sql .= ' AND u.store_id = ? AND u.shop_id = ?';
+    $params[] = $scope['store_id'];
+    $params[] = $scope['shop_id'];
 }
+
+$sql .= ' ORDER BY u.id';
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 $users = $stmt->fetchAll();
 
 // 确保 is_active 为整数

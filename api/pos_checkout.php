@@ -9,6 +9,7 @@
 require_once __DIR__ . '/pos_auth.php';
 require_once __DIR__ . '/coupon_lib.php';
 $storeId = requirePosStore();
+$shopId = requirePosShop();
 $input = json_decode(file_get_contents('php://input'), true);
 $items = $input['items'] ?? [];
 $couponIds = array_values(array_unique(array_filter(array_map('intval', $input['coupon_ids'] ?? []))));
@@ -46,12 +47,12 @@ try {
     // 1) 生成订单主表（先占 id）
     $orderNo = posOrderNo();
     $insertOrder = $pdo->prepare(
-        "INSERT INTO pos_orders (store_id, order_no, cashier_name, staff_mode, customer_phone, staff_discount, subtotal, discount_amount, payable, pay_method, pay_status, paid_at, outbound_status)
-         VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, 'pending')"
+        "INSERT INTO pos_orders (store_id, shop_id, order_no, cashier_name, staff_mode, customer_phone, staff_discount, subtotal, discount_amount, payable, pay_method, pay_status, paid_at, outbound_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, 'pending')"
     );
     $payStatus = $payMethod === 'cash' ? 'paid' : 'pending';
     $paidAt = $payMethod === 'cash' ? date('Y-m-d H:i:s') : null;
-    $insertOrder->execute([$storeId, $orderNo, $cashierName ?: null, $isStaff ? 1 : 0, $customerPhone !== '' ? $customerPhone : null, $isStaff ? $staffDiscount : null, $payMethod, $payStatus, $paidAt]);
+    $insertOrder->execute([$storeId, $shopId, $orderNo, $cashierName ?: null, $isStaff ? 1 : 0, $customerPhone !== '' ? $customerPhone : null, $isStaff ? $staffDiscount : null, $payMethod, $payStatus, $paidAt]);
     $orderId = (int)$pdo->lastInsertId();
 
     // 2) 逐 item：算价 + FIFO 锁批次
@@ -66,7 +67,7 @@ try {
     $lockUpdate = $pdo->prepare('UPDATE inventory_batches SET locked_qty = locked_qty + ? WHERE id = ?');
     $insertLock = $pdo->prepare('INSERT INTO pos_order_locks (order_id, order_item_id, batch_id, qty) VALUES (?, ?, ?, ?)');
     $insertItem = $pdo->prepare(
-        'INSERT INTO pos_order_items (order_id, store_id, product_id, condition_type, qty, unit_price, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO pos_order_items (order_id, store_id, shop_id, product_id, condition_type, qty, unit_price, line_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     );
     // 直播占用：所有未结束(active)记账场次已录数量（POS 不可卖）
     $liveOccStmt = $pdo->prepare("SELECT COALESCE(SUM(li.qty),0)
@@ -154,7 +155,7 @@ try {
 
         // 插明细 + 锁
         $lineTotal = round($unitPrice * $qty, 2);
-        $insertItem->execute([$orderId, $storeId, $productId, $cond, $qty, $unitPrice, $lineTotal]);
+        $insertItem->execute([$orderId, $storeId, $shopId, $productId, $cond, $qty, $unitPrice, $lineTotal]);
         $itemId = (int)$pdo->lastInsertId();
         foreach ($lockedBatches as $lb) {
             $lockUpdate->execute([$lb['take'], $lb['batch_id']]);
@@ -192,9 +193,10 @@ try {
              FROM coupon_claims cc
              JOIN coupon_campaigns cp ON cp.id = cc.campaign_id
              WHERE cc.id IN ($inList) AND cc.store_id = ? AND cc.phone = ? AND cc.status = 'unused'
+               AND cp.shop_id = ?
              FOR UPDATE"
         );
-        $params = array_merge($couponIds, [$storeId, $customerPhone]);
+        $params = array_merge($couponIds, [$storeId, $customerPhone, $shopId]);
         $q->execute($params);
         $claims = $q->fetchAll(PDO::FETCH_ASSOC);
         if (count($claims) !== count($couponIds)) {
@@ -220,17 +222,17 @@ try {
         }
         $lockClaim = $pdo->prepare(
             "UPDATE coupon_claims SET status = 'locked', order_id = ?, order_no = ?
-             WHERE id = ? AND store_id = ? AND phone = ? AND status = 'unused'"
+             WHERE id = ? AND store_id = ? AND shop_id = ? AND phone = ? AND status = 'unused'"
         );
         $insOrderCoupon = $pdo->prepare(
-            'INSERT INTO pos_order_coupons (order_id, claim_id, campaign_id, store_id, phone, amount_off)
-             VALUES (?,?,?,?,?,?)'
+            'INSERT INTO pos_order_coupons (order_id, claim_id, campaign_id, store_id, shop_id, phone, amount_off)
+             VALUES (?,?,?,?,?,?,?)'
         );
         foreach ($claims as $cl) {
-            $lockClaim->execute([$orderId, $orderNo, $cl['claim_id'], $storeId, $customerPhone]);
+            $lockClaim->execute([$orderId, $orderNo, $cl['claim_id'], $storeId, $shopId, $customerPhone]);
             if ($lockClaim->rowCount() !== 1) throw new Exception('优惠券已被其他订单占用，请刷新重选');
             $couponAmount += (float)$cl['amount'];
-            $insOrderCoupon->execute([$orderId, $cl['claim_id'], $cl['campaign_id'], $storeId, $customerPhone, (float)$cl['amount']]);
+            $insOrderCoupon->execute([$orderId, $cl['claim_id'], $cl['campaign_id'], $storeId, $shopId, $customerPhone, (float)$cl['amount']]);
         }
     }
     // 券后最低支付 0.01（个人收款码不能收 0 元）

@@ -16,8 +16,15 @@ if (empty($storeId)) {
     return;
 }
 
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM todo_items WHERE store_id = ? AND status = 'pending'");
-$stmt->execute([$storeId]);
+$shopId = getShopId();
+$sql = "SELECT COUNT(*) FROM todo_items WHERE store_id = ? AND status = 'pending'";
+$params = [$storeId];
+if ($shopId) {
+    $sql .= ' AND shop_id = ?';
+    $params[] = $shopId;
+}
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 $count = (int)$stmt->fetchColumn();
 
 success(['data' => ['count' => $count]]);

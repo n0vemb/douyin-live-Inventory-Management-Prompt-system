@@ -78,13 +78,18 @@ try {
         }
 
         $outboundStoreId = $storeId ?? $batch['store_id'];
+        // 手工出库归属店：店级账号固定本店；集团/超管未指定时回退“默认店”
+        $outboundShopId = getShopId();
+        if (!$outboundShopId) {
+            $outboundShopId = ensureDefaultShop((int)$outboundStoreId);
+        }
 
         $stmt = $pdo->prepare('
             INSERT INTO outbound_log
-            (batch_id, product_id, condition_type, qty, outbound_price, order_no, outbound_batch_no, remark, platform, account, store_id, shipping_fee)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (batch_id, product_id, condition_type, qty, outbound_price, order_no, outbound_batch_no, remark, platform, account, store_id, shop_id, shipping_fee)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ');
-        $stmt->execute([$batchId, $productId, $conditionType, $qty, $price, $orderNo, $outboundBatchNo, $remark, $platform, $account, $outboundStoreId, $shippingFee]);
+        $stmt->execute([$batchId, $productId, $conditionType, $qty, $price, $orderNo, $outboundBatchNo, $remark, $platform, $account, $outboundStoreId, $outboundShopId, $shippingFee]);
 
         $outboundRecords[] = [
             'batch_id' => $batchId,
@@ -106,10 +111,10 @@ try {
     // 保存财务数据（选填）
     if (isset($outboundStoreId) && ($financeGmv !== null || $financeOrders !== null || $financeAdSpend !== null)) {
         $stmt = $pdo->prepare('
-            INSERT INTO outbound_finance (store_id, outbound_batch_no, gmv, order_count, ad_spend)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO outbound_finance (store_id, shop_id, outbound_batch_no, gmv, order_count, ad_spend)
+            VALUES (?, ?, ?, ?, ?, ?)
         ');
-        $stmt->execute([$outboundStoreId, $outboundBatchNo, $financeGmv, $financeOrders, $financeAdSpend]);
+        $stmt->execute([$outboundStoreId, $outboundShopId, $outboundBatchNo, $financeGmv, $financeOrders, $financeAdSpend]);
     }
 
     $pdo->commit();

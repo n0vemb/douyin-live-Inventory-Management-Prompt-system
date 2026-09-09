@@ -3,9 +3,8 @@ require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../config.php';
 
 $currentUser = getCurrentUser();
-$isSuperAdmin = ($currentUser['role'] === 'super_admin');
-$isStoreAdmin = ($currentUser['role'] === 'store_admin');
-if (!$isSuperAdmin && !$isStoreAdmin) {
+$scope = userManageScope();
+if (!$scope) {
     http_response_code(403);
     header('Content-Type: application/json');
     echo json_encode(['success' => false, 'error' => '权限不足']);
@@ -18,6 +17,7 @@ $userId   = (int)($input['user_id'] ?? 0);
 $isActive = isset($input['is_active']) ? (int)$input['is_active'] : null;
 $role     = $input['role'] ?? null;
 $storeId  = isset($input['store_id']) && $input['store_id'] !== '' ? (int)$input['store_id'] : null;
+$shopId   = isset($input['shop_id']) && $input['shop_id'] !== '' ? (int)$input['shop_id'] : null;
 $username    = array_key_exists('username', $input) ? trim((string)$input['username']) : null;
 $displayName = array_key_exists('display_name', $input) ? trim((string)$input['display_name']) : null;
 
@@ -28,23 +28,16 @@ if ($userId <= 0) {
 $pdo = getDB();
 
 // 校验目标用户存在
-$stmt = $pdo->prepare('SELECT id, username, role, store_id FROM users WHERE id = ?');
+$stmt = $pdo->prepare('SELECT id, username, role, store_id, shop_id FROM users WHERE id = ?');
 $stmt->execute([$userId]);
 $target = $stmt->fetch();
 if (!$target) {
     error('用户不存在');
 }
 
-// 店铺管理员只能操作自己店铺的运营/副店长/仓库账号
-if ($isStoreAdmin) {
-    if (!in_array($target['role'], ['operator', 'deputy_store_admin', 'warehouse']) || (int)$target['store_id'] !== (int)$currentUser['store_id']) {
-        error('只能管理自己店铺的运营/副店长和仓库账号');
-    }
-    // 店管可在 运营/副店长/仓库 之间调整，店铺固定为本店
-    if ($role !== null && !in_array($role, ['operator', 'deputy_store_admin', 'warehouse'])) {
-        error('店铺管理员只能把账号设为运营/副店长或仓库');
-    }
-    $storeId = (int)$currentUser['store_id'];
+// 目标必须落在当前账号的管理范围（平台/集团/店）
+if (!targetInManageScope($scope, $target)) {
+    error('无权管理该用户（不在你的管理范围内）');
 }
 
 $updates = [];
@@ -83,21 +76,70 @@ if (!empty($input['password'])) {
 
 // 角色/店铺更新（修复：原实现只更新密码/启用，角色和店铺不生效）
 if ($role !== null) {
-    if (!in_array($role, ['super_admin', 'store_admin', 'operator', 'deputy_store_admin', 'warehouse'])) {
-        error('无效的角色');
+    if (!in_array($role, $scope['roles'], true)) {
+        error('无权将该账号设为该角色，或该角色不在你的管理范围内');
     }
-    // 店铺管理员/运营/副店长/仓库必须有店铺；超管不能绑店铺
-    if (in_array($role, ['store_admin', 'operator', 'deputy_store_admin', 'warehouse'])) {
-        if (!$storeId) {
-            error('店铺管理员、运营/副店长和仓库账号必须指定所属店铺');
-        }
-    } else {
+
+    if ($scope['scope'] === 'group') {
+        $storeId = $scope['store_id'];
+    } elseif ($scope['scope'] === 'shop') {
+        $storeId = $scope['store_id'];
+        $shopId = $scope['shop_id'];
+    }
+
+    // 平台超管：不绑集团/店
+    if ($role === 'super_admin') {
         $storeId = null;
+        $shopId = null;
     }
+
+    // 集团管理员：绑集团、不绑店
+    if ($role === 'group_admin') {
+        if (empty($storeId)) {
+            error('集团管理员必须指定所属集团');
+        }
+        $shopId = null;
+    }
+
+    // 店级角色（店管/副店长/运营）：必须绑集团+店
+    if (in_array($role, ['store_admin', 'operator', 'deputy_store_admin'], true)) {
+        if (empty($storeId) || !$shopId) {
+            error('店管、副店长和运营账号必须指定所属集团和店铺');
+        }
+        $stmt = $pdo->prepare('SELECT id FROM shops WHERE id = ? AND store_id = ?');
+        $stmt->execute([$shopId, $storeId]);
+        if (!$stmt->fetch()) {
+            error('所选店铺不属于该集团');
+        }
+    }
+
+    // 仓库：集团级，不绑店
+    if ($role === 'warehouse') {
+        if (empty($storeId)) {
+            error('仓库账号必须指定所属集团');
+        }
+        $shopId = null;
+    }
+
+    // 除平台超管外都必须有集团
+    if ($role !== 'super_admin' && empty($storeId)) {
+        error('该角色必须指定所属集团');
+    }
+
+    // 防止把目标移到自己的管理范围之外（平台超管不受限）
+    if ($scope['scope'] !== 'platform') {
+        $finalTarget = ['role' => $role, 'store_id' => $storeId, 'shop_id' => $shopId];
+        if (!targetInManageScope($scope, $finalTarget)) {
+            error('不能把该账号移到你的管理范围之外');
+        }
+    }
+
     $updates[] = 'role = ?';
     $params[] = $role;
     $updates[] = 'store_id = ?';
     $params[] = $storeId;
+    $updates[] = 'shop_id = ?';
+    $params[] = $shopId;
 }
 
 if (empty($updates)) {
@@ -115,6 +157,26 @@ if ($userId === (int)($_SESSION['user_id'] ?? 0)) {
     }
     if ($displayName !== null) {
         $_SESSION['display_name'] = $displayName === '' ? null : $displayName;
+    }
+    if ($role !== null) {
+        $_SESSION['role'] = $role;
+        $_SESSION['store_id'] = $storeId;
+        $_SESSION['store_name'] = '';
+        if ($storeId) {
+            $st = getDB()->prepare('SELECT name FROM stores WHERE id = ?');
+            $st->execute([$storeId]);
+            $sn = $st->fetchColumn();
+            if ($sn) $_SESSION['store_name'] = $sn;
+        }
+        $_SESSION['shop_id'] = $shopId;
+        $_SESSION['shop_name'] = '';
+        if ($shopId) {
+            $st = getDB()->prepare('SELECT name FROM shops WHERE id = ?');
+            $st->execute([$shopId]);
+            $sh = $st->fetchColumn();
+            if ($sh) $_SESSION['shop_name'] = $sh;
+        }
+        unset($_SESSION['view_store_id'], $_SESSION['view_store_name'], $_SESSION['view_shop_id'], $_SESSION['view_shop_name']);
     }
 }
 

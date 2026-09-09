@@ -1,39 +1,111 @@
 <?php
 /**
  * pos_auth.php — 收银台公共会话辅助（免登录，token→session）
- * 收银台 admin/pos.php?t={pos_token} 验证 token 后写 $_SESSION['pos_store_id']
+ * 收银台 admin/pos.php?c={8位数字码}（店级码，可重置）
+ * 旧链接 admin/pos.php?t={pos_token} 兼容：定位该集团“默认店”
  * API 从 session 读取店铺；不信任前端传参
  */
 require_once __DIR__ . '/../config.php';
 
-function posStoreId() {
-    // 支持 ?t= / token 参数直接验证（token 优先于 session：换链接即换店铺，避免 session 缓存旧店）
+/**
+ * 收银台身份上下文：优先按链接参数验证（?c=8位码 / 旧 ?t=token），
+ * 无参数时回退 session。返回 store_id/shop_id/shop_name 或 null。
+ */
+function posAuthContext(): ?array {
     $token = $_GET['t'] ?? ($_POST['token'] ?? '');
+    $code = $_GET['c'] ?? ($_POST['code'] ?? ($_POST['pos_code'] ?? ''));
+
+    // ?c=8位数字码（店级入口）
+    if ($code !== '') {
+        $code = trim((string)$code);
+        if (!preg_match('/^\d{8}$/', $code)) {
+            return null;
+        }
+        $pdo = getDB();
+        $stmt = $pdo->prepare('SELECT s.id AS store_id, sh.id AS shop_id, sh.name AS shop_name
+                               FROM shops sh
+                               JOIN stores s ON s.id = sh.store_id
+                               WHERE sh.pos_code = ?');
+        $stmt->execute([$code]);
+        $row = $stmt->fetch();
+        if ($row) {
+            $_SESSION['pos_store_id'] = (int)$row['store_id'];
+            $_SESSION['pos_shop_id'] = (int)$row['shop_id'];
+            $_SESSION['pos_shop_name'] = $row['shop_name'];
+            return [
+                'store_id' => (int)$row['store_id'],
+                'shop_id' => (int)$row['shop_id'],
+                'shop_name' => $row['shop_name'],
+            ];
+        }
+        return null; // 码无效：不信任 session 残留，直接拒绝
+    }
+
+    // 旧 ?t=token：定位集团 → 默认店（兼容历史链接/二维码）
     if ($token !== '') {
         $pdo = getDB();
         $stmt = $pdo->prepare('SELECT id FROM stores WHERE pos_token = ?');
         $stmt->execute([$token]);
         $row = $stmt->fetch();
         if ($row) {
-            $_SESSION['pos_store_id'] = (int)$row['id'];
-            return (int)$row['id'];
+            $storeId = (int)$row['id'];
+            // 旧 token 无店概念：定位该集团最早创建的店（默认店被改名也能命中）
+            $shopStmt = $pdo->prepare('SELECT id, name FROM shops WHERE store_id = ? ORDER BY id ASC LIMIT 1');
+            $shopStmt->execute([$storeId]);
+            $shopRow = $shopStmt->fetch();
+            if (!$shopRow) {
+                return null;
+            }
+            $shopId = (int)$shopRow['id'];
+            $shopName = $shopRow['name'] ?: '';
+            $_SESSION['pos_store_id'] = $storeId;
+            $_SESSION['pos_shop_id'] = $shopId;
+            $_SESSION['pos_shop_name'] = $shopName;
+            return ['store_id' => $storeId, 'shop_id' => $shopId, 'shop_name' => $shopName];
         }
         return null; // token 无效：不信任 session 残留，直接拒绝
     }
-    // 无 token 时回退 session（API 请求场景）
-    if (!empty($_SESSION['pos_store_id'])) return (int)$_SESSION['pos_store_id'];
+
+    // 无参数时回退 session（API 请求场景）
+    if (!empty($_SESSION['pos_store_id']) && !empty($_SESSION['pos_shop_id'])) {
+        return [
+            'store_id' => (int)$_SESSION['pos_store_id'],
+            'shop_id' => (int)$_SESSION['pos_shop_id'],
+            'shop_name' => $_SESSION['pos_shop_name'] ?? '',
+        ];
+    }
     return null;
 }
 
+function posStoreId() {
+    $ctx = posAuthContext();
+    return $ctx ? (int)$ctx['store_id'] : null;
+}
+
+/** 当前收银台所属店ID */
+function posShopId() {
+    $ctx = posAuthContext();
+    return $ctx ? (int)$ctx['shop_id'] : null;
+}
+
 function requirePosStore() {
-    $storeId = posStoreId();
+    $ctx = posAuthContext();
+    $storeId = $ctx ? (int)$ctx['store_id'] : null;
     if (!$storeId) {
         http_response_code(401);
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => '无效的收银台链接，请从店铺设置重新获取']);
+        echo json_encode(['success' => false, 'error' => '无效的收银台链接/编码，请重新输入 8 位数字码']);
         exit;
     }
     return $storeId;
+}
+
+function requirePosShop() {
+    $ctx = posAuthContext();
+    if (!$ctx) {
+        requirePosStore(); // 输出 401 后 exit
+    }
+    return (int)$ctx['shop_id'];
 }
 
 function posStaffActive() {

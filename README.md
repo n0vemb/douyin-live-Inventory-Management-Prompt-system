@@ -91,7 +91,6 @@ Bug Fix：
 ├── login.php                     # 登录页（支持 GET 表单 / POST 认证）
 ├── register.php                  # 注册页
 ├── live.php                      # 直播辅助页面
-├── mobile_outbound.php           # 移动端出库页
 ├── config.php                    # 数据库与系统配置
 ├── auth.php                      # 认证函数库
 ├── logo.png                      # 系统 Logo

@@ -22,6 +22,9 @@ $input = json_decode(file_get_contents('php://input'), true);
 $sessionId = isset($input['session_id']) ? (int)$input['session_id'] : 0;
 if ($sessionId <= 0) error('缺少场次ID');
 
+// 作用域校验：店级角色只能操作本店场次
+requireLedgerSessionRow($pdo, $sessionId);
+
 $pdo->beginTransaction();
 try {
     $stmt = $pdo->prepare("SELECT status, off_air_at, created_at FROM live_ledger_session WHERE id = ? AND store_id = ? FOR UPDATE");

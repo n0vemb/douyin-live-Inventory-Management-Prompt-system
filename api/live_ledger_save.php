@@ -23,12 +23,10 @@ $customers = $input['customers'] ?? [];
 
 if ($sessionId <= 0) error('缺少场次ID');
 
-// 校验场次存在且属于本店铺且 active
-$stmt = $pdo->prepare("SELECT status FROM live_ledger_session WHERE id = ? AND store_id = ?");
-$stmt->execute([$sessionId, $storeId]);
-$sess = $stmt->fetch();
-if (!$sess) error('场次不存在');
+// 校验场次存在、在作用域内且 active
+$sess = requireLedgerSessionRow($pdo, $sessionId);
 if ($sess['status'] !== 'active') error('已结束的场次不能修改');
+$sessionShopId = !empty($sess['shop_id']) ? (int)$sess['shop_id'] : null;
 
 $pdo->beginTransaction();
 try {
@@ -146,8 +144,8 @@ try {
 
                 // 新增商品 → 生成仓库待出库单（同事务）；临时商品不入库不生成出库单
                 if (!$isTemp && $productId > 0) {
-                    $stmt = $pdo->prepare("INSERT INTO warehouse_task (store_id, session_id, source_type, source_id, customer_id, product_id, product_name, condition_type, qty, is_gift, type, status) VALUES (?, ?, 'item', ?, ?, ?, ?, ?, ?, ?, 'out', 'pending')");
-                    $stmt->execute([$storeId, $sessionId, $itemId, $custId, $productId, $productName, $conditionType, $qty, $isGift]);
+                    $stmt = $pdo->prepare("INSERT INTO warehouse_task (store_id, shop_id, session_id, source_type, source_id, customer_id, product_id, product_name, condition_type, qty, is_gift, type, status) VALUES (?, ?, ?, 'item', ?, ?, ?, ?, ?, ?, ?, 'out', 'pending')");
+                    $stmt->execute([$storeId, $sessionShopId, $sessionId, $itemId, $custId, $productId, $productName, $conditionType, $qty, $isGift]);
                 }
             }
         }
@@ -165,8 +163,8 @@ try {
                 $stmt->execute([$di['id']]);
                 // 正常商品删除 → 自动生成待回库单（赠品/临时商品不回收，只撤单）
                 if (!$di['is_gift'] && !$di['is_temp']) {
-                    $stmt = $pdo->prepare("INSERT INTO warehouse_task (store_id, session_id, source_type, source_id, customer_id, product_id, product_name, condition_type, qty, is_gift, type, status) VALUES (?, ?, 'item', ?, ?, ?, ?, ?, ?, 0, 'return', 'pending')");
-                    $stmt->execute([$storeId, $di['session_id'], $di['id'], $di['customer_id'], $di['product_id'], $di['product_name'], $di['condition_type'], $di['qty']]);
+                    $stmt = $pdo->prepare("INSERT INTO warehouse_task (store_id, shop_id, session_id, source_type, source_id, customer_id, product_id, product_name, condition_type, qty, is_gift, type, status) VALUES (?, ?, ?, 'item', ?, ?, ?, ?, ?, ?, 0, 'return', 'pending')");
+                    $stmt->execute([$storeId, $sessionShopId, $di['session_id'], $di['id'], $di['customer_id'], $di['product_id'], $di['product_name'], $di['condition_type'], $di['qty']]);
                 }
             }
             $stmt = $pdo->prepare("DELETE FROM live_ledger_item WHERE id IN ($ph)");

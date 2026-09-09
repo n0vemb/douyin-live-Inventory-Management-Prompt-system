@@ -12,15 +12,32 @@ if (!$storeId) {
     http_response_code(401);
     echo '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>收银台</title></head>
 <body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#fdf3f6;color:#7a6b75">
-<div style="text-align:center"><h2 style="color:#2b2230">收银台链接无效</h2>
-<p>请从后台「店铺设置 → 线下收银台」获取正确的访问链接</p></div></body></html>';
+<div style="text-align:center;padding:20px"><h2 style="color:#2b2230">收银台入口</h2>
+<p style="color:#7a6b75;margin:0 0 18px">请输入本店 8 位数字码（由管理员在「店管理」中查看/重置）</p>
+<form method="post" style="display:flex;gap:10px;justify-content:center">
+  <input name="code" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" required autofocus autocomplete="off"
+         placeholder="8 位数字码" style="font-size:20px;letter-spacing:4px;text-align:center;padding:10px 14px;border:1px solid #e7c4cc;border-radius:10px;width:200px">
+  <button type="submit" style="background:#e6021f;color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:15px;cursor:pointer">进入收银台</button>
+</form>
+<p style="font-size:12px;color:#b6a7b1;margin-top:14px">老链接如失效，请让店管/集团管理员重新查看编码</p>
+</div></body></html>';
     exit;
 }
 $pdo = getDB();
-$stmt = $pdo->prepare('SELECT name, offline_pay_qr_wx, offline_pay_qr_ali FROM stores WHERE id = ?');
-$stmt->execute([$storeId]);
+$stmt = $pdo->prepare('SELECT s.name,
+    COALESCE(NULLIF(sh.offline_pay_qr_wx, \'\'), s.offline_pay_qr_wx) AS offline_pay_qr_wx,
+    COALESCE(NULLIF(sh.offline_pay_qr_ali, \'\'), s.offline_pay_qr_ali) AS offline_pay_qr_ali
+    FROM stores s
+    LEFT JOIN shops sh ON sh.id = ?
+    WHERE s.id = ?');
+$stmt->execute([posShopId(), $storeId]);
 $storeRow = $stmt->fetch();
 $storeName = $storeRow['name'] ?? '线下收银台';
+// 标题优先显示“店”名（如 A店/B店），配置仍按集团读取
+$shopName = $_SESSION['pos_shop_name'] ?? '';
+if ($shopName) {
+    $storeName = $shopName;
+}
 $qrWx = $storeRow['offline_pay_qr_wx'] ?? '';
 $qrAli = $storeRow['offline_pay_qr_ali'] ?? '';
 // 补全相对路径为完整 URL（库中存 uploads/... 相对路径；页面在 admin/ 下需 ../ 前缀）

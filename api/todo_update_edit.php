@@ -24,6 +24,10 @@ $storeId = getStoreId();
 if ($storeId === null) {
     error('请先选择店铺再操作');
 }
+$shopId = getShopId();
+if ($shopId === null) {
+    error('待办归属具体店铺：集团管理员只能跨店查看，不能编辑');
+}
 
 $pdo = getDB();
 
@@ -31,8 +35,8 @@ $pdo = getDB();
 $stmt = $pdo->prepare("SELECT u.id, u.updated_by, t.status AS todo_status
                        FROM todo_updates u
                        JOIN todo_items t ON t.id = u.todo_id
-                       WHERE u.id = ? AND t.store_id = ?");
-$stmt->execute([$id, $storeId]);
+                       WHERE u.id = ? AND t.store_id = ? AND t.shop_id = ?");
+$stmt->execute([$id, $storeId, $shopId]);
 $upd = $stmt->fetch();
 if (!$upd) {
     error('未找到该更新记录');
@@ -54,8 +58,8 @@ if (is_array($assigneeIds) && count($assigneeIds) > 0) {
     $ids = array_unique(array_map('intval', $assigneeIds));
     if (count($ids) > 0) {
         $ph = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE store_id = ? AND id IN ($ph)");
-        $stmt->execute(array_merge([$storeId], $ids));
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE store_id = ? AND shop_id = ? AND id IN ($ph)");
+        $stmt->execute(array_merge([$storeId, $shopId], $ids));
         $validAssignees = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     }
 }
