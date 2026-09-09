@@ -18,6 +18,8 @@ $userId   = (int)($input['user_id'] ?? 0);
 $isActive = isset($input['is_active']) ? (int)$input['is_active'] : null;
 $role     = $input['role'] ?? null;
 $storeId  = isset($input['store_id']) && $input['store_id'] !== '' ? (int)$input['store_id'] : null;
+$username    = array_key_exists('username', $input) ? trim((string)$input['username']) : null;
+$displayName = array_key_exists('display_name', $input) ? trim((string)$input['display_name']) : null;
 
 if ($userId <= 0) {
     error('请提供用户ID');
@@ -26,7 +28,7 @@ if ($userId <= 0) {
 $pdo = getDB();
 
 // 校验目标用户存在
-$stmt = $pdo->prepare('SELECT id, role, store_id FROM users WHERE id = ?');
+$stmt = $pdo->prepare('SELECT id, username, role, store_id FROM users WHERE id = ?');
 $stmt->execute([$userId]);
 $target = $stmt->fetch();
 if (!$target) {
@@ -51,6 +53,27 @@ $params = [];
 if ($isActive !== null) {
     $updates[] = 'is_active = ?';
     $params[] = $isActive;
+}
+
+// 用户名 / 显示名称（修复：此前接口忽略这两个字段，前端提示成功但实际未保存）
+if ($username !== null) {
+    if ($username === '') {
+        error('请输入用户名');
+    }
+    if ($username !== $target['username']) {
+        $stmt = $pdo->prepare('SELECT id FROM users WHERE username = ? AND id != ?');
+        $stmt->execute([$username, $userId]);
+        if ($stmt->fetch()) {
+            error('用户名已存在');
+        }
+    }
+    $updates[] = 'username = ?';
+    $params[] = $username;
+}
+
+if ($displayName !== null) {
+    $updates[] = 'display_name = ?';
+    $params[] = $displayName === '' ? null : $displayName;
 }
 
 if (!empty($input['password'])) {
@@ -84,5 +107,15 @@ if (empty($updates)) {
 $params[] = $userId;
 $stmt = $pdo->prepare('UPDATE users SET ' . implode(', ', $updates) . ' WHERE id = ?');
 $stmt->execute($params);
+
+// 编辑的是自己时同步会话，让顶栏/当前会话立即生效（避免显示旧名称/用户名）
+if ($userId === (int)($_SESSION['user_id'] ?? 0)) {
+    if ($username !== null) {
+        $_SESSION['username'] = $username;
+    }
+    if ($displayName !== null) {
+        $_SESSION['display_name'] = $displayName === '' ? null : $displayName;
+    }
+}
 
 success(['message' => '用户已更新']);
