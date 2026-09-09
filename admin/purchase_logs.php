@@ -2,7 +2,7 @@
 $pageTitle = '标签打印台';
 $currentPage = 'purchase_logs';
 require_once __DIR__ . '/layout.php';
-$isOperator = ($currentUser['role'] === 'operator');
+$isOperator = in_array($currentUser['role'], ['operator', 'deputy_store_admin'], true);
 ?>
 <div class="page-title">🏷️ 标签打印台</div>
 

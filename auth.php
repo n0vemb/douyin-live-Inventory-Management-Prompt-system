@@ -13,6 +13,7 @@ if (session_status() === PHP_SESSION_NONE) {
  *   super_admin  — 超级管理员（全平台，可看成本利润）
  *   store_admin  — 店铺管理员（本店铺，可看成本利润）
  *   operator     — 运营（本店铺，可看销售额，但成本/毛利/毛利率全隐藏）
+ *   deputy_store_admin — 副店长（本店铺，能力等同运营 + 可进行库存盘点）
  *   warehouse    — 仓库（2026-08-21 新增：本店铺，登录后只能进仓库出库台，看不到价格成本）
  */
 
@@ -108,7 +109,27 @@ function isSuperAdmin(): bool {
  * 是否为运营角色
  */
 function isOperator(): bool {
-    return ($_SESSION['role'] ?? '') === 'operator';
+    return in_array($_SESSION['role'] ?? '', ['operator', 'deputy_store_admin'], true);
+}
+
+/**
+ * 是否允许库存盘点（副店长及以上；运营已取消盘点权限）
+ */
+function canAuditInventory(): bool {
+    return in_array($_SESSION['role'] ?? '', ['store_admin', 'super_admin', 'deputy_store_admin'], true);
+}
+
+/**
+ * 盘点权限校验
+ */
+function requireInventoryAudit(): void {
+    requireAuth();
+    if (!canAuditInventory()) {
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => '权限不足：运营账号无库存盘点权限']);
+        exit;
+    }
 }
 
 /**

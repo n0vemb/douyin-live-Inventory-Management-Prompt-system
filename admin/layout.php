@@ -43,7 +43,7 @@ try {
 
 $isSuperAdmin = ($currentUser['role'] === 'super_admin');
 $isStoreAdmin = ($currentUser['role'] === 'store_admin');
-$isOperator = ($currentUser['role'] === 'operator');
+$isOperator = in_array($currentUser['role'], ['operator', 'deputy_store_admin'], true);
 $allStores = [];
 if ($isSuperAdmin) {
     try {

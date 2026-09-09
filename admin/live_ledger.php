@@ -5,7 +5,7 @@ require_once __DIR__ . '/layout.php';
 require_once __DIR__ . '/../auth.php';
 $user = getCurrentUser();
 $canSeeProfit = $user['can_see_profit'] ?? true;
-$isOperator = $user['role'] === 'operator';
+$isOperator = in_array($user['role'], ['operator', 'deputy_store_admin'], true);
 $canEditSessionMeta = in_array($user['role'], ['store_admin', 'super_admin'], true);
 ?>
 <div class="page-title">直播出库记账</div>

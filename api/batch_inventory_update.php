@@ -11,7 +11,7 @@ if (!$input || !isset($input['items']) || !is_array($input['items']) || empty($i
 }
 
 $pdo = getDB();
-requireAuth(); $storeId = getStoreId();
+requireInventoryAudit(); $storeId = getStoreId();
 if (empty($storeId)) {
     error('请先选择店铺后再操作');
 }

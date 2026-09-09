@@ -6,7 +6,8 @@ $currentPage = 'products';
 require_once __DIR__ . '/layout.php';
 $canSeeProfit = $currentUser['can_see_profit'] ?? true;
 $isSuper = ($currentUser['role'] === 'super_admin');
-$isOperator = ($currentUser['role'] === 'operator');
+$isOperator = in_array($currentUser['role'], ['operator', 'deputy_store_admin'], true);
+$canAudit = in_array($currentUser['role'], ['store_admin', 'super_admin', 'deputy_store_admin'], true);
 ?>
 <div class="page-title">🏷️ 商品管理</div>
 
@@ -44,7 +45,7 @@ $isOperator = ($currentUser['role'] === 'operator');
     <?php if (!$isOperator): ?>
     <button class="btn btn-secondary" onclick="exportInventory()">导出库存</button>
     <?php endif; ?>
-    <button class="btn btn-warning" onclick="openAuditModal()">库存盘点</button>
+    <?php if ($canAudit): ?><button class="btn btn-warning" onclick="openAuditModal()">库存盘点</button><?php endif; ?>
     <button class="btn btn-danger pm-hidden" id="batchDeleteBtn" onclick="batchDelete()">批量删除 (<span id="selectedCount">0</span>)</button>
     <button class="btn btn-primary" onclick="openAddModal()">新建商品</button>
 </div>

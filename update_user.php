@@ -36,7 +36,7 @@ if (isset($input['display_name'])) {
 
 // 更新角色
 if (isset($input['role'])) {
-    if (!in_array($input['role'], ['super_admin', 'store_admin'])) {
+    if (!in_array($input['role'], ['super_admin', 'store_admin', 'operator', 'deputy_store_admin', 'warehouse'])) {
         error('无效的角色');
     }
     $updates[] = 'role = ?';

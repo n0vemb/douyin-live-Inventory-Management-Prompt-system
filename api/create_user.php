@@ -27,14 +27,14 @@ if (strlen($password) < 6) {
     error('密码至少6位');
 }
 
-// 角色权限：超管可创建任意角色；店铺管理员只能创建运营/仓库账号
+// 角色权限：超管可创建任意角色；店铺管理员只能创建运营/副店长/仓库账号
 if ($isSuperAdmin) {
-    if (!in_array($role, ['super_admin', 'store_admin', 'operator', 'warehouse'])) {
+    if (!in_array($role, ['super_admin', 'store_admin', 'operator', 'deputy_store_admin', 'warehouse'])) {
         error('无效的角色');
     }
 } else {
-    if (!in_array($role, ['operator', 'warehouse'])) {
-        error('店铺管理员只能创建运营或仓库账号');
+    if (!in_array($role, ['operator', 'deputy_store_admin', 'warehouse'])) {
+        error('店铺管理员只能创建运营/副店长或仓库账号');
     }
     $storeId = $currentUser['store_id'];
 }
@@ -49,8 +49,8 @@ if ($stmt->fetch()) {
 }
 
 // 店铺管理员/运营/仓库必须有店铺
-if (in_array($role, ['store_admin', 'operator', 'warehouse']) && empty($storeId)) {
-    error('店铺管理员、运营和仓库账号必须指定所属店铺');
+if (in_array($role, ['store_admin', 'operator', 'deputy_store_admin', 'warehouse']) && empty($storeId)) {
+    error('店铺管理员、运营/副店长和仓库账号必须指定所属店铺');
 }
 
 $hash = password_hash($password, PASSWORD_DEFAULT);

@@ -3,6 +3,7 @@ $pageTitle = '仓库货架';
 $currentPage = 'racks';
 require_once __DIR__ . '/layout.php';
 $isAdmin = in_array($currentUser['role'] ?? '', ['store_admin', 'super_admin']);
+$canAuditRack = in_array($currentUser['role'] ?? '', ['store_admin', 'super_admin', 'deputy_store_admin']);
 ?>
 <div class="page-title">仓库货架 <span class="sub" style="font-size:12px;color:var(--text-tertiary);font-weight:500">货架分布查询 · 布局可配置（默认 5层 × 5大格，每大格=2小格）</span></div>
 
@@ -121,6 +122,8 @@ body.rk-panel-open .rk-main{width:calc(100% - 330px)}
       <input class="rk-search" id="rkQ" placeholder="搜索商品名称 / 常用名 / 条码 / 拼音（如 kbs → 卡比兽）…" autocomplete="off">
       <?php if ($isAdmin): ?>
         <button class="btn btn-primary btn-sm" onclick="addRack()">+ 新增货架</button>
+      <?php endif; ?>
+      <?php if ($canAuditRack): ?>
         <button class="btn btn-warning btn-sm" onclick="rkAuditStart()">盘点模式</button>
       <?php endif; ?>
     </div>
@@ -186,6 +189,7 @@ body.rk-panel-open .rk-main{width:calc(100% - 330px)}
 <script>
 let rkRacks={}, rkOrder=[], rkAdmin=false, rkIdx=[], rkLayout={rows:5,big_cols:5}, rkMeta={}, upItems=[];
 const $id=id=>document.getElementById(id);
+const RACK_CAN_AUDIT = <?= $canAuditRack ? 'true' : 'false' ?>;
 let rkToastT;
 function rkToast(m){const t=$id('toast');t.textContent=m;t.style.display='block';clearTimeout(rkToastT);rkToastT=setTimeout(()=>t.style.display='none',2200);}
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
@@ -534,7 +538,7 @@ const RKAUDIT_KEY='ppmart_rack_audit_v1';
 let rkAudit={list:[],idx:0,condMap:{},draft:{}};
 function rkAuditSave(){try{localStorage.setItem(RKAUDIT_KEY,JSON.stringify({idx:rkAudit.idx,draft:rkAudit.draft}));}catch(e){}}
 async function rkAuditStart(){
-  if(!rkAdmin){rkToast('仅店管/超管可盘点');return;}
+  if(!RACK_CAN_AUDIT){rkToast('仅副店长及以上可盘点');return;}
   try{
     const act=await fetch('../api/live_ledger_list_sessions.php?status=active');
     const ad=await act.json();

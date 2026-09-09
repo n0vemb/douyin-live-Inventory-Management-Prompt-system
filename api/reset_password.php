@@ -34,10 +34,10 @@ if ($userId === (int)$currentUser['id']) {
     error('不能重置自己的密码');
 }
 
-// 店铺管理员只能重置自己店铺运营账号的密码
+// 店铺管理员只能重置自己店铺运营/副店长账号的密码
 if ($isStoreAdmin) {
-    if ($user['role'] !== 'operator' || (int)$user['store_id'] !== (int)$currentUser['store_id']) {
-        error('只能重置自己店铺的运营账号密码');
+    if (!in_array($user['role'], ['operator', 'deputy_store_admin']) || (int)$user['store_id'] !== (int)$currentUser['store_id']) {
+        error('只能重置自己店铺的运营/副店长账号密码');
     }
 }
 

@@ -4,7 +4,7 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../auth.php';
 
 $pdo = getDB();
-requireAuth(); $storeId = getStoreId();
+requireInventoryAudit(); $storeId = getStoreId();
 
 // 盘点前置校验：还有未结束(未下播/未打包出库)的直播场次时禁止盘点
 $activeSql = "SELECT id, session_name FROM live_ledger_session WHERE status = 'active'";

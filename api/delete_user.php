@@ -34,10 +34,10 @@ if (!$user) {
     error('用户不存在');
 }
 
-// 店铺管理员只能删除自己店铺的运营账号
+// 店铺管理员只能删除自己店铺的运营/副店长账号
 if ($isStoreAdmin) {
-    if ($user['role'] !== 'operator' || (int)$user['store_id'] !== (int)$currentUser['store_id']) {
-        error('只能删除自己店铺的运营账号');
+    if (!in_array($user['role'], ['operator', 'deputy_store_admin']) || (int)$user['store_id'] !== (int)$currentUser['store_id']) {
+        error('只能删除自己店铺的运营/副店长账号');
     }
 }
 
