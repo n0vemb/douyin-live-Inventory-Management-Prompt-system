@@ -3,7 +3,7 @@ $pageTitle = '仓库货架';
 $currentPage = 'racks';
 require_once __DIR__ . '/layout.php';
 $isAdmin = in_array($currentUser['role'] ?? '', ['store_admin', 'super_admin']);
-$canAuditRack = in_array($currentUser['role'] ?? '', ['store_admin', 'super_admin', 'deputy_store_admin']);
+$canAuditRack = canPerm('audit.rack');
 ?>
 <div class="page-title">仓库货架 <span class="sub" style="font-size:12px;color:var(--text-tertiary);font-weight:500">货架分布查询 · 布局可配置（默认 5层 × 5大格，每大格=2小格）</span></div>
 

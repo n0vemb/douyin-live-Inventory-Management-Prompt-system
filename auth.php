@@ -116,7 +116,7 @@ function isOperator(): bool {
  * 是否允许库存盘点（副店长及以上；运营已取消盘点权限）
  */
 function canAuditInventory(): bool {
-    return in_array($_SESSION['role'] ?? '', ['store_admin', 'super_admin', 'deputy_store_admin'], true);
+    return canPerm('audit.inventory');
 }
 
 /**
@@ -128,6 +128,63 @@ function requireInventoryAudit(): void {
         http_response_code(403);
         header('Content-Type: application/json');
         echo json_encode(['success' => false, 'error' => '权限不足：运营账号无库存盘点权限']);
+        exit;
+    }
+}
+
+/**
+ * 细粒度权限默认值（角色+权限点；role_permissions 表可覆盖）
+ * perm 说明见 admin/roles_permissions.php
+ */
+function defaultPermMap(): array {
+    return [
+        'audit.inventory'   => ['super_admin', 'store_admin', 'deputy_store_admin'],
+        'audit.rack'        => ['super_admin', 'store_admin', 'deputy_store_admin'],
+        'product.export'    => ['super_admin', 'store_admin'],
+        'product.delete'    => ['super_admin', 'store_admin'],
+        'product.offline_price' => ['super_admin', 'store_admin'],
+        'product.batch_edit'=> ['super_admin', 'store_admin'],
+        'live.session_meta' => ['super_admin', 'store_admin'],
+        'pos.delete_order'  => ['super_admin', 'store_admin'],
+        'finance.view_cost' => ['super_admin', 'store_admin'],
+        'finance.report'    => ['super_admin', 'store_admin'],
+        'user.manage'       => ['super_admin', 'store_admin'],
+        'coupon.issue'      => ['super_admin', 'store_admin', 'deputy_store_admin'],
+        'compensate.shipping' => ['super_admin', 'store_admin', 'deputy_store_admin', 'operator'],
+    ];
+}
+
+/** 读取权限覆盖值；没有覆盖返回 null */
+function permOverride($role, $perm) {
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        try {
+            $pdo = getDB();
+            foreach ($pdo->query('SELECT role, perm, allowed FROM role_permissions')->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $cache[$r['role'] . '|' . $r['perm']] = (int)$r['allowed'] === 1;
+            }
+        } catch (Exception $e) { $cache = []; }
+    }
+    return array_key_exists($role . '|' . $perm, $cache) ? $cache[$role . '|' . $perm] : null;
+}
+
+/** 当前用户是否拥有某权限（默认值可被 role_permissions 覆盖） */
+function canPerm($perm) {
+    $role = $_SESSION['role'] ?? '';
+    $over = permOverride($role, $perm);
+    if ($over !== null) return $over;
+    $defs = defaultPermMap();
+    if (!isset($defs[$perm])) return true; // 未纳入细粒度控制的权限点默认放行（沿用原角色判断）
+    return in_array($role, $defs[$perm], true);
+}
+
+function requirePerm($perm) {
+    requireAuth();
+    if (!canPerm($perm)) {
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => '权限不足：无权执行该操作']);
         exit;
     }
 }

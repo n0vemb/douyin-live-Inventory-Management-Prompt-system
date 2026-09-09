@@ -7,7 +7,7 @@ require_once __DIR__ . '/layout.php';
 $canSeeProfit = $currentUser['can_see_profit'] ?? true;
 $isSuper = ($currentUser['role'] === 'super_admin');
 $isOperator = in_array($currentUser['role'], ['operator', 'deputy_store_admin'], true);
-$canAudit = in_array($currentUser['role'], ['store_admin', 'super_admin', 'deputy_store_admin'], true);
+$canAudit = canPerm('audit.inventory');
 ?>
 <div class="page-title">🏷️ 商品管理</div>
 
