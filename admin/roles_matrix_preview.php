@@ -36,6 +36,7 @@ $canView = in_array($currentUser['role'] ?? '', ['super_admin', 'store_admin'], 
 <div class="rp-tip">📋 原型说明：左边点角色查看默认权限；页面可展开勾选页面内功能；可临时新增“自定义角色”演示。这里只改页面状态，<b>不会写入系统</b>。</div>
 
 <div class="rp-rolebar" id="rpRoleBar"></div>
+<div id="rpRoleDesc" style="font-size:12.5px;color:var(--text-secondary);background:var(--bg-hover);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px"></div>
 <div id="rpCustomBar" style="display:none;margin-bottom:12px;display:flex;gap:8px;align-items:center">
   <input id="rpCustomName" class="form-input" style="max-width:220px" placeholder="自定义角色名">
   <button class="btn btn-sm btn-primary" onclick="rpAddCustom()">+ 添加角色</button>
@@ -46,20 +47,54 @@ $canView = in_array($currentUser['role'] ?? '', ['super_admin', 'store_admin'], 
 // 权限字典（原型用；四块详细，其余页面级）
 const MODULES = [
   { id:'product', name:'商品管理', pages:[
-    { id:'p_list', name:'商品列表/详情/搜索', funcs:['查看在库/售价/均价','查看出入库与销售记录'] },
-    { id:'p_edit', name:'新建/编辑商品', funcs:['基础信息编辑','SKU/品相管理'] },
-    { id:'p_in', name:'入库/批次', funcs:['入库','批次数量编辑','批次进价售价编辑'] },
-    { id:'p_convert', name:'SKU 转换', funcs:['状态转换'] },
-    { id:'p_price', name:'改价', funcs:['批量改价','线下售价设置'] },
-    { id:'p_delete', name:'删除商品', funcs:['单个删除','批量删除'] },
-    { id:'p_export', name:'导出库存', funcs:['导出CSV'] },
-    { id:'p_audit', name:'库存盘点', funcs:['商品页盘点','货架盘点'] }
+    { id:'p_list', name:'商品列表/详情', funcs:[
+      {n:'查看商品名称/条码/在库数量/最新售价', d:'不含成本'},
+      {n:'查看 SKU 均价', d:'按在库数量加权的售价均价'},
+      {n:'查看进价/库存成本/毛利', d:'涉及成本利润', cost:true},
+      {n:'查看出入库/销售流水', d:'流水明细（不含成本）'},
+      {n:'查看流水成本与单笔毛利', d:'涉及成本利润', cost:true}
+    ]},
+    { id:'p_edit', name:'新建/编辑商品', funcs:[
+      {n:'编辑名称/系列/品牌/图片/参考价', d:'基础信息'},
+      {n:'编辑 SKU/品相与售卖价', d:'售卖价'},
+      {n:'编辑进价/成本', d:'涉及成本', cost:true}
+    ]},
+    { id:'p_in', name:'入库/批次', funcs:[
+      {n:'新增入库（数量/进价/售价）', d:'进价即成本', cost:true},
+      {n:'编辑批次数量', d:'数量调整'},
+      {n:'编辑批次进价/售价', d:'涉及成本', cost:true}
+    ]},
+    { id:'p_convert', name:'SKU 转换', funcs:[{n:'状态转换（未拆→已拆等）', d:'数量转换'}] },
+    { id:'p_price', name:'改价', funcs:[
+      {n:'批量改售价', d:'不影响进价'},
+      {n:'设置线下收银台售价', d:'收银台价格'},
+      {n:'设置/查看利润相关参考', d:'涉及成本利润', cost:true}
+    ]},
+    { id:'p_delete', name:'删除商品', funcs:[{n:'删除/批量删除', d:'不可恢复'}] },
+    { id:'p_export', name:'导出库存', funcs:[
+      {n:'导出不含成本', d:'名称/数量/售价'},
+      {n:'导出含进价成本', d:'涉及成本', cost:true}
+    ]},
+    { id:'p_audit', name:'库存盘点', funcs:[
+      {n:'商品页盘点', d:'全店逐SKU'},
+      {n:'仓库货架盘点', d:'逐格录入'},
+      {n:'盘点时查看成本/毛利', d:'涉及成本利润', cost:true}
+    ]}
   ]},
   { id:'live', name:'直播出库记账', pages:[
-    { id:'l_session', name:'场次管理', funcs:['新建场次','删除场次','修改主播/运营/账号'] },
-    { id:'l_ledger', name:'场次内记账', funcs:['增删客户','添加商品/速录','改价','撤单/退货','运费补偿'] },
-    { id:'l_end', name:'下播/结束出库', funcs:['下播','打包出库'] },
-    { id:'l_view', name:'查看历史/返送', funcs:['直播账本历史','直播返送屏'] }
+    { id:'l_session', name:'场次管理', funcs:[
+      {n:'新建场次', d:'需填主播/运营'},
+      {n:'删除场次', d:'不可恢复'},
+      {n:'修改主播/运营/账号', d:'仅店管/超管'}
+    ]},
+    { id:'l_ledger', name:'场次内记账', funcs:[
+      {n:'增删客户/添加商品/速录', d:'日常记账'},
+      {n:'改价/撤单/退货/运费补偿', d:'涉及金额'},
+      {n:'查看本场销售额/件数', d:'销售汇总'},
+      {n:'查看本场成本/毛利', d:'涉及成本利润', cost:true}
+    ]},
+    { id:'l_end', name:'下播/结束出库', funcs:[{n:'下播', d:'记录时间'},{n:'打包出库', d:'扣真实库存'}] },
+    { id:'l_view', name:'查看历史/返送', funcs:[{n:'直播账本历史', d:'只读'},{n:'直播返送屏', d:'主播屏'}] }
   ]},
   { id:'rack', name:'仓库货架', pages:[
     { id:'r_view', name:'货架分布/未在货架', funcs:['查看'] },
@@ -68,19 +103,32 @@ const MODULES = [
     { id:'r_audit', name:'货架盘点', funcs:['盘点模式','提交差异'] }
   ]},
   { id:'pos', name:'线下收银/门店', pages:[
-    { id:'po_view', name:'门店待出库列表', funcs:['查看订单','查看成本/进价'] },
-    { id:'po_do', name:'出库操作', funcs:['出库','整单作废','删除商品','彻底删除订单'] },
-    { id:'po_report', name:'线下销售报表', funcs:['查看','导出'] }
+    { id:'po_view', name:'门店待出库列表', funcs:[
+      {n:'查看订单/金额', d:'不含成本'},
+      {n:'查看订单成本/进价', d:'涉及成本', cost:true}
+    ]},
+    { id:'po_do', name:'出库操作', funcs:[
+      {n:'出库', d:'扣库存'},
+      {n:'整单作废', d:'释放库存'},
+      {n:'删除商品/彻底删除订单', d:'不可恢复'}
+    ]},
+    { id:'po_report', name:'线下销售报表', funcs:[
+      {n:'查看销售额/单量', d:'销售统计'},
+      {n:'查看成本/毛利/导出', d:'涉及成本利润', cost:true}
+    ]}
   ]},
   { id:'misc', name:'其它页面（页面级）', pages:[
-    { id:'m_overview', name:'首页概览', funcs:['查看待办/统计'] },
-    { id:'m_sales', name:'销售记录', funcs:['查看销售流水'] },
-    { id:'m_vip', name:'客户管理(VIP)', funcs:['查看/编辑VIP'] },
-    { id:'m_label', name:'标签打印台', funcs:['打印标签'] },
-    { id:'m_coupon', name:'优惠券', funcs:['查看','配置活动','手动补发'] },
-    { id:'m_finance', name:'财务/成本', funcs:['查看成本利润'] },
-    { id:'m_settings', name:'店铺设置', funcs:['设置'] },
-    { id:'m_users', name:'用户/角色管理', funcs:['管理账号','权限配置'] }
+    { id:'m_overview', name:'首页概览', funcs:[{n:'查看待办/统计', d:'不含成本'},{n:'查看成本/利润概览', d:'涉及成本', cost:true}] },
+    { id:'m_sales', name:'销售记录', funcs:[
+      {n:'查看销售额流水', d:'销售明细'},
+      {n:'查看单笔成本/毛利', d:'涉及成本利润', cost:true}
+    ]},
+    { id:'m_vip', name:'客户管理(VIP)', funcs:[{n:'查看/编辑VIP', d:'客户资料'},{n:'查看VIP消费金额', d:'消费统计'}] },
+    { id:'m_label', name:'标签打印台', funcs:[{n:'打印标签', d:'含均价字段'},{n:'打印成本/毛利信息', d:'涉及成本', cost:true}] },
+    { id:'m_coupon', name:'优惠券', funcs:[{n:'查看活动/领取记录', d:'只读'},{n:'配置活动', d:'增改停用'},{n:'手动补发', d:'需谨慎'}] },
+    { id:'m_finance', name:'财务/成本', funcs:[{n:'查看销售额', d:'销售口径'},{n:'查看成本/利润/毛利', d:'核心财务', cost:true},{n:'导出财务', d:'含成本', cost:true}] },
+    { id:'m_settings', name:'店铺设置', funcs:[{n:'店铺配置', d:'含价格比例/收银台'}] },
+    { id:'m_users', name:'用户/角色管理', funcs:[{n:'管理账号', d:'新建/编辑/删除'},{n:'角色权限配置', d:'预留'}] }
   ]}
 ];
 
@@ -111,17 +159,22 @@ function roleDefaults(rid){
     o[p.id]=allowed;
     (p.funcs||[]).forEach((f,i)=>{
       const k=p.id+'|'+i;
-      const deny = p.id==='p_price' && i===1; // 线下售价
-      const deny2 = p.id==='l_session' && i===2; // 主播/运营/账号修改
-      const deny3 = p.id==='l_view' && i===1;
-      o[k] = allowed && !deny && !deny2 && !deny3;
+      const fobj=typeof f==='string'?{n:f,cost:false}:f;
+      const deny = (p.id==='p_price' && i===1) || (p.id==='l_session' && i===2);
+      o[k] = allowed && !deny && !fobj.cost;
     });
   }));
-  if(rid==='deputy_store_admin'){AUDIT.forEach(k=>o[k]=true);o['p_audit|1']=true;o['r_audit|0']=true;o['r_audit|1']=true;}
+  if(rid==='deputy_store_admin'){
+    AUDIT.forEach(pid=>{
+      MODULES.forEach(m=>m.pages.forEach(p=>{
+        if(p.id===pid){o[p.id]=true;(p.funcs||[]).forEach((f,i)=>o[p.id+'|'+i]=true);}
+      }));
+    });
+  }
   return o;
 }
-function saveState(){try{localStorage.setItem('ppmart_role_proto',JSON.stringify({roles:roles.map(r=>r.id),state}));}catch(e){}}
-function loadState(){try{const s=JSON.parse(localStorage.getItem('ppmart_role_proto')||'null');if(s&&s.roles){roles=s.roles.map(id=>{const d=ROLES.find(r=>r.id===id);return {id,name:d?d.name:id,note:d?d.note:'自定义'};});state=s.state||{};}}catch(e){}}
+function saveState(){try{localStorage.setItem('ppmart_role_proto_v2',JSON.stringify({roles:roles.map(r=>r.id),state}));}catch(e){}}
+function loadState(){try{const s=JSON.parse(localStorage.getItem('ppmart_role_proto_v2')||'null');if(s&&s.roles){roles=s.roles.map(id=>{const d=ROLES.find(r=>r.id===id);return {id,name:d?d.name:id,note:d?d.note:'自定义'};});state=s.state||{};}}catch(e){}}
 function initRoleState(rid){if(!state[rid])state[rid]=roleDefaults(rid);}
 function curRole(){const el=document.querySelector('.rp-role.on');return el?el.dataset.id:null;}
 function toggleRole(el){document.querySelectorAll('.rp-role').forEach(x=>x.classList.remove('on'));el.classList.add('on');render();}
@@ -138,6 +191,19 @@ function renderRoleBar(){
 }
 function pageChecked(rid,pid){return !!state[rid][pid];}
 function funcChecked(rid,k){return !!state[rid][k];}
+function costKeys(){
+  const ks=[];
+  MODULES.forEach(m=>m.pages.forEach(p=>(p.funcs||[]).forEach((f,i)=>{const fo=typeof f==='string'?{cost:false}:f;if(fo.cost)ks.push(p.id+'|'+i);})));
+  return ks;
+}
+function roleDesc(rid){
+  const pageOn=MODULES.reduce((a,m)=>a+m.pages.filter(p=>pageChecked(rid,p.id)).length,0);
+  let fnOn=0;MODULES.forEach(m=>m.pages.forEach(p=>p.funcs&&p.funcs.forEach((f,i)=>{if(funcChecked(rid,p.id+'|'+i))fnOn++;})));
+  const ck=costKeys();const costOn=ck.filter(k=>funcChecked(rid,k)).length;
+  const cur=roles.find(r=>r.id===rid);
+  return '角色能力：'+(cur?cur.name+'（'+(cur.note||'自定义')+'）':'')+' · 可进页面 '+pageOn+' 个 · 可用功能 '+fnOn+' 项 · <span style="color:'+(costOn?'#f0b429':'var(--text-tertiary)')+'">成本/利润可见：'+(costOn?'是（勾选 '+costOn+' 项）':'否')+'</span>';
+}
+function updateRoleDesc(){const rid=curRole()||roles[0].id;$('rpRoleDesc').innerHTML=roleDesc(rid);}
 function setPage(rid,pid,on){
   state[rid][pid]=on;
   MODULES.forEach(m=>m.pages.forEach(p=>{if(p.id===pid)(p.funcs||[]).forEach((f,i)=>state[rid][pid+'|'+i]=on);}));
@@ -158,9 +224,13 @@ function render(){
         return `<div class="rp-page"><div class="rp-page-head" onclick="event.target.closest('input')||setPage('${rid}','${p.id}',!${on})">
           <input type="checkbox" ${on?'checked':''} onclick="event.stopPropagation();setPage('${rid}','${p.id}',this.checked)">
           <span class="pn">${p.name}</span><span class="pf">${p.funcs?funcOn+'/'+p.funcs.length+' 功能':'页面级'}</span>
-        </div>`+(p.funcs?`<div class="rp-funcs">${p.funcs.map((f,i)=>`<label><input type="checkbox" ${funcChecked(rid,p.id+'|'+i)?'checked':''} onclick="setFunc('${rid}','${p.id}',${i},this.checked)">${f}</label>`).join('')}</div>`:'')+`</div>`;
+        </div>`+(p.funcs?`<div class="rp-funcs">${p.funcs.map((f,i)=>{
+          const fo=typeof f==='string'?{n:f,d:''}:f;
+          return `<label title="${fo.d||fo.n}"><input type="checkbox" ${funcChecked(rid,p.id+'|'+i)?'checked':''} onclick="setFunc('${rid}','${p.id}',${i},this.checked)">${fo.n}${fo.cost?' <span style="color:#f0b429;font-size:10px">成本/利润</span>':''}</label>`;
+        }).join('')}</div>`:'')+`</div>`;
       }).join('')+`</div>`;
   }).join('');
+  updateRoleDesc();
   saveState();
 }
 loadState();renderRoleBar();render();
