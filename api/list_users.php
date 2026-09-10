@@ -32,7 +32,9 @@ if ($scope['scope'] === 'group') {
     $params[] = $scope['shop_id'];
 }
 
-$sql .= ' ORDER BY u.id';
+// 排序：超管 → 集团 → 店管 → 副店长 → 运营 → 仓库；同角色按集团/店/ID
+$sql .= " ORDER BY FIELD(u.role, 'super_admin', 'group_admin', 'store_admin', 'deputy_store_admin', 'operator', 'warehouse'),
+          u.store_id, u.shop_id, u.id";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $users = $stmt->fetchAll();

@@ -41,12 +41,12 @@ $defaultStoreId = $currentUser['view_store_id'] ?? $currentUser['store_id'] ?? n
         <input type="text" class="form-input users-search" id="searchInput" placeholder="搜索用户名、显示名..." oninput="applyFilter()">
         <div class="users-filter">
             <span class="filter-tag active" data-filter="all" onclick="setFilter(this, 'all')">全部</span>
-            <?php if ($canManageUsers && !$isStoreAdmin): ?><span class="filter-tag" data-filter="store_admin" onclick="setFilter(this, 'store_admin')">店管</span><?php endif; ?>
-            <?php if ($isSuperAdmin || $isGroupAdmin): ?><span class="filter-tag" data-filter="group_admin" onclick="setFilter(this, 'group_admin')">集团管理员</span><?php endif; ?>
-            <span class="filter-tag" data-filter="operator" onclick="setFilter(this, 'operator')">运营</span>
-            <span class="filter-tag" data-filter="deputy_store_admin" onclick="setFilter(this, 'deputy_store_admin')">副店长</span>
-            <span class="filter-tag" data-filter="warehouse" onclick="setFilter(this, 'warehouse')">仓库</span>
             <?php if ($isSuperAdmin): ?><span class="filter-tag" data-filter="super_admin" onclick="setFilter(this, 'super_admin')">超管</span><?php endif; ?>
+            <?php if ($isSuperAdmin || $isGroupAdmin): ?><span class="filter-tag" data-filter="group_admin" onclick="setFilter(this, 'group_admin')">集团管理员</span><?php endif; ?>
+            <?php if ($canManageUsers && !$isStoreAdmin): ?><span class="filter-tag" data-filter="store_admin" onclick="setFilter(this, 'store_admin')">店管</span><?php endif; ?>
+            <span class="filter-tag" data-filter="deputy_store_admin" onclick="setFilter(this, 'deputy_store_admin')">副店长</span>
+            <span class="filter-tag" data-filter="operator" onclick="setFilter(this, 'operator')">运营</span>
+            <span class="filter-tag" data-filter="warehouse" onclick="setFilter(this, 'warehouse')">仓库</span>
             <span class="filter-tag" data-filter="active" onclick="setFilter(this, 'active')">启用</span>
             <span class="filter-tag" data-filter="disabled" onclick="setFilter(this, 'disabled')">禁用</span>
         </div>
