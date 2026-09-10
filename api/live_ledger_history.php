@@ -95,6 +95,7 @@ if ($view === 'customer') {
         $customers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($customers as &$c) {
+            $c['is_deleted'] = (int)($c['is_deleted'] ?? 0);
             $snap = json_decode($c['snapshot_json'] ?? '', true);
             // 优先用快照里的 metrics（历史不变）
             $found = null;
@@ -112,10 +113,10 @@ if ($view === 'customer') {
                 $c['snapshot_gifts'] = $found['gifts'];
             } else {
                 // 无快照则实时算
-                $stmt2 = $pdo->prepare("SELECT * FROM live_ledger_item WHERE customer_id = ?");
+                $stmt2 = $pdo->prepare("SELECT * FROM live_ledger_item WHERE customer_id = ? AND is_deleted = 0");
                 $stmt2->execute([$c['id']]);
                 $c['snapshot_items'] = $stmt2->fetchAll(PDO::FETCH_ASSOC);
-                $stmt2 = $pdo->prepare("SELECT * FROM live_ledger_gift WHERE customer_id = ?");
+                $stmt2 = $pdo->prepare("SELECT * FROM live_ledger_gift WHERE customer_id = ? AND is_deleted = 0");
                 $stmt2->execute([$c['id']]);
                 $c['snapshot_gifts'] = $stmt2->fetchAll(PDO::FETCH_ASSOC);
                 $settings = ledgerGetSettings($pdo, $c['session_id']);
@@ -152,7 +153,7 @@ if ($view === 'product') {
         $sql = "SELECT li.product_id, li.product_name, li.qty, li.sell_price, li.purchase_cost, li.is_gift, ls.created_at as session_date
                 FROM live_ledger_item li
                 JOIN live_ledger_session ls ON li.session_id = ls.id
-                WHERE li.session_id IN ($ph)";
+                WHERE li.session_id IN ($ph) AND li.is_deleted = 0";
         $params = $sessionIds;
         if ($keyword) { $sql .= " AND li.product_name LIKE ?"; $params[] = '%' . $keyword . '%'; }
         $stmt = $pdo->prepare($sql);

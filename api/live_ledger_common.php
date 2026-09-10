@@ -11,7 +11,8 @@
  * @return array 各指标
  */
 function ledgerCalcCustomer($customer, $settings) {
-    $items = array_filter($customer['items'] ?? [], function($i) { return empty($i['is_gift']); });
+    // 软删除的明细/赠品不计入成本与毛利
+    $items = array_filter($customer['items'] ?? [], function($i) { return empty($i['is_gift']) && empty($i['is_deleted']); });
     $totalQty = 0;
     $gmv = 0.0;
     $cost = 0.0;
@@ -31,6 +32,7 @@ function ledgerCalcCustomer($customer, $settings) {
     $profitBase = round($gmv - $cost - $shipping - $platformFee - $packing, 2);
     $giftCost = 0.0;
     foreach (($customer['gifts'] ?? []) as $g) {
+        if (!empty($g['is_deleted'])) continue;
         $giftCost += floatval($g['cost'] ?? 0);
     }
     $giftCost = round($giftCost, 2);
@@ -138,18 +140,24 @@ function ledgerLoadSession($pdo, $sessionId) {
     $customers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($customers as &$c) {
+        $c['is_deleted'] = (int)($c['is_deleted'] ?? 0);
         $stmt = $pdo->prepare("SELECT * FROM live_ledger_item WHERE customer_id = ? ORDER BY id");
         $stmt->execute([$c['id']]);
         $c['items'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         // 补 condition_name（动态配置）
         foreach ($c['items'] as &$item) {
             $item['condition_name'] = $conditionNames[$item['condition_type']] ?? $item['condition_type'];
+            $item['is_deleted'] = (int)($item['is_deleted'] ?? 0);
         }
         unset($item);
 
         $stmt = $pdo->prepare("SELECT * FROM live_ledger_gift WHERE customer_id = ? ORDER BY id");
         $stmt->execute([$c['id']]);
         $c['gifts'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($c['gifts'] as &$g) {
+            $g['is_deleted'] = (int)($g['is_deleted'] ?? 0);
+        }
+        unset($g);
 
         $c['metrics'] = ledgerCalcCustomer($c, $settings);
     }

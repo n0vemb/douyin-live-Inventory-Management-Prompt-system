@@ -194,7 +194,7 @@ function renderCustomers(customers) {
         const itemNames = (c.snapshot_items || []).filter(i => !i.is_gift).map(i => `${esc(i.product_name)}×${i.qty}`).join('、');
         const giftNames = (c.snapshot_gifts || []).map(g => `🎁${g.description || ''}(${fmt(g.cost)})`).join('、');
         html += `<tr>
-            <td><b>${esc(c.nickname)}</b> ${c.vip_no ? `<span class="muted">${esc(c.vip_no)}</span>` : ''}</td>
+            <td><b>${esc(c.nickname)}</b> ${c.vip_no ? `<span class="muted">${esc(c.vip_no)}</span>` : ''}${c.is_deleted ? '<span style="font-size:11px;color:#8b8b9a;border:1px solid var(--border);border-radius:9px;padding:0 6px;margin-left:6px;">已删除</span>' : ''}</td>
             <td class="muted">${esc(c.session_name || '')}</td>
             <td>${m.total_qty || 0}</td>
             <td>¥${fmt(m.gmv)}</td>

@@ -40,6 +40,14 @@ $data = ledgerLoadSession($pdo, $sessionId);
 $customers = $data['customers'];
 $settings = $data['settings'];
 
+// 软删除的客户/明细/赠品不参与打包出库与快照
+$customers = array_values(array_filter($customers, function ($c) { return empty($c['is_deleted']); }));
+foreach ($customers as &$c) {
+    $c['items'] = array_values(array_filter($c['items'] ?? [], function ($i) { return empty($i['is_deleted']); }));
+    $c['gifts'] = array_values(array_filter($c['gifts'] ?? [], function ($g) { return empty($g['is_deleted']); }));
+}
+unset($c);
+
 $pdo->beginTransaction();
 try {
     // ===== 汇总购买（按 product_id 聚合，排除赠品）=====

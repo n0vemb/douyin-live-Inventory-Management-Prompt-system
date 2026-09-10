@@ -139,13 +139,14 @@ function fastRender() {
     renderFastLast();
     if (!fastCands.length) { document.getElementById('fastCandSec').style.display = 'none'; document.getElementById('fastCands').innerHTML = ''; }
     let total = 0;
-    rec.forEach(c => (c.items || []).forEach(i => { if (!i.is_gift) total += parseInt(i.qty) || 0; }));
+    rec.forEach(c => { if (c.is_deleted) return; (c.items || []).forEach(i => { if (!i.is_gift && !i.is_deleted) total += parseInt(i.qty) || 0; }); });
     document.getElementById('fastStat').textContent = '本场共 ' + total + ' 件已录 · 保存后仓库出库台实时可见';
 }
 function renderFastLast() {
     const box = document.getElementById('fastLast');
-    if (!fastCur || !fastCur.items || !fastCur.items.length) { box.innerHTML = '<span class="none" style="font-size:12px;">暂无</span>'; return; }
-    const last = fastCur.items[fastCur.items.length - 1];
+    const liveItems = (fastCur && fastCur.items ? fastCur.items : []).filter(i => !i.is_deleted);
+    if (!fastCur || !liveItems.length) { box.innerHTML = '<span class="none" style="font-size:12px;">暂无</span>'; return; }
+    const last = liveItems[liveItems.length - 1];
     const pid = last.product_id || 0;
     const priceTxt = (parseFloat(last.sell_price) || 0).toFixed(2);
     box.innerHTML =
@@ -262,9 +263,9 @@ function fastPickCand(i) {
 }
 function fastReserved(pid, cond) {
     let local = 0;
-    (sessionData.customers || []).forEach(c => (c.items || []).forEach(i => {
-        if (!i.is_gift && i.product_id === pid && (i.condition_type || '') === cond) local += parseInt(i.qty) || 0;
-    }));
+    (sessionData.customers || []).forEach(c => { if (c.is_deleted) return; (c.items || []).forEach(i => {
+        if (!i.is_gift && !i.is_deleted && i.product_id === pid && (i.condition_type || '') === cond) local += parseInt(i.qty) || 0;
+    }); });
     return local + (parseInt(otherReserved[pid + '|' + cond] || 0, 10));
 }
 // 查询前先刷新其他场次占用，再用最新库存分组（防止用旧快照导致超售）
@@ -322,7 +323,8 @@ function fastAddSku(sku) {
     pickSku(sku);
     fastSyncCur();
     if (fastCur && fastCur.items && fastCur.items.length && sku && sku.barcode) {
-        fastCur.items[fastCur.items.length - 1].barcode = sku.barcode;
+        const liveItems = fastCur.items.filter(i => !i.is_deleted);
+        if (liveItems.length) liveItems[liveItems.length - 1].barcode = sku.barcode;
     }
     fastRender();
     renderFastLast();
@@ -343,7 +345,7 @@ function fastRepeat() {
 
     // 同客户已有该 SKU → 拦下（业务规则：同一客户同款几乎不会买两个）
     const line = (fastCur.items || []).find(i =>
-        !i.is_gift && i.product_id === sku.product_id &&
+        !i.is_gift && !i.is_deleted && i.product_id === sku.product_id &&
         (i.condition_type || '') === (sku.condition_type || '')
     );
     if (line) {
@@ -406,11 +408,12 @@ async function fastRefreshSkuStock(sku) {
 // 切 SKU：用缓存即时切换（连点可连续切），库存刷新放后台
 function fastCycleSku() {
     fastSyncCur();
-    if (!fastCur || !fastCur.items || !fastCur.items.length) {
+    const cycleItems = (fastCur && fastCur.items ? fastCur.items : []).filter(i => !i.is_deleted);
+    if (!fastCur || !cycleItems.length) {
         toast('该客户还没有商品可切换 SKU', true);
         return;
     }
-    const last = fastCur.items[fastCur.items.length - 1];
+    const last = cycleItems[cycleItems.length - 1];
     let conds = fastCache[last.product_id] || [];
     if (!conds.length) { fastCycleSkuFromServer(last); return; }
     const order = FAST_SKU_PRIORITY.concat(conds.map(c => c.condition_type));
@@ -945,6 +948,16 @@ tr.tr-active td:first-child { border-left: 3px solid var(--primary, #6366f1); }
 .ps-sku .sval .occ { color: var(--text-tertiary); margin-left: 4px; font-weight: 600; }
 .ps-sku .sval .occ.warn { color: var(--warning); }
 .ps-sku .sval .price { color: var(--text); margin-left: 10px; }
+/* ===== 软删除（已下播/已打包）灰显保留 ===== */
+.deleted-badge { display:inline-block; font-size:11px; font-weight:700; color:#8b8b9a; border:1px solid var(--border);
+    background:var(--bg-hover); border-radius:9px; padding:0 7px; margin-left:6px; vertical-align:middle; }
+.customer.deleted { opacity:.75; }
+.customer.deleted .nickname { text-decoration: line-through; color: var(--text-tertiary); }
+.customer.deleted .customer-header { background: repeating-linear-gradient(45deg, rgba(255,255,255,.02), rgba(255,255,255,.02) 8px, transparent 8px, transparent 16px); }
+.deleted-row td { color: var(--text-tertiary); text-decoration: line-through; }
+.deleted-row .deleted-badge { text-decoration: none; }
+.deleted-note { margin-top:10px; padding:10px 12px; border:1px dashed var(--border); border-radius:8px;
+    color:var(--text-tertiary); font-size:12.5px; background:var(--bg-hover); }
 </style>
 
 <script>
@@ -1478,7 +1491,7 @@ function getSettings() {
 
 function calcCustomer(c) {
     const settings = getSettings();
-    const realItems = (c.items || []).filter(i => !i.is_gift);
+    const realItems = (c.items || []).filter(i => !i.is_gift && !i.is_deleted);
     const totalQty = realItems.reduce((s, i) => s + (parseInt(i.qty) || 0), 0);
     const gmv = realItems.reduce((s, i) => s + parseFloat(i.sell_price || 0) * (parseInt(i.qty) || 0), 0);
     const cost = realItems.reduce((s, i) => s + parseFloat(i.purchase_cost || 0) * (parseInt(i.qty) || 0), 0);
@@ -1486,7 +1499,7 @@ function calcCustomer(c) {
     const platformFee = gmv * settings.platform_fee_rate;
     const packing = settings.packing_cost;
     const profitBase = gmv - cost - shipping - platformFee - packing;
-    const giftCost = (c.gifts || []).reduce((s, g) => s + parseFloat(g.cost || 0), 0);
+    const giftCost = (c.gifts || []).filter(g => !g.is_deleted).reduce((s, g) => s + parseFloat(g.cost || 0), 0);
     const reduceAmount = gmv >= settings.reduce_threshold ? settings.reduce_amount : 0;
     return {
         totalQty, gmv, cost, shipping, platformFee, packing, profitBase,
@@ -1557,6 +1570,18 @@ function render() {
             const isGift = item.is_gift;
             const isTemp = item.is_temp;
             const rowCls = isGift ? 'gift-row' : (isTemp ? 'temp-row' : '');
+            // 软删除：保留记录，灰显“已删除”，不可再编辑
+            if (item.is_deleted) {
+                return `<tr class="deleted-row">
+                    <td>${esc(item.product_name)}${isGift ? '<span class="gift-badge">赠品</span>' : ''}<span class="deleted-badge">已删除</span></td>
+                    <td>${isGift ? '' : esc(item.condition_name || item.condition_type || '')}</td>
+                    ${CAN_SEE_PROFIT ? `<td>${fmt(item.purchase_cost)}</td>` : ''}
+                    <td>${fmt(item.sell_price)}</td>
+                    <td>${item.qty}</td>
+                    <td>${fmt(item.sell_price * item.qty)}</td>
+                    <td></td>
+                </tr>`;
+            }
             const tempBadge = isTemp ? '<span class="temp-badge">临时</span>' : '';
             const tempSku = isTemp ? '<span style="color:var(--warning,#f59e0b);">待入库</span>' : (isGift ? '' : esc(item.condition_name || item.condition_type || ''));
             if (isReadOnly) {
@@ -1567,7 +1592,7 @@ function render() {
                 <td>${fmt(item.sell_price)}</td>
                 <td>${item.qty}</td>
                 <td>${fmt(item.sell_price * item.qty)}</td>
-                ${isGift ? '' : `<td><button class="btn btn-sm btn-outline" style="padding:2px 10px; font-size:12px;" onclick="returnItem(${c.id}, ${item.id})">退货</button></td>`}
+                ${isGift ? '' : `<td><button class="btn btn-sm btn-outline" style="padding:2px 10px; font-size:12px;" onclick="returnItem(${c.id}, ${item.id})">退货</button>${isSoftDeleteMode() ? `<button class="del-btn" style="margin-left:6px;" onclick="deleteItem(${c.id}, ${item.id})" title="删除（保留记录）">✕</button>` : ''}</td>`}
             </tr>`;
             }
             return `<tr class="${rowCls}">
@@ -1581,13 +1606,26 @@ function render() {
             </tr>`;
         }).join('');
 
-        let giftHtml = (c.gifts || []).map((g, gi) => `
-            <tr class="gift-row">
-                <td>${g.name ? esc(g.name) + (g.qty > 1 ? ' ×' + g.qty : '') : '赠品' + (g.description ? ' - ' + esc(g.description) : '')}</td>
+        let giftHtml = (c.gifts || []).map((g, gi) => {
+            const gname = g.name ? esc(g.name) + (g.qty > 1 ? ' ×' + g.qty : '') : '赠品' + (g.description ? ' - ' + esc(g.description) : '');
+            if (g.is_deleted) {
+                return `<tr class="gift-row deleted-row">
+                    <td>${gname}<span class="deleted-badge">已删除</span></td>
+                    ${CAN_SEE_PROFIT ? `<td>${fmt(g.cost)}</td>` : ''}
+                    <td colspan="${CAN_SEE_PROFIT ? 4 : 3}" style="color:var(--text-tertiary);">不入库，仅计成本</td>
+                    <td></td>
+                </tr>`;
+            }
+            const delCell = (!isReadOnly || isSoftDeleteMode())
+                ? `<td><button class="del-btn" onclick="deleteGift(${c.id}, ${gi})" title="删除">✕</button></td>`
+                : '';
+            return `<tr class="gift-row">
+                <td>${gname}</td>
                 ${CAN_SEE_PROFIT ? `<td>${fmt(g.cost)}</td>` : ''}
                 <td colspan="${CAN_SEE_PROFIT ? 4 : 3}" style="color:var(--text-tertiary);">不入库，仅计成本</td>
-                ${isReadOnly ? '' : `<td><button class="del-btn" onclick="deleteGift(${c.id}, ${gi})">✕</button></td>`}
-            </tr>`).join('');
+                ${delCell}
+            </tr>`;
+        }).join('');
 
         let metrics = `
             <div class="metrics">
@@ -1608,27 +1646,30 @@ function render() {
 
         const giftEveryN = parseInt(settings.gift_every_n) || 3;
         // 满赠提示：满赠活动开启 且 购买数量达到赠品门槛 且 尚未添加赠品
-        const needsGift = showGift && m.totalQty >= giftEveryN && !(c.gifts || []).length;
+        const custDeleted = !!c.is_deleted;
+        const needsGift = !custDeleted && showGift && m.totalQty >= giftEveryN && !(c.gifts || []).filter(g => !g.is_deleted).length;
 
         parts.push(`
-            <div class="customer ${collapsed ? 'collapsed' : 'active'} ${needsGift ? 'needs-gift' : ''}" id="cust_${c.id}">
+            <div class="customer ${collapsed ? 'collapsed' : 'active'} ${needsGift ? 'needs-gift' : ''} ${custDeleted ? 'deleted' : ''}" id="cust_${c.id}">
                 <div class="customer-header" onclick="toggleCustomer(${c.id})">
                     <span class="toggle-arrow">▼</span>
                     ${c.vip_no ? `<span class="badge" style="${vipTierStyle(c.vip_no)}">${esc(c.vip_no)}</span>` : ''}
                     <span class="nickname">${esc(c.nickname) || '(未命名)'}</span>
                     ${(c.items || []).some(i => i.is_temp) ? '<span class="temp-badge" style="margin-left:6px;">临时</span>' : ''}
                     ${needsGift ? `<span class="gift-remind">🎁 待赠</span>` : ''}
-                    <span class="summary"><span>${m.totalQty}件</span><span>¥${fmt(m.gmv)}</span></span>
+                    ${custDeleted ? '<span class="deleted-badge">已删除</span>' : `<span class="summary"><span>${m.totalQty}件</span><span>¥${fmt(m.gmv)}</span></span>`}
                     <span class="actions" onclick="event.stopPropagation()">
-                        ${isReadOnly
-                            ? `<button class="btn btn-sm btn-danger" style="padding:2px 10px; font-size:12px;" onclick="cancelOrder(${c.id}, '${esc(c.nickname) || '未命名'}')">撤单</button>`
+                        ${custDeleted ? ''
+                          : (isReadOnly
+                            ? `<button class="btn btn-sm btn-danger" style="padding:2px 10px; font-size:12px;" onclick="cancelOrder(${c.id}, '${esc(c.nickname) || '未命名'}')">撤单</button>
+                               ${isSoftDeleteMode() ? `<button class="btn btn-sm btn-outline" onclick="confirmDeleteCustomer(${c.id})">删除</button>` : ''}`
                             : `<button class="btn btn-sm btn-outline" onclick="addGift(${c.id})">赠品</button>
-                        <button class="btn btn-sm btn-danger" onclick="confirmDeleteCustomer(${c.id})">删除</button>`}
+                        <button class="btn btn-sm btn-danger" onclick="confirmDeleteCustomer(${c.id})">删除</button>`)}
                     </span>
                 </div>
                 <div class="customer-body">
                     <div class="search-bar mb-10">
-                        ${isReadOnly
+                        ${(isReadOnly || custDeleted)
                             ? `<label>昵称</label><span style="display:inline-block; min-width:140px;">${esc(c.nickname) || '(未命名)'}</span><label>VIP编号</label><span style="display:inline-block; min-width:120px;">${esc(c.vip_no) || '-'}</span>`
                             : `<label>昵称</label><input type="text" value="${esc(c.nickname)}" class="form-input" style="width:140px;" onchange="updateNickname(${c.id}, this.value)">
                         <label>VIP编号</label><input type="text" value="${esc(c.vip_no)}" class="form-input" style="width:120px;" placeholder="选填" onchange="updateVip(${c.id}, this.value)">`}
@@ -1637,11 +1678,11 @@ function render() {
                         <thead><tr><th>商品</th><th>SKU</th>${CAN_SEE_PROFIT ? '<th>进价</th>' : ''}<th>售价</th><th>数量</th><th>小计</th><th></th></tr></thead>
                         <tbody>${itemsHtml}${giftHtml}</tbody>
                     </table>
-                    ${isReadOnly ? '' : `<div style="margin-top:10px; display:flex; gap:8px;">
+                    ${(isReadOnly || custDeleted) ? '' : `<div style="margin-top:10px; display:flex; gap:8px;">
                         <button class="btn btn-sm btn-primary" onclick="openProductModal(${c.id})">添加商品</button>
                         <button class="btn btn-sm btn-warning" style="background:var(--warning,#f59e0b); border-color:var(--warning,#f59e0b); color:#fff;" onclick="openTempProductModal(${c.id})">临时商品</button>
                     </div>`}
-                    ${metrics}
+                    ${custDeleted ? '<div class="deleted-note">该客户已删除，记录保留可查（不计入本场统计与打包出库）</div>' : metrics}
                 </div>
             </div>`);
     });
@@ -1654,12 +1695,12 @@ function render() {
     const profitLabelMap = { none: '毛利-无活动', full_gift: '毛利-满赠', full_reduce: '毛利-满减', both: '毛利-满减+满赠' };
     const profitKey = profitKeyMap[at] || 'profitBase';
     document.getElementById('statProfitLabel').textContent = profitLabelMap[at] || '毛利-无活动';
-    customers.forEach(c => { const m = calcCustomer(c); tq += m.totalQty; tg += m.gmv; tc += m.cost; tp += m[profitKey]; });
+    customers.forEach(c => { if (c.is_deleted) return; const m = calcCustomer(c); tq += m.totalQty; tg += m.gmv; tc += m.cost; tp += m[profitKey]; });
     // 福袋成本计入本场次总成本与毛利
     const luckyCost = parseFloat(sessionData.lucky_draw_cost || 0) || 0;
     tc += luckyCost;
     tp -= luckyCost;
-    document.getElementById('statCustomers').textContent = customers.length;
+    document.getElementById('statCustomers').textContent = customers.filter(c => !c.is_deleted).length;
     document.getElementById('statTotalQty').textContent = tq;
     document.getElementById('statTotalGmv').textContent = '¥' + Math.round(tg);
     document.getElementById('statTotalCost').textContent = CAN_SEE_PROFIT ? ('¥' + Math.round(tc)) : '—';
@@ -1900,21 +1941,70 @@ function stepQty(cid, iid, delta) {
     render(); scheduleAutoSave();
 }
 
+// 是否软删除模式：已下播（未打包）或已打包出库 → 删除只标记，保留记录
+function isSoftDeleteMode() {
+    const st = sessionData && sessionData.settings;
+    if (!st) return false;
+    return st.status === 'ended' || !!st.off_air_at;
+}
+
+// 只读场次（已打包）下的软删保存：绕过自动保存的只读限制
+async function saveSoftDelete() {
+    if (!currentSessionId) return;
+    const ok = await doSave();
+    if (ok) {
+        await reloadSessionData();
+        render();
+        toast('已删除（记录保留可查）');
+    } else {
+        toast('保存失败，请重试', true);
+    }
+}
+
 function deleteItem(cid, iid) {
     const c = (sessionData.customers || []).find(x => x.id === cid);
+    if (!c) return;
+    if (isSoftDeleteMode()) {
+        const item = (c.items || []).find(i => i.id === iid);
+        if (!item || item.is_deleted) return;
+        item.is_deleted = 1;
+        render();
+        saveSoftDelete();
+        return;
+    }
+    // 直播中：保持现状硬删
     c.items = (c.items || []).filter(i => i.id !== iid);
     render();
     scheduleAutoSave();
 }
 function deleteGift(cid, gi) {
     const c = (sessionData.customers || []).find(x => x.id === cid);
+    if (!c) return;
+    const gift = (c.gifts || [])[gi];
+    if (!gift || gift.is_deleted) return;
+    if (isSoftDeleteMode()) {
+        gift.is_deleted = 1;
+        render();
+        saveSoftDelete();
+        return;
+    }
     c.gifts.splice(gi, 1);
     render();
     scheduleAutoSave();
 }
 
 function confirmDeleteCustomer(id) {
-    showConfirm('确定删除该客户及其所有购买记录吗？', async () => {
+    const c = (sessionData.customers || []).find(x => x.id === id);
+    if (!c || c.is_deleted) return;
+    showConfirm('确定删除该客户及其所有购买记录吗？删除后仍保留记录可查。', async () => {
+        if (isSoftDeleteMode()) {
+            c.is_deleted = 1;
+            (c.items || []).forEach(i => { i.is_deleted = 1; });
+            (c.gifts || []).forEach(g => { g.is_deleted = 1; });
+            render();
+            await saveSoftDelete();
+            return;
+        }
         sessionData.customers = (sessionData.customers || []).filter(x => x.id !== id);
         render();
         await saveAll();
@@ -2128,8 +2218,9 @@ function showSearchDropdown() {
 function getLocalReserved(productId, conditionType) {
     let reserved = 0;
     (sessionData.customers || []).forEach(c => {
+        if (c.is_deleted) return;
         (c.items || []).forEach(i => {
-            if (!i.is_gift && i.product_id === productId && (i.condition_type || '') === (conditionType || '')) {
+            if (!i.is_gift && !i.is_deleted && i.product_id === productId && (i.condition_type || '') === (conditionType || '')) {
                 reserved += parseInt(i.qty) || 0;
             }
         });
@@ -2241,6 +2332,7 @@ function buildPayload() {
             id: c.id > 0 ? c.id : 0,
             nickname: c.nickname,
             vip_no: c.vip_no,
+            is_deleted: c.is_deleted ? 1 : 0,
             items: (c.items || []).map(i => ({
                 id: i.id > 0 ? i.id : 0,
                 product_id: i.product_id,
@@ -2251,6 +2343,7 @@ function buildPayload() {
                 purchase_cost: i.purchase_cost,
                 is_gift: i.is_gift,
                 is_temp: i.is_temp,
+                is_deleted: i.is_deleted ? 1 : 0,
             })),
             gifts: (c.gifts || []).map(g => ({
                 id: g.id > 0 ? g.id : 0,
@@ -2258,6 +2351,7 @@ function buildPayload() {
                 qty: g.qty || 1,
                 cost: g.cost,
                 description: g.description,
+                is_deleted: g.is_deleted ? 1 : 0,
             })),
         })),
     };
