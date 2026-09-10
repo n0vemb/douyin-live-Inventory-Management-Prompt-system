@@ -70,7 +70,7 @@ $myShopId = $user['shop_id'] ?? null;
         <div id="fastStockRes" style="margin-top:8px; max-height:300px; overflow-y:auto;">
             <div class="ps-empty">输入关键词查看各 SKU 价格与可售库存</div>
         </div>
-        <div class="fp-note">规则：未拆袋优先，仅有已拆则已拆；多个精确拼音命中时必须数字键/点选（回车不会自动选，防误加），可继续加字缩小。同款连发：新客户设好后输入 <b>.</b> 回车。</div>
+        <div class="fp-note">规则：未拆袋优先，仅有已拆则已拆；多个精确拼音命中时必须数字键/点选（回车不会自动选，防误加），可继续加字缩小。同款连发：输入 <b>.</b> 回车 → 同客户同 SKU 数量 +1；点 SKU 芯片或「切 SKU」即时切换品相。</div>
         <div class="fp-stat" id="fastStat"></div>
     </div>
 </div>
@@ -81,6 +81,8 @@ let fastCur = null;        // 当前客户对象引用
 let fastLastSku = null;    // 上一商品（含所选 SKU 明细）
 let fastCache = {};        // product_id => [{condition...}] 搜索缓存（SKU 切换用）
 let fastCands = [];        // 拼音多匹配候选
+let fastCandsAt = 0;       // 候选项出现时间（数字键选择的有效期，防误触）
+let fastCandsKeyword = ''; // 产生候选时的输入关键词（数字键仅在输入未被改动时生效）
 const FAST_SKU_PRIORITY = ['sealed', 'opened', 'boxless', 'flawed'];
 
 function openFastPanel() { document.getElementById('fastPanel').classList.add('open'); fastRender(); setTimeout(() => document.getElementById('fastInput').focus(), 120); }
@@ -88,6 +90,8 @@ function closeFastPanel() { document.getElementById('fastPanel').classList.remov
 function toggleFastPanel() { const p = document.getElementById('fastPanel'); if (p.classList.contains('open')) closeFastPanel(); else openFastPanel(); }
 function fastClearCands() {
     fastCands = [];
+    fastCandsAt = 0;
+    fastCandsKeyword = '';
     document.getElementById('fastCandSec').style.display = 'none';
     document.getElementById('fastCands').innerHTML = '';
 }
@@ -142,7 +146,7 @@ function renderFastLast() {
     box.innerHTML =
         '<span class="fp-chip hit" style="cursor:default;">' + esc(last.product_name || '') + '<span class="fp-hit-tag">匹配</span></span>' +
         '<span class="fp-chip" style="cursor:default; background:rgba(62,207,142,.14); border-color:rgba(62,207,142,.4); color:#3ecf8e;">售价 ¥' + priceTxt + '</span>' +
-        (pid ? '<span class="fp-chip" id="fastSkuChip">' + esc(last.condition_name || last.condition_type || '') + ' ⇄</span>' : '') +
+        (pid ? '<span class="fp-chip" id="fastSkuChip" style="cursor:pointer;" onclick="fastCycleSku()" title="点击切换 SKU">' + esc(last.condition_name || last.condition_type || '') + ' ⇄</span>' : '') +
         '<span class="fp-chip" onclick="fastRepeat()">同款连发</span>' +
         '<span class="fp-chip" onclick="fastCycleSku()">切 SKU</span>';
 }
@@ -228,6 +232,8 @@ async function fastFindAndAdd(kw) {
             }).join('');
             document.getElementById('fastCandSec').style.display = '';
             document.getElementById('fastCandSec').textContent = '多个商品匹配，选一个（数字键 1-9）；回车不会自动选，防误加';
+            fastCandsAt = Date.now();
+            fastCandsKeyword = q;
             box.querySelectorAll('[data-c]').forEach(el => {
                 el.addEventListener('click', function () { fastPickCand(+el.getAttribute('data-c')); });
             });
@@ -315,68 +321,138 @@ function fastAddSku(sku) {
     }
     fastRender();
     renderFastLast();
+    fastFocusInput();
 }
-async function fastRepeat() {
+
+function fastFocusInput() {
+    const el = document.getElementById('fastInput');
+    if (el) setTimeout(function () { el.focus(); }, 0);
+}
+
+function fastRepeat() {
     if (!fastLastSku || !fastCur) { toast('还没有上一商品', true); return; }
     if (isReadOnly) { toast('本场次已结束（打包出库），不可再添加商品', true); return; }
     fastSyncCur();
-    // 防重复：同一客户已加过该同款 → 拦下提示，避免连按两次“.”重复加购
-    const dup = (fastCur.items || []).some(i =>
-        !i.is_gift && i.product_id && i.product_id === fastLastSku.product_id &&
-        (i.condition_type || '') === (fastLastSku.condition_type || '')
+    if (!fastCur) { toast('请先选择客户', true); return; }
+    const sku = fastLastSku;
+
+    // 同客户已有同 SKU 行 → 数量 +1（同款连发的实际用法）
+    const line = (fastCur.items || []).find(i =>
+        !i.is_gift && i.product_id === sku.product_id &&
+        (i.condition_type || '') === (sku.condition_type || '')
     );
-    if (dup) { toast('该客户已加过此商品；如需多件请点数量 +', true); return; }
-    // 同款连发也必须用最新库存/占用重新校验，不直接复用旧快照（防其他场次刚扣/占用）
+    if (line) {
+        const stock = parseInt(sku.total_stock) || 0;
+        const used = fastReserved(sku.product_id, sku.condition_type);
+        if (stock > 0 && used + 1 > stock) {
+            toast(`「${sku.product_name || ''}」库存不足：已占用 ${used}/${stock} 件`, true);
+            fastRefreshSkuStock(sku);
+            return;
+        }
+        line.qty = (parseInt(line.qty) || 0) + 1;
+        render(); fastRender(); renderFastLast(); scheduleAutoSave();
+        toast('同款 +1：' + (sku.product_name || '') + '（' + (sku.condition_name || '') + '）');
+        fastRefreshSkuStock(sku);
+        fastFocusInput();
+        return;
+    }
+
+    // 当前客户还没有该款 → 优先用缓存即时添加
+    const cached = (fastCache[sku.product_id] || []).find(c => c.condition_type === sku.condition_type);
+    if (cached && ((parseInt(cached.total_stock) || 0) - fastReserved(cached.product_id, cached.condition_type)) > 0) {
+        fastAddSku(cached);
+        return;
+    }
+    fastRepeatFromServer(sku);
+}
+
+// 缓存缺失时再走网络兜底
+async function fastRepeatFromServer(sku) {
     try {
-        const groups = await fastFetchGroups(fastLastSku.barcode || fastLastSku.product_name);
+        const groups = await fastFetchGroups(sku.barcode || sku.product_name);
         if (!groups) { toast('库存已变化，请重新输入商品搜索', true); return; }
         const pid = Object.keys(groups)[0];
         const g = groups[pid];
         fastCache[pid] = Object.values(g.conds);
         const same = Object.values(g.conds).find(cd =>
-            cd.condition_type === fastLastSku.condition_type &&
+            cd.condition_type === sku.condition_type &&
             (cd.total_stock - fastReserved(cd.product_id, cd.condition_type)) > 0
         );
-        const sku = same || fastPickAvailable(g);
-        if (!sku) { toast('该商品已无可用库存', true); return; }
-        fastAddSku(sku);
+        const useSku = same || fastPickAvailable(g);
+        if (!useSku) { toast('该商品已无可用库存', true); return; }
+        fastAddSku(useSku);
     } catch (e) { toast('同款连发失败，请重试：' + e.message, true); }
 }
-async function fastCycleSku() {
+
+// 后台刷新某 SKU 的最新库存/占用（不阻塞界面）
+async function fastRefreshSkuStock(sku) {
+    try {
+        await refreshOtherReserved();
+        const groups = await fastFetchGroups(sku.barcode || sku.product_name);
+        if (!groups) return;
+        const pid = Object.keys(groups)[0];
+        fastCache[pid] = Object.values(groups[pid].conds);
+        const fresh = fastCache[pid].find(c => c.condition_type === sku.condition_type);
+        if (fresh && fastLastSku && fastLastSku.product_id === sku.product_id && fastLastSku.condition_type === sku.condition_type) {
+            fastLastSku = Object.assign({}, fastLastSku, {
+                total_stock: fresh.total_stock,
+                suggested_price: fresh.suggested_price,
+                purchase_price: fresh.purchase_price,
+                condition_name: fresh.condition_name
+            });
+        }
+        if (fresh && fastReserved(pid, sku.condition_type) > (parseInt(fresh.total_stock) || 0)) {
+            toast('注意：该 SKU 库存已不足，请核对数量', true);
+        }
+    } catch (e) { /* 静默：不影响速录 */ }
+}
+
+// 切 SKU：用缓存即时切换（连点可连续切），库存刷新放后台
+function fastCycleSku() {
     fastSyncCur();
     if (!fastCur || !fastCur.items || !fastCur.items.length) return;
     const last = fastCur.items[fastCur.items.length - 1];
     let conds = fastCache[last.product_id] || [];
-    // 切换前先刷新库存/占用，避免基于旧 SKU 库存误切
-    try {
-        const groups = await fastFetchGroups(last.barcode || last.product_name);
-        if (groups) {
-            const pid = Object.keys(groups)[0];
-            fastCache[pid] = Object.values(groups[pid].conds);
-            conds = fastCache[pid];
-        }
-    } catch (e) {}
-    if (!conds.length) { toast('SKU 数据暂缺，重新搜一次商品后可切换', true); return; }
+    if (!conds.length) { fastCycleSkuFromServer(last); return; }
     const order = FAST_SKU_PRIORITY.concat(conds.map(c => c.condition_type));
     const idx = order.indexOf(last.condition_type);
     for (let i = 1; i <= order.length; i++) {
         const ct = order[(idx + i) % order.length];
         const cd = conds.find(x => x.condition_type === ct);
         if (!cd) continue;
-        if (cd.total_stock - fastReserved(cd.product_id, ct) > 0) {
+        if ((parseInt(cd.total_stock) || 0) - fastReserved(cd.product_id, ct) > 0) {
             last.condition_type = ct;
             last.condition_name = cd.condition_name || ct;
             last.sell_price = parseFloat(cd.suggested_price || 0);
             last.purchase_cost = parseFloat(cd.purchase_price || 0);
+            fastLastSku = Object.assign({}, cd, { barcode: last.barcode || cd.barcode || '' });
             render(); fastRender(); renderFastLast();
             toast('已切为 ' + (cd.condition_name || ct));
             scheduleAutoSave();
+            fastRefreshSkuStock(fastLastSku);
+            fastFocusInput();
             return;
         }
     }
     toast('其它 SKU 均无可用库存', true);
 }
+
+// 缓存缺失（如刷新页面后直接切）→ 先拉一次该商品 SKU，再走即时切换
+async function fastCycleSkuFromServer(last) {
+    try {
+        const groups = await fastFetchGroups(last.barcode || last.product_name);
+        if (!groups) { toast('SKU 数据暂缺，请重新搜一次商品', true); return; }
+        const pid = Object.keys(groups)[0];
+        fastCache[pid] = Object.values(groups[pid].conds);
+        if (!fastCache[last.product_id]) { toast('SKU 数据暂缺，请重新搜一次商品', true); return; }
+        fastCycleSku();
+    } catch (e) {
+        toast('SKU 获取失败，请重试', true);
+    }
+}
 document.addEventListener('keydown', function (e) {
+    // 输入法组合中不处理（避免中文/数字输入被吞或误触发）
+    if (e.isComposing || e.keyCode === 229) return;
     const p = document.getElementById('fastPanel');
     if (p && p.classList.contains('open')) {
         if (e.target.id === 'fastInput' && e.key === 'Enter') {
@@ -384,7 +460,9 @@ document.addEventListener('keydown', function (e) {
             fastHandleInput();
             return;
         }
-        if (fastCands.length && /^[1-9]$/.test(e.key)) {
+        // 数字键仅在“输入框内容仍是产生候选项的关键词”时生效，避免误触/误选
+        const fastInpVal = (document.getElementById('fastInput').value || '').trim().toLowerCase();
+        if (fastCands.length && fastInpVal === fastCandsKeyword && /^[1-9]$/.test(e.key)) {
             const idx = +e.key - 1;
             if (idx < fastCands.length) { e.preventDefault(); fastPickCand(idx); }
         }
