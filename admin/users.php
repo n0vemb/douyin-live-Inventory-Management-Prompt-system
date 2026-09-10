@@ -7,6 +7,7 @@ $isStoreAdmin = ($currentUser['role'] === 'store_admin');
 $canManageUsers = $isSuperAdmin || $isGroupAdmin || $isStoreAdmin;
 $myStoreId = $currentUser['store_id'] ?? null;
 $myShopId = $currentUser['shop_id'] ?? null;
+$defaultStoreId = $currentUser['view_store_id'] ?? $currentUser['store_id'] ?? null;
 ?>
 
 <style>
@@ -104,7 +105,7 @@ $myShopId = $currentUser['shop_id'] ?? null;
             <?php if ($isSuperAdmin): ?>
             <div class="form-group" id="createStoreSelectGroup">
                 <label class="form-label">所属集团</label>
-                <select class="form-input" id="newStoreId"></select>
+                <select class="form-input" id="newStoreId" onchange="reloadShopsForStore('newStoreId', 'newShopId')"></select>
             </div>
             <?php else: ?>
             <input type="hidden" id="newStoreId" value="<?= (int)$myStoreId ?>">
@@ -121,6 +122,11 @@ $myShopId = $currentUser['shop_id'] ?? null;
                 <button type="submit" class="btn btn-primary" style="flex:1;">创建</button>
                 <button type="button" class="btn btn-secondary" onclick="closeCreateModal()">取消</button>
             </div>
+            <?php if ($isStoreAdmin): ?>
+            <div style="margin-top:12px; font-size:12px; color:var(--text-tertiary); line-height:1.6;">
+                店管账号只能为本店分配账号；如需给集团下其它店建账号，请用「集团管理员」或平台超管登录操作。
+            </div>
+            <?php endif; ?>
         </form>
     </div>
 </div>
@@ -160,7 +166,7 @@ $myShopId = $currentUser['shop_id'] ?? null;
             <?php if ($isSuperAdmin): ?>
             <div class="form-group" id="editStoreSelectGroup">
                 <label class="form-label">所属集团</label>
-                <select class="form-input" id="editStoreId"></select>
+                <select class="form-input" id="editStoreId" onchange="reloadShopsForStore('editStoreId', 'editShopId')"></select>
             </div>
             <?php else: ?>
             <input type="hidden" id="editStoreId" value="<?= (int)$myStoreId ?>">
@@ -177,6 +183,11 @@ $myShopId = $currentUser['shop_id'] ?? null;
                 <button type="submit" class="btn btn-primary" style="flex:1;">保存</button>
                 <button type="button" class="btn btn-secondary" onclick="closeEditModal()">取消</button>
             </div>
+            <?php if ($isStoreAdmin): ?>
+            <div style="margin-top:12px; font-size:12px; color:var(--text-tertiary); line-height:1.6;">
+                店管账号只能为本店分配账号；如需给集团下其它店建账号，请用「集团管理员」或平台超管登录操作。
+            </div>
+            <?php endif; ?>
         </form>
     </div>
 </div>
@@ -206,6 +217,7 @@ const IS_GROUP_ADMIN = <?= $isGroupAdmin ? 'true' : 'false' ?>;
 const IS_STORE_ADMIN = <?= $isStoreAdmin ? 'true' : 'false' ?>;
 const MY_STORE_ID = <?= $myStoreId ? (int)$myStoreId : 'null' ?>;
 const MY_SHOP_ID = <?= $myShopId ? (int)$myShopId : 'null' ?>;
+const DEFAULT_STORE_ID = <?= $defaultStoreId ? (int)$defaultStoreId : 'null' ?>;
 const SHOP_ROLES = ['store_admin', 'operator', 'deputy_store_admin'];
 let allUsers = [];
 let currentFilter = 'all';
@@ -337,6 +349,13 @@ function needsShopSelect(role) {
     return (IS_SUPER_ADMIN || IS_GROUP_ADMIN || IS_STORE_ADMIN) && SHOP_ROLES.includes(role);
 }
 
+// 超管切换“所属集团”时，重新加载该集团的店铺列表
+function reloadShopsForStore(storeSelId, shopSelId) {
+    const el = document.getElementById(storeSelId);
+    const sid = el ? (parseInt(el.value) || null) : null;
+    loadShops(shopSelId, sid);
+}
+
 function currentStoreForShops() {
     if (IS_SUPER_ADMIN) {
         const v = parseInt(document.getElementById('newStoreId')?.value || '');
@@ -366,11 +385,18 @@ function openCreateModal() {
     document.getElementById('newPassword').value = '';
     document.getElementById('newRole').value = 'operator';
     if (IS_SUPER_ADMIN) {
-        loadStores('newStoreId').then(() => toggleCreateStoreSelect());
+        loadStores('newStoreId').then(() => {
+            const sel = document.getElementById('newStoreId');
+            if (DEFAULT_STORE_ID && [...sel.options].some(o => o.value === String(DEFAULT_STORE_ID))) {
+                sel.value = String(DEFAULT_STORE_ID);
+            }
+            toggleCreateStoreSelect();
+        });
     } else if (IS_GROUP_ADMIN) {
         loadShops('newShopId', MY_STORE_ID).then(() => toggleCreateStoreSelect());
+    } else {
+        toggleCreateStoreSelect();
     }
-    toggleCreateStoreSelect();
     document.getElementById('createUserModal').classList.add('show');
 }
 
