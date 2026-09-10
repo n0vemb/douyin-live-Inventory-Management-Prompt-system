@@ -11,7 +11,7 @@ requireAuth(); $storeId = getStoreId();
 $shopId = getShopId();
 
 $status = $_GET['status'] ?? 'all';
-$sql = "SELECT s.id, s.session_name, s.anchor, s.operator, s.account, s.shop_id, sh.name AS shop_name,
+$sql = "SELECT s.id, s.store_id, s.session_name, s.anchor, s.operator, s.account, s.shop_id, sh.name AS shop_name,
     s.status, s.created_at, s.off_air_at, s.ended_at, s.total_qty, s.total_gmv,
     (SELECT COUNT(*) FROM live_ledger_lucky_draw ld WHERE ld.session_id = s.id AND ld.shipped = 0) AS unshipped_count
     FROM live_ledger_session s

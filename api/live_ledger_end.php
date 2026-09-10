@@ -131,8 +131,8 @@ try {
                 // 写 sales_log（live_session_id 置 NULL：sales_log 外键指向旧 live_sessions 表，
                 // 直播记账有独立历史体系，不关联旧场次，避免外键冲突）
                 // 记录当时批次 batch_id + 固化进价 purchase_cost，销售记录页可精确追溯
-                $stmt = $pdo->prepare("INSERT INTO sales_log (store_id, shop_id, product_id, condition_type, sale_price, purchase_cost, batch_id, qty, live_session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)");
-                $stmt->execute([$storeId, $session['shop_id'], $pid, $batch['condition_type'], $price, $batch['purchase_price'], $batch['id'], $take]);
+                $stmt = $pdo->prepare("INSERT INTO sales_log (store_id, shop_id, product_id, condition_type, sale_price, purchase_cost, batch_id, qty, live_session_id, ledger_session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)");
+                $stmt->execute([$storeId, $session['shop_id'], $pid, $batch['condition_type'], $price, $batch['purchase_price'], $batch['id'], $take, (int)$sessionId]);
 
                 $remaining -= $take;
             }

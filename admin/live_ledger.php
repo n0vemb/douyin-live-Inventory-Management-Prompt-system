@@ -8,6 +8,7 @@ $canSeeProfit = $user['can_see_profit'] ?? true;
 $isOperator = in_array($user['role'], ['operator', 'deputy_store_admin'], true);
 $canEditSessionMeta = in_array($user['role'], ['store_admin', 'group_admin', 'super_admin'], true);
 $canPickShop = in_array($user['role'], ['group_admin', 'super_admin'], true);
+$canChangeSessionShop = in_array($user['role'], ['group_admin', 'super_admin'], true);
 $myShopId = $user['shop_id'] ?? null;
 ?>
 <div class="page-title">直播出库记账</div>
@@ -597,6 +598,12 @@ document.getElementById('fastInput').addEventListener('paste', function (e) {
       <label>直播平台账号</label>
       <input type="text" id="metaAccount" class="form-input" list="accountList" placeholder="如：@xxx 或 抖音号" style="margin-top:6px;">
     </div>
+    <?php if ($canChangeSessionShop): ?>
+    <div style="margin-bottom:14px;">
+      <label>归属店铺 <span style="color:var(--text-tertiary);font-weight:400;">（修改后销售/出库/财务一起迁移）</span></label>
+      <select id="metaShop" class="form-input" style="margin-top:6px;"></select>
+    </div>
+    <?php endif; ?>
     <div class="flex" style="justify-content:flex-end; gap:15px;">
       <button class="btn btn-outline" onclick="closeSessionMetaModal()">取消</button>
       <button class="btn btn-success" onclick="saveSessionMeta()">保存</button>
@@ -883,6 +890,7 @@ let addMap = {};
 const CAN_SEE_PROFIT = <?= $canSeeProfit ? 'true' : 'false' ?>;
 const IS_OPERATOR = <?= $isOperator ? 'true' : 'false' ?>;
 const CAN_EDIT_META = <?= $canEditSessionMeta ? 'true' : 'false' ?>;
+const CAN_CHANGE_SHOP = <?= $canChangeSessionShop ? 'true' : 'false' ?>;
 const CAN_PICK_SHOP = <?= $canPickShop ? 'true' : 'false' ?>;
 const MY_SHOP_ID = <?= $myShopId ? (int)$myShopId : 'null' ?>;
 
@@ -933,6 +941,16 @@ function editSessionMeta(id, anchor, operator, account) {
     document.getElementById('metaAnchor').value = anchor || '';
     document.getElementById('metaOperator').value = operator || '';
     document.getElementById('metaAccount').value = account || '';
+    if (CAN_CHANGE_SHOP && s) {
+        const sel = document.getElementById('metaShop');
+        sel.innerHTML = '<option value="">加载中…</option>';
+        const q = s.store_id ? ('?store_id=' + s.store_id) : '';
+        fetch('../api/list_shops.php' + q).then(r => r.json()).then(d => {
+            const shops = (d.data && d.data.shops) || [];
+            sel.innerHTML = shops.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('');
+            if (s.shop_id) sel.value = String(s.shop_id);
+        }).catch(() => { sel.innerHTML = ''; });
+    }
     document.getElementById('sessionMetaModal').classList.add('show');
 }
 function closeSessionMetaModal() {
@@ -940,14 +958,19 @@ function closeSessionMetaModal() {
 }
 async function saveSessionMeta() {
     if (!metaSessionId) return;
+    const payload = {
+        session_id: metaSessionId,
+        anchor: document.getElementById('metaAnchor').value.trim(),
+        operator: document.getElementById('metaOperator').value.trim(),
+        account: document.getElementById('metaAccount').value.trim()
+    };
+    if (CAN_CHANGE_SHOP) {
+        const sel = document.getElementById('metaShop');
+        if (sel && sel.value) payload.shop_id = parseInt(sel.value);
+    }
     const res = await fetch('../api/live_ledger_update_meta.php', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            session_id: metaSessionId,
-            anchor: document.getElementById('metaAnchor').value.trim(),
-            operator: document.getElementById('metaOperator').value.trim(),
-            account: document.getElementById('metaAccount').value.trim()
-        })
+        body: JSON.stringify(payload)
     });
     const data = await res.json();
     if (!data.success) { toast(data.error || '保存失败', true); return; }
