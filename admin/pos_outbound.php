@@ -179,6 +179,12 @@ function render(d) {
             ? `<tr><td colspan="3" style="text-align:right;color:var(--success,#10b981);font-weight:600">整单打折（${Math.round((1 - o.staff_discount) * 100)}%）</td>
                 <td class="num" style="color:var(--success,#10b981)">−¥${o.discount_amount.toFixed(2)}</td><td></td></tr>` : '';
 
+        // 优惠券抵扣（含券名/领取手机号，便于对账）
+        const couponNames = (o.coupons || []).map(c => esc(c.campaign_name || '优惠券')).join('、');
+        const couponRows = (o.coupon_amount > 0)
+            ? `<tr><td colspan="3" style="text-align:right;color:#f59e0b;font-weight:600">优惠券抵扣${couponNames ? '（' + couponNames + '）' : ''}</td>
+                <td class="num" style="color:#f59e0b">−¥${o.coupon_amount.toFixed(2)}</td><td></td></tr>` : '';
+
         const payInfo = o.outbound_status === 'pending'
             ? (o.pay_status === 'paid' ? `<span class="pay-note">已收款（${PAY_NAMES[o.pay_method] || o.pay_method}）</span>` : `<span class="pay-note">未收款：扫码待确认</span>`)
             : '';
@@ -200,7 +206,7 @@ function render(d) {
                 </div>
               </div>`;
 
-        const summary = `<span>${o.item_count} 件</span><span>应付 <b style="color:var(--primary,#6366f1)">¥${o.payable.toFixed(2)}</b></span>`;
+        const summary = `<span>${o.item_count} 件</span>${o.coupon_amount > 0 ? `<span style="color:#f59e0b">券 −¥${o.coupon_amount.toFixed(2)}</span>` : ''}<span>应付 <b style="color:var(--primary,#6366f1)">¥${o.payable.toFixed(2)}</b></span>`;
 
         // 复用 live_ledger 客户卡片结构
         return `<div class="customer" id="ord-${o.id}">
@@ -221,7 +227,7 @@ function render(d) {
             <div class="customer-body">
                 <table class="order-table">
                     <thead><tr><th>商品</th><th class="num">单价</th><th class="num">数量</th><th class="num">小计</th>${costCol}</tr></thead>
-                    <tbody>${rows}${discRows}
+                    <tbody>${rows}${discRows}${couponRows}
                         <tr><td colspan="${IS_OPERATOR ? 3 : 3}" style="text-align:right;font-weight:700">应付合计</td>
                             <td class="num" style="font-weight:700;color:var(--primary,#6366f1);font-size:15px">¥${o.payable.toFixed(2)}</td>${IS_OPERATOR ? '' : '<td></td>'}</tr>
                     </tbody>

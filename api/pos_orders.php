@@ -85,11 +85,31 @@ try {
     );
     $result = [];
     $hideCost = isOperator(); // 运营不可见成本/进价
+    $couponStmt = $pdo->prepare('SELECT oc.claim_id, oc.amount_off, oc.phone,
+                                        cp.name AS campaign_name, cp.coupon_type, cp.threshold,
+                                        cc.status
+                                 FROM pos_order_coupons oc
+                                 LEFT JOIN coupon_campaigns cp ON cp.id = oc.campaign_id
+                                 LEFT JOIN coupon_claims cc ON cc.id = oc.claim_id
+                                 WHERE oc.order_id = ?');
     foreach ($orders as $o) {
         $itemStmt->execute([(int)$o['id']]);
         $items = $itemStmt->fetchAll();
         $qty = 0;
         foreach ($items as $it) $qty += (int)$it['qty'];
+        $couponStmt->execute([(int)$o['id']]);
+        $coupons = [];
+        foreach ($couponStmt->fetchAll(PDO::FETCH_ASSOC) as $cp) {
+            $coupons[] = [
+                'claim_id' => (int)$cp['claim_id'],
+                'campaign_name' => $cp['campaign_name'] ?: '优惠券',
+                'coupon_type' => $cp['coupon_type'] ?: 'threshold',
+                'threshold' => floatval($cp['threshold'] ?? 0),
+                'amount_off' => floatval($cp['amount_off']),
+                'phone' => $cp['phone'] ?? '',
+                'status' => $cp['status'] ?? '',
+            ];
+        }
         $result[] = [
             'id' => (int)$o['id'],
             'shop_id' => $o['shop_id'] !== null ? (int)$o['shop_id'] : null,
@@ -102,6 +122,8 @@ try {
             'staff_discount' => $o['staff_discount'] !== null ? floatval($o['staff_discount']) : null,
             'subtotal' => floatval($o['subtotal']),
             'discount_amount' => floatval($o['discount_amount']),
+            'coupon_amount' => floatval($o['coupon_amount'] ?? 0),
+            'coupons' => $coupons,
             'payable' => floatval($o['payable']),
             'pay_method' => $o['pay_method'],
             'pay_status' => $o['pay_status'],

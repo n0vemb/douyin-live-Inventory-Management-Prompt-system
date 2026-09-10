@@ -158,7 +158,7 @@ function renderSessions(sessions) {
         <div class="session-block">
             <div class="session-head" onclick="this.parentElement.classList.toggle('open')">
                 <div style="display:flex; align-items:center;"><span class="toggle-arrow">▶</span><span class="session-title">${esc(s.session_name)}</span>${s.shop_name ? `<span style="font-size:11px;color:var(--primary);border:1px solid var(--border);border-radius:9px;padding:0 6px;margin-left:6px;">${esc(s.shop_name)}</span>` : ''}<span class="muted" style="margin-left:8px;">#${s.id}</span></div>
-                <div class="muted">${esc(actLabel)} · ${esc(s.created_at)}${dur ? ' · 播出时长 ' + dur : ''} · 出库批次 ${esc(s.outbound_batch_no || '-')}</div>
+                <div class="muted">${s.status_label ? `<span style="font-size:11px;font-weight:700;border-radius:9px;padding:0 7px;margin-right:6px;${s.status === 'ended' ? 'background:rgba(16,185,129,.15);color:#10b981;' : (s.off_air_at ? 'background:rgba(245,158,11,.15);color:#f59e0b;' : 'background:rgba(239,68,68,.15);color:#ef4444;')}">${esc(s.status_label)}</span>` : ''}${esc(actLabel)} · ${esc(s.created_at)}${dur ? ' · 播出时长 ' + dur : ''} · 出库批次 ${esc(s.outbound_batch_no || '-')}</div>
             </div>
             <div class="session-body">
                 <table>

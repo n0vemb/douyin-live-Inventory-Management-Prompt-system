@@ -14,6 +14,11 @@ $storeId = getStoreId();
 if (!$storeId) error('请先选择店铺');
 if (!in_array($_SESSION['role'] ?? '', ['store_admin', 'group_admin', 'super_admin'], true)) error('无权限', 403);
 
+$method = $_SERVER['REQUEST_METHOD'];
+$input = $method === 'POST' ? (json_decode(file_get_contents('php://input'), true) ?: []) : $_GET;
+$action = $input['action'] ?? 'list';
+
+// 店级账号固定本店；集团管理员/超管按请求里的 shop_id 指定目标店（必须在解析 $input 之后）
 $scopeShop = getShopId();
 if (!$scopeShop && in_array($_SESSION['role'] ?? '', ['group_admin', 'super_admin'], true)) {
     $reqShop = (int)($input['shop_id'] ?? ($_GET['shop_id'] ?? 0));
@@ -23,10 +28,6 @@ if (!$scopeShop && in_array($_SESSION['role'] ?? '', ['group_admin', 'super_admi
         if ($chk->fetch()) $scopeShop = $reqShop;
     }
 }
-
-$method = $_SERVER['REQUEST_METHOD'];
-$input = $method === 'POST' ? (json_decode(file_get_contents('php://input'), true) ?: []) : $_GET;
-$action = $input['action'] ?? 'list';
 
 try {
     if ($action === 'list') {

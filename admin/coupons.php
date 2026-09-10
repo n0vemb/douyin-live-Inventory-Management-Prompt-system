@@ -101,6 +101,25 @@ $couponPickShop = in_array($currentUser['role'] ?? '', ['group_admin', 'super_ad
   </div>
 </div>
 
+<!-- 领取情况 -->
+<div class="modal" id="cpClaimsModal">
+  <div class="modal-content" style="max-width:680px">
+    <div class="modal-header"><h3 class="modal-title">领取情况 <span id="cpClaimsName" style="font-size:13px;color:var(--text-tertiary);font-weight:500;"></span></h3><button class="modal-close" onclick="hide('cpClaimsModal')">&times;</button></div>
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+      <input class="form-input" id="cpClaimsPhone" placeholder="按手机号过滤…" style="width:170px;" oninput="renderClaims()">
+      <span style="font-size:12.5px;color:var(--text-tertiary);" id="cpClaimsSummary"></span>
+      <button class="btn btn-sm btn-secondary" onclick="loadClaims()" style="margin-left:auto;">刷新</button>
+    </div>
+    <input type="hidden" id="cpClaimsCampaignId">
+    <div style="overflow-x:auto; max-height:56vh; overflow-y:auto;">
+      <table class="cp-tbl">
+        <thead><tr><th>手机号</th><th>状态</th><th>领取时间</th><th>使用时间</th><th>订单号</th><th>来源</th></tr></thead>
+        <tbody id="cpClaimsRows"><tr><td colspan="6" style="text-align:center;color:var(--text-tertiary)">加载中…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div id="cpToast" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;z-index:3000;display:none"></div>
 <script>
 let CP = [];
@@ -145,6 +164,7 @@ function render(){
       <td style="white-space:nowrap">
         <button class="btn btn-sm btn-secondary" onclick="editCampaign(${c.id})">编辑</button>
         <button class="btn btn-sm btn-secondary" onclick="toggleCampaign(${c.id})">${c.status==='active'?'停用':'启用'}</button>
+        <button class="btn btn-sm btn-secondary" onclick="openClaims(${c.id}, '${esc(c.name).replace(/'/g, "\\'")}')">领取情况</button>
         <button class="btn btn-sm btn-secondary" onclick="issueOpen(${c.id})">补发</button>
       </td></tr>`;
   }).join('');
@@ -223,6 +243,51 @@ async function doIssue(){
   if(!/^1[3-9]\d{9}$/.test(body.phone)){toast('手机号格式不正确',true);return;}
   const d=await api(body); if(!d.success){toast(d.error||'补发失败',true);return;}
   hide('cpIssueModal'); toast(d.message||'已补发'); load();
+}
+
+// ===== 领取情况 =====
+let CP_CLAIMS = [];
+function claimStatusLabel(s){
+  return {unused:'未使用', locked:'占用中', used:'已使用', refunded:'已退回', expired:'已过期'}[s] || s;
+}
+async function openClaims(id, name){
+  $c('cpClaimsCampaignId').value = id;
+  $c('cpClaimsName').textContent = '（' + name + '）';
+  $c('cpClaimsPhone').value = '';
+  CP_CLAIMS = [];
+  $c('cpClaimsRows').innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary)">加载中…</td></tr>';
+  show('cpClaimsModal');
+  await loadClaims();
+}
+async function loadClaims(){
+  const id = +$c('cpClaimsCampaignId').value || 0;
+  if (!id) return;
+  const body = {action:'records', campaign_id:id};
+  if (CP_PICK) { const s = $c('cpShop'); if (s && s.value) body.shop_id = parseInt(s.value); }
+  const d = await api(body);
+  if (!d.success) { toast(d.error || '加载失败', true); return; }
+  CP_CLAIMS = d.records || [];
+  renderClaims();
+}
+function renderClaims(){
+  const kw = ($c('cpClaimsPhone').value || '').trim();
+  const list = kw ? CP_CLAIMS.filter(r => (r.phone || '').includes(kw)) : CP_CLAIMS;
+  const used = list.filter(r => r.status === 'used').length;
+  const locked = list.filter(r => r.status === 'locked').length;
+  $c('cpClaimsSummary').textContent = `共 ${list.length} 张 · 已使用 ${used} · 占用中 ${locked}`;
+  if (!list.length) {
+    $c('cpClaimsRows').innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary)">暂无领取记录</td></tr>';
+    return;
+  }
+  const color = {unused:'#64748b', locked:'#f59e0b', used:'#10b981', refunded:'#94a3b8', expired:'#94a3b8'};
+  $c('cpClaimsRows').innerHTML = list.map(r => `<tr>
+    <td>${esc(r.phone || '')}</td>
+    <td><span style="font-size:11px;font-weight:700;color:${color[r.status] || '#64748b'}">${claimStatusLabel(r.status)}</span></td>
+    <td class="muted">${esc(r.claimed_at || '')}</td>
+    <td class="muted">${esc(r.used_at || '')}</td>
+    <td class="muted">${esc(r.order_no || '')}</td>
+    <td class="muted">${r.issue_type === 'manual' ? '后台补发' : '活动领取'}</td>
+  </tr>`).join('');
 }
 if (CP_PICK) {
   fetch('../api/list_shops.php').then(r=>r.json()).then(d=>{

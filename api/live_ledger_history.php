@@ -29,6 +29,49 @@ $keyword = trim($_GET['keyword'] ?? '');
 $view = $_GET['view'] ?? 'session';
 $limit = isset($_GET['limit']) ? min(200, (int)$_GET['limit']) : 100;
 
+/**
+ * 未打包出库的场次没有快照 → 实时汇总（与场次页口径一致，排除软删记录）
+ */
+function historyLiveTotals(PDO $pdo, int $sessionId): array {
+    $zero = [
+        'customers' => 0, 'qty' => 0, 'gmv' => 0, 'cost' => 0, 'shipping' => 0,
+        'platform_fee' => 0, 'packing' => 0, 'profit_base' => 0, 'gift_cost' => 0,
+        'profit_with_gift' => 0, 'reduce_amount' => 0, 'profit_with_reduce' => 0, 'profit_both' => 0,
+    ];
+    $data = ledgerLoadSession($pdo, $sessionId);
+    if (!$data) return $zero;
+    $settings = $data['settings'];
+    $totals = $zero;
+    foreach (($data['customers'] ?? []) as $c) {
+        if (!empty($c['is_deleted'])) continue;
+        $totals['customers']++;
+        $m = ledgerCalcCustomer($c, $settings);
+        $totals['qty'] += $m['total_qty'];
+        $totals['gmv'] += $m['gmv'];
+        $totals['cost'] += $m['cost'];
+        $totals['shipping'] += $m['shipping'];
+        $totals['platform_fee'] += $m['platform_fee'];
+        $totals['packing'] += $m['packing'];
+        $totals['profit_base'] += $m['profit_base'];
+        $totals['gift_cost'] += $m['gift_cost'];
+        $totals['profit_with_gift'] += $m['profit_with_gift'];
+        $totals['reduce_amount'] += $m['reduce_amount'];
+        $totals['profit_with_reduce'] += $m['profit_with_reduce'];
+        $totals['profit_both'] += $m['profit_both'];
+    }
+    // 福袋成本计入本场成本/毛利（与场次页一致）
+    $lucky = floatval($data['lucky_draw_cost'] ?? 0);
+    if ($lucky > 0) {
+        foreach (['profit_base', 'profit_with_gift', 'profit_with_reduce', 'profit_both'] as $k) {
+            $totals[$k] -= $lucky;
+        }
+    }
+    foreach ($totals as $k => $v) {
+        if (is_float($v)) $totals[$k] = round($v, 2);
+    }
+    return $totals;
+}
+
 // ===== 基础查询：场次列表（含汇总） =====
 $sql = "SELECT ls.*, sh.name AS shop_name FROM live_ledger_session ls LEFT JOIN shops sh ON sh.id = ls.shop_id WHERE 1=1";
 $params = [];
@@ -47,18 +90,16 @@ $sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 // ===== 视图1：按场次（快照汇总） =====
 if ($view === 'session') {
     foreach ($sessions as &$s) {
-        $s['totals'] = json_decode($s['snapshot_json'] ?? '', true)['totals'] ?? [
-            'customers' => (int)$s['total_customers'],
-            'qty' => (int)$s['total_qty'],
-            'gmv' => floatval($s['total_gmv']),
-            'cost' => floatval($s['total_cost']),
-            'profit_base' => floatval($s['total_profit_base']),
-            'profit_with_gift' => floatval($s['total_profit_with_gift']),
-            'profit_with_reduce' => floatval($s['total_profit_with_reduce']),
-            'profit_both' => floatval($s['total_profit_both']),
-            'gift_cost' => floatval($s['total_gift_cost']),
-            'reduce_amount' => floatval($s['total_reduce_amount']),
-        ];
+        $snap = json_decode($s['snapshot_json'] ?? '', true);
+        if (!empty($snap['totals'])) {
+            $s['totals'] = $snap['totals'];
+        } else {
+            // 直播中/已下播未打包：实时汇总，避免显示为 0
+            $s['totals'] = historyLiveTotals($pdo, (int)$s['id']);
+        }
+        $s['status_label'] = $s['status'] === 'ended'
+            ? '已打包出库'
+            : (!empty($s['off_air_at']) ? '已下播未打包' : '直播中');
         $s['activity_label'] = ['none' => '无活动', 'full_gift' => '满赠', 'full_reduce' => '满减', 'both' => '满减+满赠'][$s['activity_type']] ?? $s['activity_type'];
     }
     if (shouldMaskProfit()) {
