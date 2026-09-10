@@ -21,6 +21,9 @@ $shopId = getShopId();
 if (!$shopId) {
     $inputShop = isset($input['shop_id']) ? (int)$input['shop_id'] : 0;
     if ($inputShop <= 0) {
+        if (in_array($_SESSION['role'] ?? '', ['store_admin', 'deputy_store_admin', 'operator'], true)) {
+            error('你的账号未绑定门店，请让集团管理员在「用户管理」里设置所属店');
+        }
         error('请选择所属店（场次必须归属 A店/B店）');
     }
     $stmt = $pdo->prepare('SELECT id FROM shops WHERE id = ? AND store_id = ?');

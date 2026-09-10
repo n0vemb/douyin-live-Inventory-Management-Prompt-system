@@ -254,7 +254,36 @@ function getShopId(): ?int {
     if ($role === 'super_admin') {
         return isset($_SESSION['view_shop_id']) && $_SESSION['view_shop_id'] !== '' ? (int)$_SESSION['view_shop_id'] : null;
     }
-    return isset($_SESSION['shop_id']) && $_SESSION['shop_id'] !== '' ? (int)$_SESSION['shop_id'] : null;
+    if (isset($_SESSION['shop_id']) && $_SESSION['shop_id'] !== '') {
+        return (int)$_SESSION['shop_id'];
+    }
+    // 兼容老会话：店级账号(店管/副店长/运营)会话里缺 shop_id 时，
+    // 从 users 表补齐；仍未绑店则落到集团默认店并写回，避免误判为集团级。
+    if (in_array($role, ['store_admin', 'deputy_store_admin', 'operator'], true) && !empty($_SESSION['store_id']) && !empty($_SESSION['user_id'])) {
+        try {
+            $pdo = getDB();
+            $stmt = $pdo->prepare('SELECT u.shop_id, sh.name AS shop_name FROM users u LEFT JOIN shops sh ON sh.id = u.shop_id WHERE u.id = ?');
+            $stmt->execute([(int)$_SESSION['user_id']]);
+            $row = $stmt->fetch();
+            if ($row && !empty($row['shop_id'])) {
+                $_SESSION['shop_id'] = (int)$row['shop_id'];
+                $_SESSION['shop_name'] = $row['shop_name'] ?? '';
+                return (int)$row['shop_id'];
+            }
+            $defaultShopId = ensureDefaultShop((int)$_SESSION['store_id']);
+            if ($defaultShopId) {
+                $pdo->prepare('UPDATE users SET shop_id = ? WHERE id = ?')->execute([$defaultShopId, (int)$_SESSION['user_id']]);
+                $stmt = $pdo->prepare('SELECT name FROM shops WHERE id = ?');
+                $stmt->execute([$defaultShopId]);
+                $_SESSION['shop_id'] = (int)$defaultShopId;
+                $_SESSION['shop_name'] = (string)($stmt->fetchColumn() ?: '');
+                return (int)$defaultShopId;
+            }
+        } catch (Exception $e) {
+            // shops 表未迁移等异常：保持老行为
+        }
+    }
+    return null;
 }
 
 /**

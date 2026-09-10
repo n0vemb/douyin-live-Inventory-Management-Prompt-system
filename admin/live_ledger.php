@@ -979,7 +979,22 @@ async function saveSessionMeta() {
     loadSessions();
 }
 
-function openNewSessionModal() {
+async function loadNewSessionShops() {
+    if (!CAN_PICK_SHOP) return [];
+    const sel = document.getElementById('newSessionShop');
+    if (sel.options.length) return [...sel.options].map(o => o.value);
+    try {
+        const r = await fetch('../api/list_shops.php');
+        const data = await r.json();
+        const shops = (data.data && data.data.shops) || [];
+        sel.innerHTML = shops.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+        return shops.map(s => String(s.id));
+    } catch (e) {
+        return [];
+    }
+}
+
+async function openNewSessionModal() {
     // 自动生成：年月日时分秒（如 20260807 14:30:25）
     const now = new Date();
     const pad = n => String(n).padStart(2, '0');
@@ -997,15 +1012,7 @@ function openNewSessionModal() {
     document.getElementById('newSessionOperator').value = operator;
     document.getElementById('newSessionAccount').value = account;
 
-    if (CAN_PICK_SHOP) {
-        const sel = document.getElementById('newSessionShop');
-        if (!sel.options.length) {
-            fetch('../api/list_shops.php').then(r => r.json()).then(data => {
-                const shops = (data.data && data.data.shops) || [];
-                sel.innerHTML = shops.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-            });
-        }
-    }
+    if (CAN_PICK_SHOP) await loadNewSessionShops();
 
     document.getElementById('newSessionModal').classList.add('show');
     setTimeout(() => document.getElementById('newSessionAnchor').focus(), 100);
@@ -1039,7 +1046,12 @@ async function createSession() {
     if (!operator) { toast('请输入运营'); return; }
     try {
         const payload = { session_name: name, anchor: anchor, operator: operator, account: account, activity_type: 'none' };
-        if (CAN_PICK_SHOP) payload.shop_id = parseInt(document.getElementById('newSessionShop').value) || 0;
+        if (CAN_PICK_SHOP) {
+            await loadNewSessionShops();
+            const sid = parseInt(document.getElementById('newSessionShop').value) || 0;
+            if (!sid) { toast('请选择归属店铺'); return; }
+            payload.shop_id = sid;
+        }
         const res = await fetch('../api/live_ledger_save_session.php', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
