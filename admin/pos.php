@@ -76,18 +76,27 @@ $qrAli = posAssetUrl($qrAli);
   .fullscreen-btn{border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.14);color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;flex-shrink:0;min-height:38px}
   .fullscreen-btn:hover{background:rgba(255,255,255,.25)}
   .fullscreen-btn:active{background:rgba(255,255,255,.32)}
-  .kiosk{display:flex;min-height:calc(100vh - 60px);height:auto}
+  .kiosk{display:flex;min-height:calc(100vh - 60px);height:auto;padding-right:min(340px,30vw)}
   .menu{flex:1;display:flex;flex-direction:column;min-width:0}
-  .cats{display:flex;gap:4px 18px;padding:14px 18px 6px;flex-wrap:wrap;flex-shrink:0;max-height:200px;overflow-y:auto}
-  .brand-item{font-size:15px;font-weight:600;color:var(--text-2);padding:8px 4px;cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;transition:.15s;line-height:1.2}
-  .brand-item:hover{color:var(--text)}
-  .brand-item.on{color:var(--primary);border-bottom-color:var(--primary);font-weight:800}
+  .cats{position:fixed;left:0;top:60px;bottom:0;width:150px;display:flex;flex-direction:column;gap:5px;padding:16px 10px;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;z-index:10}
+  .cats:before{content:'品牌 / IP';display:block;color:var(--text-3);font-size:12px;font-weight:700;padding:0 10px 7px}
+  .brand-item{display:flex;align-items:center;min-height:46px;font-size:14px;font-weight:600;color:var(--text-2);padding:9px 10px;border-radius:10px;cursor:pointer;white-space:nowrap;transition:.15s;line-height:1.2}
+  .brand-item:hover{color:var(--text);background:var(--surface-2)}
+  .brand-item.on{color:var(--primary-d);background:var(--primary-soft);font-weight:800;border-left:3px solid var(--primary);padding-left:7px}
+  .brand-count{margin-left:auto;color:var(--text-3);font-size:11px;font-weight:600}
+  .brand-item.on .brand-count{color:var(--primary)}
   .cat{padding:9px 16px;border-radius:22px;background:var(--surface);border:1px solid var(--border);font-size:14px;font-weight:600;color:var(--text-2);white-space:nowrap;cursor:pointer;min-height:40px}
   .cat.on{background:var(--primary);color:#fff;border-color:var(--primary)}
-  .series-bar{display:flex;gap:8px;padding:6px 18px 0;flex-wrap:wrap;flex-shrink:0;max-height:180px;overflow-y:auto}
-  .series-bar .cat{background:var(--surface-2);border-color:var(--border);font-size:13px;padding:7px 14px;min-height:34px}
+  .series-bar{display:flex;align-items:center;gap:8px;padding:14px 18px 8px;margin-left:150px;flex-wrap:wrap;flex-shrink:0;max-height:180px;overflow-y:auto;border-bottom:1px solid var(--border)}
+  .series-bar:before{content:'系列';color:var(--text-3);font-size:12px;font-weight:700;margin-right:2px}
+  .filter-summary{display:flex;align-items:center;gap:7px;margin-left:150px;padding:14px 18px 0;color:var(--text-2);font-size:13px}
+  .filter-summary:empty{display:none}
+  .mobile-filter{display:none}
+  .filter-summary b{color:var(--primary-d);font-weight:800}
+  .filter-summary .result-count{margin-left:auto;color:var(--text-3);font-size:12px;white-space:nowrap}
+  .series-bar .cat{background:var(--surface-2);border-color:var(--border);font-size:13px;padding:7px 14px;min-height:36px}
   .series-bar .cat.on{background:var(--primary-soft);color:var(--primary-d);border-color:var(--primary);font-weight:700}
-  .grid{flex:1;overflow:visible;padding:12px 18px 24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));grid-auto-rows:max-content;gap:14px;align-content:start}
+  .grid{flex:1;overflow:visible;padding:16px 18px 24px;margin-left:150px;display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));grid-auto-rows:max-content;gap:14px;align-content:start}
   .pcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:.15s;box-shadow:var(--shadow);display:flex;flex-direction:column;height:max-content;min-height:0}
   .pcard:active{transform:scale(.97)}
   .pcard.sold-out{opacity:.55}
@@ -95,13 +104,14 @@ $qrAli = posAssetUrl($qrAli);
   .pcard .img{aspect-ratio:4/5;width:100%;flex:none;display:flex;align-items:center;justify-content:center;font-size:44px;font-weight:800;color:#fff;position:relative;overflow:hidden}
   .pcard .img img{width:100%;height:100%;object-fit:contain;position:absolute;inset:0;background:#fff}
   .pcard .series{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.45);color:#fff;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;z-index:2}
+  .pcard .sold-tag{position:absolute;right:8px;bottom:8px;background:rgba(43,34,48,.78);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:10px;z-index:2}
   .pcard .body{padding:9px 11px 12px}
   .pcard .pn{font-size:14px;font-weight:700;line-height:1.25}
   .pcard .pb{font-size:11.5px;color:var(--text-3);margin-top:2px}
   .pcard .from{font-size:11.5px;color:var(--text-2);margin-top:6px}
   .pcard .from b{color:var(--primary);font-size:15px}
   .pcard .sku-n{font-size:10.5px;color:var(--text-3);margin-top:2px}
-  .cart{position:fixed;right:0;top:60px;bottom:0;width:min(340px,88vw);flex-shrink:0;background:var(--surface);border-left:1px solid var(--border);display:none;flex-direction:column;box-shadow:-8px 0 24px rgba(30,40,80,.18);z-index:40}
+  .cart{position:fixed;right:0;top:60px;bottom:0;width:min(340px,30vw);flex-shrink:0;background:var(--surface);border-left:1px solid var(--border);display:none;flex-direction:column;box-shadow:-8px 0 24px rgba(30,40,80,.18);z-index:40}
   .cart.open{display:flex}
   .cart-head{padding:14px 16px;border-bottom:1px solid var(--border);font-weight:800;font-size:16px;display:flex;align-items:center;gap:8px}
   .cart-head .cnt{background:var(--primary);color:#fff;font-size:12px;padding:1px 9px;border-radius:12px}
@@ -109,23 +119,26 @@ $qrAli = posAssetUrl($qrAli);
   .cart-list{flex:1;overflow-y:auto;padding:10px 14px}
   .empty{text-align:center;color:var(--text-3);padding:50px 20px;font-size:14px}
   .empty .big{font-size:46px;margin-bottom:10px}
-  .citem{display:flex;gap:10px;padding:10px;background:var(--surface-2);border-radius:12px;margin-bottom:9px;border:1px solid var(--border)}
-  .citem .ci{width:50px;height:50px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;overflow:hidden;position:relative}
+  .citem{display:flex;align-items:center;gap:12px;padding:11px 12px;background:var(--surface-2);border-radius:14px;margin-bottom:10px;border:1px solid var(--border)}
+  .citem .ci{width:56px;height:70px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;overflow:hidden;position:relative}
   .citem .ci img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
-  .citem .cm{flex:1;min-width:0}
-  .citem .cn{font-size:13.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .citem .cs{font-size:11.5px;color:var(--text-3)}
-  .citem .cp{font-size:12px;color:var(--text-2);margin-top:2px}
-  .citem .cp b{color:var(--primary)}
-  .citem .cr{color:var(--danger);font-size:11px;cursor:pointer;font-weight:700}
+  .citem .cm{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+  .citem .crow1{display:flex;align-items:center;gap:8px}
+  .citem .cn{flex:1;min-width:0;font-size:14px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .citem .cdel{width:30px;height:30px;flex-shrink:0;border-radius:9px;border:none;background:transparent;color:var(--text-3);font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+  .citem .cdel:hover{color:#fff;background:var(--danger)}
+  .citem .cs{font-size:12px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .citem .cs b{color:var(--text-2);font-weight:600}
+  .citem .crow2{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:3px}
+  .citem .line{font-weight:800;font-size:15.5px;white-space:nowrap}
   .citem.short{border-color:rgba(230,2,31,.35)}
   .citem.short .line{color:var(--danger)}
   .citem .cs .short{color:var(--danger);font-weight:700}
-  .stepper{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:6px}
-  .stepper button{width:30px;height:30px;border:none;background:var(--surface);color:var(--text-2);font-size:17px;font-weight:700;cursor:pointer}
+  .stepper{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--surface)}
+  .stepper button{width:34px;height:32px;border:none;background:var(--surface);color:var(--text-2);font-size:17px;font-weight:700;cursor:pointer}
   .stepper button:active{background:var(--primary-soft)}
-  .stepper span{width:38px;text-align:center;font-weight:800;font-size:14px}
-  .citem .line{font-weight:800;font-size:14px;white-space:nowrap;align-self:center;margin-left:auto}
+  .stepper span{min-width:34px;text-align:center;font-weight:800;font-size:14px}
+  .citem .line{font-weight:800;font-size:15px;white-space:nowrap}
   .summary{border-top:1px solid var(--border);padding:12px 16px;background:var(--surface-2)}
   .srow{display:flex;justify-content:space-between;font-size:13.5px;padding:3px 0;color:var(--text-2)}
   .srow.total{font-size:17px;font-weight:800;color:var(--text);padding-top:8px;margin-top:4px;border-top:1px dashed var(--border)}
@@ -145,22 +158,62 @@ $qrAli = posAssetUrl($qrAli);
 
   /* ===== 竖屏适配（平板竖放 / 窄屏）===== */
   @media (max-width: 820px) {
-    .kiosk{min-height:calc(100vh - 56px);height:auto}
+    .kiosk{min-height:calc(100vh - 56px);height:auto;padding-right:0}
     .topbar{grid-template-columns:auto minmax(0,1fr) auto;padding:10px 14px;gap:8px}
     .topbar .store{font-size:14px;max-width:96px;overflow:hidden;text-overflow:ellipsis}
     .search-wrap{max-width:none;width:100%;min-width:0;padding:7px 12px}
-    .cats{padding:10px 12px 2px}
-    .series-bar{padding:4px 12px 0}
-    .grid{padding:10px 12px 18px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
-    .pcard .img{aspect-ratio:4/5}
-    .pcard .img{font-size:34px}
+    .cats{display:none}
+    .mobile-filter{display:flex;align-items:center;gap:8px;padding:10px 12px 4px;background:transparent;flex-shrink:0}
+    .mobile-filter select{height:44px;min-width:0;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-size:13px;font-weight:700;padding:0 30px 0 12px;outline:none;flex:1;appearance:auto}
+    .mobile-filter select:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+    .brand-item{min-height:42px;padding:8px 13px;border:1px solid var(--border);border-radius:22px;background:var(--surface);font-size:13px}
+    .brand-item:hover{background:var(--surface)}
+    .brand-item.on{padding-left:10px;border:1px solid var(--primary);border-left-width:3px;background:var(--primary);color:#fff}
+    .brand-count{display:none}
+    .filter-summary{margin-left:0;padding:10px 12px 0;font-size:12px}
+    .series-bar{display:none}
+    .series-bar:before{display:none}
+    .series-bar .cat{flex-shrink:0}
+    .grid{padding:10px 12px 18px;margin-left:0;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+    .pcard .img{aspect-ratio:4/5;font-size:34px}
     .pcard .body{padding:7px 9px 10px}
     .pcard .pn{font-size:13px}
-    /* 竖屏默认收起购物车，用悬浮按钮 */
     .cart-fab{display:flex}
+    .cart{top:56px;width:min(340px,88vw)}
+    .sheet{max-width:100%;max-height:92dvh}
+    .sheet-body .sku-opt{width:100%}
+  }
+  @media (pointer: coarse) {
+    .brand-item,.cat,.pcard,.sku-opt,.btn,.pay-opt,.fab-btn{touch-action:manipulation}
+    .fullscreen-btn,.collapse,.stepper button,.citem .cdel{min-height:44px}
+    .citem .cdel{min-width:44px;width:44px;height:44px;margin:-8px -8px -8px 0}
+  }
+  @media (max-width: 480px) and (orientation: portrait) {
+    .topbar{grid-template-columns:auto minmax(0,1fr) auto;padding:8px 10px;gap:6px}
+    .topbar>div:last-child{grid-column:auto;justify-self:end}
+    .topbar .store{max-width:86px;overflow:hidden;text-overflow:ellipsis}
+    .search-wrap{width:100%;padding:7px 10px}
+    .fullscreen-btn{padding:6px 8px;font-size:12px;white-space:nowrap}
+    .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:8px 10px 18px}
+    .pcard{border-radius:12px}
+    .pcard .body{padding:7px 8px 9px}
+    .pcard .pn{font-size:12.5px}
+    .pcard .from{font-size:11px}
+    .pcard .from b{font-size:14px}
+    .sheet{border-radius:20px 20px 0 0;max-height:94dvh}
+    .sku-img-wrap{width:100%;padding:8px 10px 0;justify-content:center}
+    .sku-img-wrap img{width:min(100%,280px);max-height:42dvh;margin-inline:auto}
+    .sheet-body{padding:10px 14px 18px;gap:8px}
+    .sku-opt{padding:12px}
+    .sku-opt .add-btn{width:44px;height:44px}
+  }
+  @media (min-width: 821px) and (max-height: 600px) {
+    .cats{top:56px}
     .cart{top:56px}
-    .sheet{max-width:100%;max-height:86vh}
-    .sheet-body .sku-opt{width:min(220px,46vw)}
+    .kiosk{min-height:calc(100vh - 56px)}
+    .topbar{padding-top:8px;padding-bottom:8px}
+    .series-bar{padding-top:8px;padding-bottom:6px}
+    .grid{padding-top:10px}
   }
   .mask{position:fixed;inset:0;background:rgba(15,20,40,.5);display:none;align-items:flex-end;justify-content:center;z-index:50}
   .mask.show{display:flex}
@@ -171,10 +224,16 @@ $qrAli = posAssetUrl($qrAli);
   .sheet-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
   .sheet-head .st{font-size:16px;font-weight:800}
   .sheet-head .x{margin-left:auto;font-size:26px;color:var(--text-3);cursor:pointer;line-height:1}
-  .sku-img-wrap{background:var(--surface-2);padding:10px 10px 0}
-  .sku-img-wrap img{width:100%;aspect-ratio:4/5;object-fit:contain;background:var(--surface-2);border-radius:10px}
+  .sku-img-wrap{width:100%;background:#fff;padding:12px 18px 0;display:flex;justify-content:center;align-items:flex-start}
+  .sku-img-wrap img{display:block;width:min(100%,320px);height:auto;aspect-ratio:4/5;object-fit:contain;background:#fff;border-radius:12px;margin-inline:auto;flex:0 1 320px}
+  .sku-product-meta{padding:10px 18px 6px;text-align:center;border-bottom:1px solid var(--border)}
+  .sku-product-meta .name{font-size:18px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sku-product-meta .sub{font-size:12px;color:var(--text-3);margin-top:4px}
+  .sku-product-meta .sub b{color:var(--primary)}
   .sheet-body{padding:12px 18px 22px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-content:flex-start}
   .sheet-body .sku-opt{width:100%;flex:none}
+  .sheet-body .sku-opt .add-btn{width:auto;min-width:78px;height:44px;border-radius:10px;font-size:13px;padding:0 12px}
+  .sheet-body .sku-opt .row{margin-top:9px}
   .sku-opt{border:1px solid var(--border);border-radius:14px;padding:13px 14px;cursor:pointer;transition:.15s;background:var(--surface-2)}
   .sku-opt:active{transform:scale(.98)}
   .sku-opt.sold{opacity:.45;cursor:not-allowed;background:#f4eef1}
@@ -257,6 +316,11 @@ $qrAli = posAssetUrl($qrAli);
 <div class="kiosk" id="kiosk">
   <div class="menu">
     <div class="cats" id="brands"></div>
+    <div class="mobile-filter">
+      <select id="mobileBrand" aria-label="选择品牌或IP" onchange="setBrand(this.value)"></select>
+      <select id="mobileSeries" aria-label="选择系列" onchange="setSeries(this.value)"></select>
+    </div>
+    <div class="filter-summary" id="filterSummary"></div>
     <div class="series-bar" id="seriesBar"></div>
     <div class="grid" id="grid"></div>
   </div>
@@ -286,8 +350,9 @@ $qrAli = posAssetUrl($qrAli);
       <span class="x" onclick="closeSku()">×</span>
     </div>
     <div class="sku-img-wrap" id="skuImgWrap" style="display:none;">
-      <img id="skuImg" src="" alt="" style="width:100%;object-fit:contain;background:var(--surface-2);">
+      <img id="skuImg" src="" alt="">
     </div>
+    <div class="sku-product-meta" id="skuMeta"></div>
     <div class="scan-hint" id="skuHint">点选品相即可加入购物清单</div>
     <div class="sheet-body" id="skuBody"></div>
   </div>
@@ -415,13 +480,14 @@ async function loadCatalog(keepFilter) {
     CATALOG = data;
     $('storeName').textContent = CATALOG.store_name || STORE.name;
     const brands = listBrands();
-    if (keepFilter && brands.includes(prevBrand)) {
-      curBrand = prevBrand;
-      curSeries = brands.includes(prevBrand) && listSeries(curBrand).includes(prevSeries) ? prevSeries : firstSeries(curBrand);
+    if (keepFilter && (!prevBrand || brands.includes(prevBrand))) {
+      curBrand = prevBrand || '';
+      curSeries = curBrand && listSeries(curBrand).includes(prevSeries) ? prevSeries : '';
       kw = prevKw;
     } else {
-      curBrand = brands[0] || '';
-      curSeries = firstSeries(curBrand);
+      // 首次进入默认显示全部品牌/IP + 全部系列
+      curBrand = '';
+      curSeries = '';
       kw = '';
     }
     renderBrands(); renderSeries(); renderGrid(); renderCart();
@@ -582,6 +648,7 @@ function exitScreensaver() {
 function totalStock(p) { return p.skus ? p.skus.reduce((a, s) => a + (s.stock > 0 ? s.stock : 0), 0) : 0; }
 function hasStock(p) { return totalStock(p) > 0; }
 function productsOf(brand) {
+  if (!brand) return CATALOG.products;
   if (brand === '其他') return CATALOG.products.filter(p => !p.brand);
   return CATALOG.products.filter(p => p.brand === brand);
 }
@@ -600,8 +667,12 @@ function firstSeries(brand) {
   return s[0] || '';
 }
 function setBrand(b) {
-  curBrand = b;
-  curSeries = firstSeries(b);
+  curBrand = b || '';
+  // 切换 IP 后始终回到全部系列，避免误跳到第一个系列
+  curSeries = '';
+  kw = '';
+  const search = $('searchInput');
+  if (search) search.value = '';
   renderBrands(); renderSeries(); renderGrid();
 }
 function setSeries(s) {
@@ -610,15 +681,44 @@ function setSeries(s) {
 }
 function renderBrands() {
   const brands = listBrands();
-  $('brands').innerHTML = brands.map(b => `<div class="brand-item ${b === curBrand ? 'on' : ''}" onclick="setBrand('${b.replace(/'/g, "\\\\'")}')">${b}</div>`).join('');
+  const brandItems = [{ name: '全部', value: '', count: CATALOG.products.length }, ...brands.map(b => ({ name: b, value: b, count: productsOf(b).length }))];
+  $('brands').innerHTML = brandItems.map(item => {
+    const b = item.name;
+    const isOn = item.value === curBrand;
+    const click = `setBrand('${item.value.replace(/'/g, "\\\\'")}')`;
+    return `<div class="brand-item ${isOn ? 'on' : ''}" onclick="${click}">${escapeHtml(b)}<span class="brand-count">${item.count}</span></div>`;
+  }).join('');
+  const select = $('mobileBrand');
+  if (select) {
+    select.innerHTML = brandItems.map(item => `<option value="${escapeHtml(item.value)}" ${item.value === curBrand ? 'selected' : ''}>${escapeHtml(item.name)} · ${item.count}款</option>`).join('');
+  }
+}
+function renderFilterSummary() {
+  const visible = kw ? CATALOG.products.filter(p => p.name.toLowerCase().includes(kw)) : productsOf(curBrand).filter(p => !curSeries || (curSeries === '未分类' ? !p.series : p.series === curSeries));
+  const brandLabel = curBrand || '全部品牌 / IP';
+  const seriesLabel = kw ? '搜索结果' : (curSeries || '全部系列');
+  $('filterSummary').innerHTML = `<span>当前筛选</span><b>${escapeHtml(brandLabel)}</b><span>·</span><span>${escapeHtml(seriesLabel)}</span><span class="result-count">共 ${visible.length} 款</span>`;
 }
 function renderSeries() {
   const series = listSeries(curBrand);
-  if (series.length <= 1) { $('seriesBar').innerHTML = ''; return; }
-  $('seriesBar').innerHTML = series.map(s => `<div class="cat ${s === curSeries ? 'on' : ''}" onclick="setSeries('${s.replace(/'/g, "\\'")}')">${s}</div>`).join('');
+  const all = [''].concat(series);
+  if (series.length === 0) { $('seriesBar').innerHTML = ''; }
+  else {
+    $('seriesBar').innerHTML = all.map(s => {
+      const label = s || '全部系列';
+      return `<div class="cat ${s === curSeries ? 'on' : ''}" onclick="setSeries('${s.replace(/'/g, "\\'")}')">${escapeHtml(label)}</div>`;
+    }).join('');
+  }
+  const select = $('mobileSeries');
+  if (select) {
+    select.innerHTML = all.map(s => `<option value="${escapeHtml(s)}" ${s === curSeries ? 'selected' : ''}>${escapeHtml(s || '全部系列')}</option>`).join('');
+  }
+  renderFilterSummary();
 }
+
 function onSearch(v) {
   kw = (v || '').trim().toLowerCase();
+  renderFilterSummary();
   renderGrid();
 }
 
@@ -637,6 +737,7 @@ function renderGrid() {
       list = list.filter(p => (curSeries === '未分类') ? !p.series : p.series === curSeries);
     }
   }
+  renderFilterSummary();
   // 全部显示，按库存排序（库存多的靠前，售罄靠后）
   list = [...list].sort((a, b) => totalStock(b) - totalStock(a));
   if (!list.length) {
@@ -649,7 +750,7 @@ function renderGrid() {
     const soldOut = avail.length === 0;
     const img = p.image_url ? `<img src="${p.image_url}" loading="lazy" onerror="this.remove()">` : '';
     return `<div class="pcard${soldOut ? ' sold-out' : ''}" data-pid="${p.id}" onclick="openSku(${p.id})">
-      <div class="img" style="background:${grad(p.series)}">${img}${img ? '' : (p.name[0] || '')}</div>
+      <div class="img" style="background:${grad(p.series)}">${img}${img ? '' : (p.name[0] || '')}${p.series ? `<span class="series">${escHtml(p.series)}</span>` : ''}${soldOut ? '<span class="sold-tag">已售罄</span>' : ''}</div>
       <div class="body">
         <div class="pn">${p.name}</div>
         <div class="from">${minPrice != null ? `<b>¥${minPrice.toFixed(2)}</b> 起` : '暂时缺货'}</div>
@@ -664,12 +765,15 @@ function openSku(pid) {
   const p = CATALOG.products.find(x => x.id === pid);
   if (!p) return;
   lastSkuPid = pid;
-  $('skuTitle').textContent = p.name;
+  $('skuTitle').textContent = '商品详情';
   const requested = wishRequested(pid);
+  const availableSkus = p.skus.filter(s => s.stock > 0);
+  const minPrice = availableSkus.length ? Math.min(...availableSkus.map(s => s.price)) : null;
+  $('skuMeta').innerHTML = `<div class="name">${escHtml(p.name)}</div><div class="sub">${escHtml(p.brand || '未分类')} · ${escHtml(p.series || '未分类')}${minPrice != null ? ` · <b>¥${minPrice.toFixed(2)} 起</b>` : ''}</div>`;
   $('skuHint').textContent = requested ? '你已为这款商品求过补货' : '点选品相即可加入购物清单';
   // 商品图
   const imgWrap = $('skuImgWrap'), imgEl = $('skuImg');
-  if (p.image_url) { imgEl.src = p.image_url; imgWrap.style.display = 'block'; }
+  if (p.image_url) { imgEl.src = p.image_url; imgWrap.style.display = 'flex'; }
   else { imgWrap.style.display = 'none'; }
   $('skuBody').innerHTML = p.skus.length === 0
     ? `<div class="sku-empty">
@@ -691,7 +795,7 @@ function openSku(pid) {
       <div class="lab"><span class="cond cond-${s.condition_type}">${s.cond_name}</span></div>
       <div class="row">
         <div class="calc">售价 <b>¥${s.price.toFixed(2)}</b></div>
-        ${sold ? '' : `<span class="add-btn" title="加入购物车">+</span>`}
+        ${sold ? '' : `<span class="add-btn" title="加入购物车">＋ 加入</span>`}
       </div>
       <div class="stk ${stkCls}">${stkTxt}</div>
       ${wishBtn}
@@ -768,14 +872,15 @@ function renderCart() {
       <div class="citem${it.stock < it.qty ? ' short' : ''}" data-key="${it.key}">
         <div class="ci" style="background:${grad(it.series)}">${it.imgUrl ? `<img src="${it.imgUrl}" onerror="this.remove()">` : (it.name[0] || '')}</div>
         <div class="cm">
-          <div class="cn">${it.name}</div>
-          <div class="cs">${it.condName}${it.stock < it.qty ? `<span class="short"> · 当前可售仅 ${it.stock} 件</span>` : ''}</div>
-          <div class="cp">单价 <b>¥${it.unit.toFixed(2)}</b></div>
-          <div class="stepper"><button onclick="chgQty('${it.key}',-1)">−</button><span>${it.qty}</span><button onclick="chgQty('${it.key}',1)">＋</button></div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-          <span class="cr" onclick="rmItem('${it.key}')">删除</span>
-          <span class="line">¥${(it.unit * it.qty).toFixed(2)}</span>
+          <div class="crow1">
+            <div class="cn">${it.name}</div>
+            <button class="cdel" title="删除" onclick="rmItem('${it.key}')">✕</button>
+          </div>
+          <div class="cs"><b>${it.condName}</b> · ¥${it.unit.toFixed(2)}/件${it.stock < it.qty ? `<span class="short"> · 当前可售仅 ${it.stock} 件</span>` : ''}</div>
+          <div class="crow2">
+            <span class="stepper"><button onclick="chgQty('${it.key}',-1)">−</button><span>${it.qty}</span><button onclick="chgQty('${it.key}',1)">＋</button></span>
+            <span class="line">¥${(it.unit * it.qty).toFixed(2)}</span>
+          </div>
         </div>
       </div>`).join('');
   }
@@ -955,7 +1060,7 @@ function handleStockShortage(shortages) {
     const cartIt = cart.find(c => c.pid === sh.product_id && c.cond === sh.condition_type);
     const name = cartIt ? cartIt.name : sh.name;
     const condName = cartIt ? cartIt.condName
-      : ({ sealed: '原盒未拆', opened: '拆盒无瑕', boxless: '无盒无瑕', flawed: '微瑕' }[sh.condition_type] || sh.condition_type || '');
+      : (sh.cond_name || sh.condition_name || sh.condition_type || '');
     const msg = sh.available > 0
       ? `手慢了，只剩 ${sh.available} 件了，已先帮你调整数量`
       : '手慢了，最后一个被其他小主带走了，已帮你移出清单';
@@ -1091,6 +1196,11 @@ function backHome() {
 
 // ===== 工具 =====
 function $(id) { return document.getElementById(id); }
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, function (ch) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+  });
+}
 function show(id) { $(id).classList.add('show'); }
 function hide(id) { $(id).classList.remove('show'); }
 
