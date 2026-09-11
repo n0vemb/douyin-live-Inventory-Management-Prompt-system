@@ -56,6 +56,41 @@ $qrAli = posAssetUrl($qrAli);
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<script>
+// 设备档位：CSS 短边 < 600 视为手机，其余（安卓收银一体机/平板/桌面）一律收银台布局。
+// 支持 ?layout=desktop|mobile 强制并记住（localStorage），解决个别一体机 DPI 缩放误判。
+(function () {
+  function apply() {
+    var html = document.documentElement;
+    var mode = null;
+    try { mode = localStorage.getItem('pos_layout'); } catch (e) {}
+    var q = new URLSearchParams(location.search).get('layout');
+    if (q === 'desktop' || q === 'mobile') {
+      mode = q;
+      try { localStorage.setItem('pos_layout', mode); } catch (e) {}
+    }
+    var minSide = Math.min(screen.width || 0, screen.height || 0);
+    var mobile = minSide < 600;
+    if (mode === 'desktop') mobile = false;
+    if (mode === 'mobile') mobile = true;
+    html.classList.toggle('m', mobile);
+    html.classList.toggle('p', window.innerHeight > window.innerWidth);
+  }
+  apply();
+  window.addEventListener('resize', apply);
+  window.addEventListener('orientationchange', function () { setTimeout(apply, 150); });
+})();
+// 顶栏高度实测写入 --top-h：品牌/IP 栏、购物车、内容区与顶栏精确对齐，不压不空
+(function () {
+  function syncTop() {
+    var tb = document.querySelector('.topbar');
+    if (tb) document.documentElement.style.setProperty('--top-h', tb.offsetHeight + 'px');
+  }
+  document.addEventListener('DOMContentLoaded', syncTop);
+  window.addEventListener('resize', syncTop);
+  window.addEventListener('orientationchange', function () { setTimeout(syncTop, 180); });
+})();
+</script>
 <title><?= htmlspecialchars($storeName) ?> · 收银台</title>
 <style>
   :root{
@@ -64,11 +99,12 @@ $qrAli = posAssetUrl($qrAli);
     --primary:#e6021f; --primary-d:#c40119; --primary-soft:#fde3e6;
     --ok:#22b07d; --warn:#ff9f43; --danger:#ff5a5f;
     --shadow:0 8px 24px rgba(255,92,138,.14);
+    --top-h:60px; /* 顶栏实际高度由 JS 实测写入，避免品牌栏/购物车压住顶栏 */
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%}
   body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:15px;overflow-y:auto}
-  .topbar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:12px 18px;background:var(--primary);color:#fff;box-shadow:var(--shadow);z-index:20}
+  .topbar{position:fixed;left:0;right:0;top:0;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:12px 18px;background:var(--primary);color:#fff;box-shadow:var(--shadow);z-index:20}
   .topbar .store{font-size:17px;font-weight:800;letter-spacing:.5px;white-space:nowrap;justify-self:start}
   .search-wrap{display:flex;align-items:center;gap:7px;background:#fff;border-radius:22px;padding:8px 15px;width:min(380px,60vw);justify-self:center;box-shadow:0 1px 5px rgba(0,0,0,.12)}
   .search-wrap .si{font-size:14px;opacity:.55}
@@ -76,9 +112,9 @@ $qrAli = posAssetUrl($qrAli);
   .fullscreen-btn{border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.14);color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;flex-shrink:0;min-height:38px}
   .fullscreen-btn:hover{background:rgba(255,255,255,.25)}
   .fullscreen-btn:active{background:rgba(255,255,255,.32)}
-  .kiosk{display:flex;min-height:calc(100vh - 60px);height:auto;padding-right:min(340px,30vw)}
+  .kiosk{display:flex;margin-top:var(--top-h);min-height:calc(100vh - var(--top-h));height:auto}
   .menu{flex:1;display:flex;flex-direction:column;min-width:0}
-  .cats{position:fixed;left:0;top:60px;bottom:0;width:150px;display:flex;flex-direction:column;gap:5px;padding:16px 10px;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;z-index:10}
+  .cats{position:fixed;left:0;top:var(--top-h);bottom:0;width:150px;display:flex;flex-direction:column;gap:5px;padding:16px 10px;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;z-index:10}
   .cats:before{content:'品牌 / IP';display:block;color:var(--text-3);font-size:12px;font-weight:700;padding:0 10px 7px}
   .brand-item{display:flex;align-items:center;min-height:46px;font-size:14px;font-weight:600;color:var(--text-2);padding:9px 10px;border-radius:10px;cursor:pointer;white-space:nowrap;transition:.15s;line-height:1.2}
   .brand-item:hover{color:var(--text);background:var(--surface-2)}
@@ -96,7 +132,7 @@ $qrAli = posAssetUrl($qrAli);
   .filter-summary .result-count{margin-left:auto;color:var(--text-3);font-size:12px;white-space:nowrap}
   .series-bar .cat{background:var(--surface-2);border-color:var(--border);font-size:13px;padding:7px 14px;min-height:36px}
   .series-bar .cat.on{background:var(--primary-soft);color:var(--primary-d);border-color:var(--primary);font-weight:700}
-  .grid{flex:1;overflow:visible;padding:16px 18px 24px;margin-left:150px;display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));grid-auto-rows:max-content;gap:14px;align-content:start}
+  .grid{flex:1;overflow:visible;padding:14px 16px 24px;margin-left:150px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));grid-auto-rows:max-content;gap:12px;align-content:start}
   .pcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:.15s;box-shadow:var(--shadow);display:flex;flex-direction:column;height:max-content;min-height:0}
   .pcard:active{transform:scale(.97)}
   .pcard.sold-out{opacity:.55}
@@ -111,7 +147,7 @@ $qrAli = posAssetUrl($qrAli);
   .pcard .from{font-size:11.5px;color:var(--text-2);margin-top:6px}
   .pcard .from b{color:var(--primary);font-size:15px}
   .pcard .sku-n{font-size:10.5px;color:var(--text-3);margin-top:2px}
-  .cart{position:fixed;right:0;top:60px;bottom:0;width:min(340px,30vw);flex-shrink:0;background:var(--surface);border-left:1px solid var(--border);display:none;flex-direction:column;box-shadow:-8px 0 24px rgba(30,40,80,.18);z-index:40}
+  .cart{position:fixed;right:0;top:var(--top-h);bottom:0;width:min(340px,30vw);flex-shrink:0;background:var(--surface);border-left:1px solid var(--border);display:none;flex-direction:column;box-shadow:-8px 0 24px rgba(30,40,80,.18);z-index:40}
   .cart.open{display:flex}
   .cart-head{padding:14px 16px;border-bottom:1px solid var(--border);font-weight:800;font-size:16px;display:flex;align-items:center;gap:8px}
   .cart-head .cnt{background:var(--primary);color:#fff;font-size:12px;padding:1px 9px;border-radius:12px}
@@ -157,67 +193,89 @@ $qrAli = posAssetUrl($qrAli);
   .fab-refresh .ri{font-size:20px;line-height:1}
 
   /* ===== 竖屏适配（平板竖放 / 窄屏）===== */
-  @media (max-width: 820px) {
-    .kiosk{min-height:calc(100vh - 56px);height:auto;padding-right:0}
-    .topbar{grid-template-columns:auto minmax(0,1fr) auto;padding:10px 14px;gap:8px}
-    .topbar .store{font-size:14px;max-width:96px;overflow:hidden;text-overflow:ellipsis}
-    .search-wrap{max-width:none;width:100%;min-width:0;padding:7px 12px}
-    .cats{display:none}
-    .mobile-filter{display:flex;align-items:center;gap:8px;padding:10px 12px 4px;background:transparent;flex-shrink:0}
-    .mobile-filter select{height:44px;min-width:0;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-size:13px;font-weight:700;padding:0 30px 0 12px;outline:none;flex:1;appearance:auto}
-    .mobile-filter select:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
-    .brand-item{min-height:42px;padding:8px 13px;border:1px solid var(--border);border-radius:22px;background:var(--surface);font-size:13px}
-    .brand-item:hover{background:var(--surface)}
-    .brand-item.on{padding-left:10px;border:1px solid var(--primary);border-left-width:3px;background:var(--primary);color:#fff}
-    .brand-count{display:none}
-    .filter-summary{margin-left:0;padding:10px 12px 0;font-size:12px}
-    .series-bar{display:none}
-    .series-bar:before{display:none}
-    .series-bar .cat{flex-shrink:0}
-    .grid{padding:10px 12px 18px;margin-left:0;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
-    .pcard .img{aspect-ratio:4/5;font-size:34px}
-    .pcard .body{padding:7px 9px 10px}
-    .pcard .pn{font-size:13px}
-    .cart-fab{display:flex}
-    .cart{top:56px;width:min(340px,88vw)}
-    .sheet{max-width:100%;max-height:92dvh}
-    .sheet-body .sku-opt{width:100%}
-  }
+  
+  /* ===== 手机布局：仅 CSS 短边 < 600 的设备（收银机/平板不套用）===== */
+    html.m .kiosk{min-height:calc(100vh - var(--top-h));height:auto;padding-right:0}
+    html.m .topbar{grid-template-columns:auto minmax(0,1fr) auto;padding:10px 14px;gap:8px}
+    html.m .topbar .store{font-size:14px;max-width:96px;overflow:hidden;text-overflow:ellipsis}
+    html.m .search-wrap{max-width:none;width:100%;min-width:0;padding:7px 12px}
+    html.m .cats{display:none}
+    html.m .mobile-filter{display:flex;align-items:center;gap:8px;padding:10px 12px 4px;background:transparent;flex-shrink:0}
+    html.m .mobile-filter select{height:44px;min-width:0;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-size:13px;font-weight:700;padding:0 30px 0 12px;outline:none;flex:1;appearance:auto}
+    html.m .mobile-filter select:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+    html.m .brand-item{min-height:42px;padding:8px 13px;border:1px solid var(--border);border-radius:22px;background:var(--surface);font-size:13px}
+    html.m .brand-item:hover{background:var(--surface)}
+    html.m .brand-item.on{padding-left:10px;border:1px solid var(--primary);border-left-width:3px;background:var(--primary);color:#fff}
+    html.m .brand-count{display:none}
+    html.m .filter-summary{margin-left:0;padding:10px 12px 0;font-size:12px}
+    html.m .series-bar{display:none}
+    html.m .series-bar:before{display:none}
+    html.m .series-bar .cat{flex-shrink:0}
+    html.m .grid{padding:10px 12px 18px;margin-left:0;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+    html.m .pcard .img{aspect-ratio:4/5;font-size:34px}
+    html.m .pcard .body{padding:7px 9px 10px}
+    html.m .pcard .pn{font-size:13px}
+    html.m .cart-fab{display:flex}
+    html.m .cart{top:var(--top-h);width:min(340px,88vw)}
+    html.m .sheet{width:min(330px,90vw);max-height:calc(100% - 28px);-webkit-overflow-scrolling:touch}
+    html.m .sheet-body{display:block;flex:1;min-height:0;overscroll-behavior:contain}
+    html.m .sku-img-wrap{padding:6px 12px 0}
+    html.m .sku-img-wrap img{width:min(100%,160px);max-height:24vh;max-height:24dvh;margin-inline:auto}
+    html.m .sheet-head{padding:10px 14px}
+    html.m .sheet-head .st{font-size:15px}
+    html.m .sku-product-meta{padding:6px 12px 4px}
+    html.m .sku-product-meta .name{font-size:15px}
+    html.m .scan-hint{display:none}
+    html.m .sheet-body{padding:8px 12px 0;padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+    html.m .sku-opt{padding:11px 12px 9px}
+    html.m .sku-opt .row{margin-top:4px}
+    html.m .sku-opt .opt-price{font-size:14px}
+    html.m .sku-opt .add-btn{width:auto;min-width:64px;height:36px;padding:0 14px;font-size:12.5px;white-space:nowrap;flex-shrink:0}
+    html.m .sheet-body .sku-opt{width:100%;margin-bottom:8px}
   @media (pointer: coarse) {
     .brand-item,.cat,.pcard,.sku-opt,.btn,.pay-opt,.fab-btn{touch-action:manipulation}
     .fullscreen-btn,.collapse,.stepper button,.citem .cdel{min-height:44px}
     .citem .cdel{min-width:44px;width:44px;height:44px;margin:-8px -8px -8px 0}
   }
-  @media (max-width: 480px) and (orientation: portrait) {
-    .topbar{grid-template-columns:auto minmax(0,1fr) auto;padding:8px 10px;gap:6px}
-    .topbar>div:last-child{grid-column:auto;justify-self:end}
-    .topbar .store{max-width:86px;overflow:hidden;text-overflow:ellipsis}
-    .search-wrap{width:100%;padding:7px 10px}
-    .fullscreen-btn{padding:6px 8px;font-size:12px;white-space:nowrap}
-    .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:8px 10px 18px}
-    .pcard{border-radius:12px}
-    .pcard .body{padding:7px 8px 9px}
-    .pcard .pn{font-size:12.5px}
-    .pcard .from{font-size:11px}
-    .pcard .from b{font-size:14px}
-    .sheet{border-radius:20px 20px 0 0;max-height:94dvh}
-    .sku-img-wrap{width:100%;padding:8px 10px 0;justify-content:center}
-    .sku-img-wrap img{width:min(100%,280px);max-height:42dvh;margin-inline:auto}
-    .sheet-body{padding:10px 14px 18px;gap:8px}
-    .sku-opt{padding:12px}
-    .sku-opt .add-btn{width:44px;height:44px}
+  /* ===== PC/收银机：购物车卡片紧凑化（不改购物车宽度，保证名称/SKU/数量完整可见）===== */
+    html:not(.m) .cart-list{padding:8px 10px}
+    html:not(.m) .citem{gap:8px;padding:8px 10px;margin-bottom:8px}
+    html:not(.m) .citem .ci{width:42px;height:53px;border-radius:9px}
+    html:not(.m) .citem .cn{font-size:12.5px}
+    html:not(.m) .citem .cs{font-size:11px}
+    html:not(.m) .citem .crow2{margin-top:2px;gap:8px}
+    html:not(.m) .citem .line{font-size:13px}
+    html:not(.m) .citem .cdel{width:28px;height:28px;min-width:28px;font-size:14px;margin:0}
+    html:not(.m) .stepper button{width:28px;height:28px;min-height:0;font-size:15px}
+    html:not(.m) .stepper span{min-width:28px;font-size:13px}
+    html:not(.m) .cart-head{padding:10px 14px;font-size:15px}
+    html.m.p .topbar{grid-template-columns:auto minmax(0,1fr) auto;padding:8px 10px;gap:6px}
+    html.m.p .topbar>div:last-child{grid-column:auto;justify-self:end}
+    html.m.p .topbar .store{max-width:86px;overflow:hidden;text-overflow:ellipsis}
+    html.m.p .search-wrap{width:100%;padding:7px 10px}
+    html.m.p .fullscreen-btn{padding:6px 8px;font-size:12px;white-space:nowrap}
+    html.m.p .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:8px 10px 18px}
+    html.m.p .pcard{border-radius:12px}
+    html.m.p .pcard .body{padding:7px 8px 9px}
+    html.m.p .pcard .pn{font-size:12.5px}
+    html.m.p .pcard .from{font-size:11px}
+    html.m.p .pcard .from b{font-size:14px}
+    html.m.p .sheet{border-radius:20px;max-height:calc(100% - 24px)}
+    html.m.p .sku-img-wrap{width:100%;padding:8px 10px 0;justify-content:center}
+    html.m.p .sku-img-wrap img{width:min(100%,150px);max-height:22vh;max-height:22dvh;margin-inline:auto}
+    html.m.p .sheet-body{padding:10px 14px 18px;gap:8px}
+    html.m.p .sku-opt{padding:12px 12px 10px}
+    html.m.p .sku-opt .row{margin-top:4px}
+    html.m.p .sku-opt .add-btn{width:auto;min-width:64px;height:38px}
+  @media (max-height: 600px){
+    html:not(.m) .topbar{padding-top:8px;padding-bottom:8px}
+    html:not(.m) .series-bar{padding-top:8px;padding-bottom:6px}
+    html:not(.m) .grid{padding-top:10px}
   }
-  @media (min-width: 821px) and (max-height: 600px) {
-    .cats{top:56px}
-    .cart{top:56px}
-    .kiosk{min-height:calc(100vh - 56px)}
-    .topbar{padding-top:8px;padding-bottom:8px}
-    .series-bar{padding-top:8px;padding-bottom:6px}
-    .grid{padding-top:10px}
-  }
-  .mask{position:fixed;inset:0;background:rgba(15,20,40,.5);display:none;align-items:flex-end;justify-content:center;z-index:50}
+  .mask{position:fixed;inset:0;background:rgba(15,20,40,.5);display:none;align-items:flex-end;justify-content:center;z-index:50;overflow-y:auto}
   .mask.show{display:flex}
   #successMask{align-items:center}
+  .mask>.sheet,.mask>.modal{margin:auto}
   .sheet{background:var(--surface);width:min(420px,94vw);border-radius:20px;max-height:88vh;display:flex;flex-direction:column;animation:pop .25s ease;box-shadow:0 18px 50px rgba(15,20,40,.35)}
   @keyframes pop{from{transform:scale(.96) translateY(14px);opacity:.5}to{transform:none;opacity:1}}
   @keyframes up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
@@ -242,6 +300,8 @@ $qrAli = posAssetUrl($qrAli);
   .sku-opt .calc{font-size:12px;color:var(--text-2);margin-top:8px}
   .sku-opt .calc b{color:var(--primary);font-size:18px}
   .sku-opt .row{display:flex;align-items:center;justify-content:space-between;margin-top:8px;gap:8px}
+  .sku-opt .opt-price{color:var(--primary);font-weight:800;font-size:15px;white-space:nowrap}
+  .sku-opt .row .stk{margin-top:0}
   .sku-opt .add-btn{width:34px;height:34px;border-radius:50%;border:none;background:var(--primary);color:#fff;font-size:22px;font-weight:800;line-height:1;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(230,2,31,.35)}
   .sku-opt .add-btn:hover{background:var(--primary-d)}
   .sku-opt .stk{font-size:11.5px;color:var(--text-2);margin-top:3px}
@@ -775,6 +835,13 @@ function openSku(pid) {
   const imgWrap = $('skuImgWrap'), imgEl = $('skuImg');
   if (p.image_url) { imgEl.src = p.image_url; imgWrap.style.display = 'flex'; }
   else { imgWrap.style.display = 'none'; }
+  // 品相排序：未拆（sealed / 名称含“未拆”）置顶，其余按 已拆>无盒>微瑕 稳定排序；名称是店铺动态设置的，仅用类型和名称匹配
+  function skuPriority(s) {
+    if (s.condition_type === 'sealed' || (s.cond_name || '').indexOf('未拆') > -1) return 0;
+    const order = ['opened', 'boxless', 'flawed'];
+    const i = order.indexOf(s.condition_type);
+    return i === -1 ? 99 : i + 1;
+  }
   $('skuBody').innerHTML = p.skus.length === 0
     ? `<div class="sku-empty">
          <div class="sku-empty-txt">该商品暂未入库，暂无品相可选</div>
@@ -782,7 +849,7 @@ function openSku(pid) {
            ? `<div class="wish-done">✓ 已求补货</div>`
            : `<button class="wish-btn wish-btn-lg" onclick="requestRestock(${p.id}, '')">求补货</button>`}
        </div>`
-    : p.skus.map(s => {
+    : [...p.skus].map(s => ({ s, pri: skuPriority(s) })).sort((a, b) => a.pri - b.pri).map(({ s }) => {
     const sold = s.stock <= 0;
     const low = !sold && s.stock <= 5;
     const stkCls = sold ? 'out' : (low ? 'low' : '');
@@ -792,12 +859,11 @@ function openSku(pid) {
       : `<button class="wish-btn" onclick="event.stopPropagation();requestRestock(${p.id}, '${s.condition_type}')">求补货</button>`)
       : '';
     return `<div class="sku-opt ${sold ? 'sold' : ''}" ${sold ? '' : `onclick="addToCart(${p.id}, '${s.condition_type}')"`}>
-      <div class="lab"><span class="cond cond-${s.condition_type}">${s.cond_name}</span></div>
+      <div class="lab"><span class="cond cond-${s.condition_type}">${s.cond_name}</span><span class="opt-price">¥${s.price.toFixed(2)}</span></div>
       <div class="row">
-        <div class="calc">售价 <b>¥${s.price.toFixed(2)}</b></div>
+        <span class="stk ${stkCls}">${stkTxt}</span>
         ${sold ? '' : `<span class="add-btn" title="加入购物车">＋ 加入</span>`}
       </div>
-      <div class="stk ${stkCls}">${stkTxt}</div>
       ${wishBtn}
     </div>`;
   }).join('');
