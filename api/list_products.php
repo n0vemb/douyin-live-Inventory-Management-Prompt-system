@@ -170,4 +170,8 @@ $stmt = $pdo->prepare('SELECT DISTINCT series FROM products WHERE series IS NOT 
 $stmt->execute($storeId ? [$storeId] : []);
 $seriesList = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-success(['data' => ['products' => $products, 'series_list' => $seriesList, 'inventory_data' => $inventoryData]]);
+$stmt = $pdo->prepare('SELECT DISTINCT brand FROM products WHERE brand IS NOT NULL AND brand != ""' . ($storeId ? ' AND store_id = ?' : '') . ' ORDER BY brand');
+$stmt->execute($storeId ? [$storeId] : []);
+$brandList = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+success(['data' => ['products' => $products, 'series_list' => $seriesList, 'brand_list' => $brandList, 'inventory_data' => $inventoryData]]);

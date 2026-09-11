@@ -29,7 +29,10 @@ $canAudit = canPerm('audit.inventory');
 <div class="card pm-toolbar">
     <div class="search-bar pm-search">
         <input type="text" id="searchInput" placeholder="搜索商品名称、常用名、条码、拼音..." oninput="searchProducts()">
-        <select id="seriesFilter" onchange="searchProducts()">
+        <select id="brandFilter" onchange="onBrandChange()">
+            <option value="">全部品牌/IP</option>
+        </select>
+        <select id="seriesFilter" onchange="onSeriesChange()">
             <option value="">全部系列</option>
         </select>
         <label class="pm-check" title="仅显示有库存">
@@ -664,15 +667,11 @@ async function loadProducts() {
         const res = await fetch('../api/list_products.php');
         const data = await res.json();
         allProducts = data.data.products;
-        const seriesSelect = $('seriesFilter');
-        const prevSeries = seriesSelect.value; // 保留筛选值
-        seriesSelect.innerHTML = '<option value="">全部系列</option>';
-        (data.data.series_list || []).forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s; opt.textContent = s;
-            seriesSelect.appendChild(opt);
-        });
-        if (prevSeries) seriesSelect.value = prevSeries; // 恢复筛选值
+        // 品牌/系列双向联动，刷新列表后保留仍然有效的筛选值
+        const prevBrand = $('brandFilter').value;
+        const prevSeries = $('seriesFilter').value;
+        refreshBrandOptions(prevBrand);
+        refreshSeriesOptions(prevSeries);
         renderProducts(allProducts);
         loadStats();
         // 保留当前筛选/搜索条件（编辑保存后不重置筛选）
@@ -765,8 +764,57 @@ function applySort(products) {
 }
 
 /* ---------- 搜索/渲染 ---------- */
+// 去重并按中文排序
+function distinctSorted(values) {
+    return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'zh'));
+}
+
+// 重建下拉选项，尽量保留原选中值（不在新列表中则重置为“全部”）
+function fillSelect(el, list, allLabel, keepValue) {
+    const prev = keepValue !== undefined ? keepValue : el.value;
+    el.innerHTML = '';
+    const allOpt = document.createElement('option');
+    allOpt.value = ''; allOpt.textContent = allLabel;
+    el.appendChild(allOpt);
+    list.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v; opt.textContent = v;
+        el.appendChild(opt);
+    });
+    el.value = list.includes(prev) ? prev : '';
+}
+
+// 品牌选项随系列联动：选了系列后仅列出拥有该系列的品牌
+function refreshBrandOptions(keepValue) {
+    const series = $('seriesFilter').value;
+    const list = distinctSorted(
+        allProducts.filter(p => (!series || p.series === series) && p.brand).map(p => p.brand)
+    );
+    fillSelect($('brandFilter'), list, '全部品牌/IP', keepValue);
+}
+
+// 系列选项随品牌联动：选了品牌后仅列出该品牌下存在的系列
+function refreshSeriesOptions(keepValue) {
+    const brand = $('brandFilter').value;
+    const list = distinctSorted(
+        allProducts.filter(p => (!brand || p.brand === brand) && p.series).map(p => p.series)
+    );
+    fillSelect($('seriesFilter'), list, '全部系列', keepValue);
+}
+
+function onBrandChange() {
+    refreshSeriesOptions();
+    searchProducts();
+}
+
+function onSeriesChange() {
+    refreshBrandOptions();
+    searchProducts();
+}
+
 function searchProducts() {
     const keyword = $('searchInput').value.toLowerCase().trim();
+    const brand = $('brandFilter').value;
     const series = $('seriesFilter').value;
     const stockOnly = $('stockFilter').checked;
     const priceDiffOnly = $('priceDiffFilter').checked;
@@ -777,11 +825,12 @@ function searchProducts() {
             (p.common_name && p.common_name.toLowerCase().includes(keyword)) ||
             p.barcode.includes(keyword) ||
             (p.pinyin_initials && p.pinyin_initials.toLowerCase().includes(keyword));
+        const matchBrand = !brand || p.brand === brand;
         const matchSeries = !series || p.series === series;
         const t = getTotalStock(p.inventory_summary);
         const matchStock = !stockOnly || t > 0;
         const matchPriceDiff = !priceDiffOnly || hasSkuPriceDiff(p.inventory_summary);
-        return matchKeyword && matchSeries && matchStock && matchPriceDiff;
+        return matchKeyword && matchBrand && matchSeries && matchStock && matchPriceDiff;
     });
     renderProducts(applySort(filtered));
 }
