@@ -75,6 +75,7 @@ $qrAli = posAssetUrl($qrAli);
     if (mode === 'mobile') mobile = true;
     html.classList.toggle('m', mobile);
     html.classList.toggle('p', window.innerHeight > window.innerWidth);
+    html.classList.toggle('wide', !mobile && window.innerWidth >= 1200);
   }
   apply();
   window.addEventListener('resize', apply);
@@ -94,11 +95,11 @@ $qrAli = posAssetUrl($qrAli);
 <title><?= htmlspecialchars($storeName) ?> · 收银台</title>
 <style>
   :root{
-    --bg:#fdf5f5; --surface:#ffffff; --surface-2:#fff0f1; --border:#f5d9dc;
-    --text:#2b2230; --text-2:#7a6b75; --text-3:#b6a7b1;
+    --bg:#f6f7f9; --surface:#ffffff; --surface-2:#f6f7f9; --border:#e5e5ea;
+    --text:#1d1d1f; --text-2:#6e6e73; --text-3:#a1a1a8;
     --primary:#e6021f; --primary-d:#c40119; --primary-soft:#fde3e6;
     --ok:#22b07d; --warn:#ff9f43; --danger:#ff5a5f;
-    --shadow:0 8px 24px rgba(255,92,138,.14);
+    --shadow:0 2px 8px rgba(0,0,0,.06);
     --top-h:60px; /* 顶栏实际高度由 JS 实测写入，避免品牌栏/购物车压住顶栏 */
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -107,8 +108,9 @@ $qrAli = posAssetUrl($qrAli);
   .topbar{position:fixed;left:0;right:0;top:0;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:12px 18px;background:var(--primary);color:#fff;box-shadow:var(--shadow);z-index:20}
   .topbar .store{font-size:17px;font-weight:800;letter-spacing:.5px;white-space:nowrap;justify-self:start}
   .search-wrap{display:flex;align-items:center;gap:7px;background:#fff;border-radius:22px;padding:8px 15px;width:min(380px,60vw);justify-self:center;box-shadow:0 1px 5px rgba(0,0,0,.12)}
+  .search-wrap:focus-within{box-shadow:0 0 0 3px rgba(255,255,255,.35)}
   .search-wrap .si{font-size:14px;opacity:.55}
-  .search-wrap .search{border:none;outline:none;background:transparent;font-size:14.5px;width:100%;color:#1c2230}
+  .search-wrap .search{border:none;outline:none;background:transparent;font-size:14.5px;width:100%;color:var(--text)}
   .fullscreen-btn{border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.14);color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;flex-shrink:0;min-height:38px}
   .fullscreen-btn:hover{background:rgba(255,255,255,.25)}
   .fullscreen-btn:active{background:rgba(255,255,255,.32)}
@@ -123,31 +125,35 @@ $qrAli = posAssetUrl($qrAli);
   .brand-item.on .brand-count{color:var(--primary)}
   .cat{padding:9px 16px;border-radius:22px;background:var(--surface);border:1px solid var(--border);font-size:14px;font-weight:600;color:var(--text-2);white-space:nowrap;cursor:pointer;min-height:40px}
   .cat.on{background:var(--primary);color:#fff;border-color:var(--primary)}
-  .series-bar{display:flex;align-items:center;gap:8px;padding:14px 18px 8px;margin-left:150px;flex-wrap:wrap;flex-shrink:0;max-height:180px;overflow-y:auto;border-bottom:1px solid var(--border)}
+  .series-bar{display:flex;align-items:center;gap:8px;padding:12px 18px;margin-left:150px;flex-wrap:wrap;flex-shrink:0;max-height:180px;overflow-y:auto;background:var(--surface);border-bottom:1px solid var(--border)}
   .series-bar:before{content:'系列';color:var(--text-3);font-size:12px;font-weight:700;margin-right:2px}
   .filter-summary{display:flex;align-items:center;gap:7px;margin-left:150px;padding:14px 18px 0;color:var(--text-2);font-size:13px}
   .filter-summary:empty{display:none}
   .mobile-filter{display:none}
   .filter-summary b{color:var(--primary-d);font-weight:800}
   .filter-summary .result-count{margin-left:auto;color:var(--text-3);font-size:12px;white-space:nowrap}
-  .series-bar .cat{background:var(--surface-2);border-color:var(--border);font-size:13px;padding:7px 14px;min-height:36px}
-  .series-bar .cat.on{background:var(--primary-soft);color:var(--primary-d);border-color:var(--primary);font-weight:700}
+  .series-bar .cat{background:var(--bg);border-color:transparent;font-size:13px;padding:7px 16px;min-height:34px;border-radius:20px}
+  .series-bar .cat.on{background:var(--text);color:#fff;border-color:var(--text);font-weight:600}
   .grid{flex:1;overflow:visible;padding:14px 16px 24px;margin-left:150px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));grid-auto-rows:max-content;gap:12px;align-content:start}
-  .pcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:.15s;box-shadow:var(--shadow);display:flex;flex-direction:column;height:max-content;min-height:0}
+  .pcard{background:var(--surface);border:1px solid transparent;border-radius:12px;overflow:hidden;cursor:pointer;transition:all .2s cubic-bezier(.4,0,.2,1);box-shadow:var(--shadow);display:flex;flex-direction:column;height:max-content;min-height:0}
   .pcard:active{transform:scale(.97)}
   .pcard.sold-out{opacity:.55}
   .pcard.sold-out .from{color:var(--text-3)}
   .pcard .img{aspect-ratio:4/5;width:100%;flex:none;display:flex;align-items:center;justify-content:center;font-size:44px;font-weight:800;color:#fff;position:relative;overflow:hidden}
   .pcard .img img{width:100%;height:100%;object-fit:contain;position:absolute;inset:0;background:#fff}
-  .pcard .series{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.45);color:#fff;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;z-index:2}
+  .pcard .series{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.6);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;z-index:2}
   .pcard .sold-tag{position:absolute;right:8px;bottom:8px;background:rgba(43,34,48,.78);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:10px;z-index:2}
-  .pcard .body{padding:9px 11px 12px}
-  .pcard .pn{font-size:14px;font-weight:700;line-height:1.25}
+  .pcard .body{padding:12px;display:flex;flex-direction:column;gap:4px}
+  .pcard .pn{font-size:14px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .pcard .pb{font-size:11.5px;color:var(--text-3);margin-top:2px}
   .pcard .from{font-size:11.5px;color:var(--text-2);margin-top:6px}
-  .pcard .from b{color:var(--primary);font-size:15px}
+  .pcard .from b{color:var(--primary);font-size:16px}
   .pcard .sku-n{font-size:10.5px;color:var(--text-3);margin-top:2px}
   .cart{position:fixed;right:0;top:var(--top-h);bottom:0;width:min(340px,30vw);flex-shrink:0;background:var(--surface);border-left:1px solid var(--border);display:none;flex-direction:column;box-shadow:-8px 0 24px rgba(30,40,80,.18);z-index:40}
+  /* 宽屏（≥1200px 非手机）：购物车常驻右侧面板 */
+  html.wide .kiosk{padding-right:360px}
+  html.wide .cart{display:flex;width:360px;box-shadow:none}
+  html.wide .cart .collapse{display:none}
   .cart.open{display:flex}
   .cart-head{padding:14px 16px;border-bottom:1px solid var(--border);font-weight:800;font-size:16px;display:flex;align-items:center;gap:8px}
   .cart-head .cnt{background:var(--primary);color:#fff;font-size:12px;padding:1px 9px;border-radius:12px}
@@ -184,13 +190,14 @@ $qrAli = posAssetUrl($qrAli);
   .btn:active{transform:scale(.98)}
   .btn-primary{background:var(--primary);color:#fff}
   .btn-ghost{background:var(--surface);border:1px solid var(--border);color:var(--text-2);flex:0 0 auto;width:120px}
-  .cart-fab{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:30;display:none;flex-direction:column;align-items:stretch;gap:8px}
-  .fab-btn{border:none;cursor:pointer;box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:5px;font-size:12.5px;font-weight:700;color:#fff;padding:14px 11px;min-height:64px;justify-content:center}
-  .fab-btn:active{transform:scale(.97)}
-  .fab-cart{background:var(--primary);border-radius:0}
-  .fab-refresh{background:#f5b400;border-radius:0}
-  .cart-fab .n{background:#fff;color:var(--primary);border-radius:12px;padding:0 8px;font-size:12px;font-weight:800}
-  .fab-refresh .ri{font-size:20px;line-height:1}
+  .cart-fab{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:40;display:none;align-items:center;gap:10px;background:rgba(29,29,31,.92);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-radius:28px;padding:8px 8px 8px 18px;color:#fff;box-shadow:0 16px 32px rgba(0,0,0,.18)}
+  .dock-main{display:flex;align-items:center;gap:10px;background:transparent;border:none;color:#fff;flex:1;min-width:0;cursor:pointer;text-align:left;padding:0}
+  .dock-main .di{font-size:20px}
+  .dock-main .dt{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+  .dock-main .dt b{font-size:15px;font-weight:700;white-space:nowrap}
+  .dock-main .dt span{font-size:11px;opacity:.8;white-space:nowrap}
+  .dock-refresh{width:40px;height:40px;flex-shrink:0;border-radius:50%;border:none;background:rgba(255,255,255,.14);color:#fff;font-size:18px;cursor:pointer}
+  .dock-go{background:var(--primary);color:#fff;border:none;height:40px;flex-shrink:0;padding:0 20px;border-radius:20px;font-size:14px;font-weight:700;cursor:pointer}
 
   /* ===== 竖屏适配（平板竖放 / 窄屏）===== */
   
@@ -199,19 +206,18 @@ $qrAli = posAssetUrl($qrAli);
     html.m .topbar{grid-template-columns:auto minmax(0,1fr) auto;padding:10px 14px;gap:8px}
     html.m .topbar .store{font-size:14px;max-width:96px;overflow:hidden;text-overflow:ellipsis}
     html.m .search-wrap{max-width:none;width:100%;min-width:0;padding:7px 12px}
-    html.m .cats{display:none}
-    html.m .mobile-filter{display:flex;align-items:center;gap:8px;padding:10px 12px 4px;background:transparent;flex-shrink:0}
-    html.m .mobile-filter select{height:44px;min-width:0;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-size:13px;font-weight:700;padding:0 30px 0 12px;outline:none;flex:1;appearance:auto}
-    html.m .mobile-filter select:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
-    html.m .brand-item{min-height:42px;padding:8px 13px;border:1px solid var(--border);border-radius:22px;background:var(--surface);font-size:13px}
-    html.m .brand-item:hover{background:var(--surface)}
-    html.m .brand-item.on{padding-left:10px;border:1px solid var(--primary);border-left-width:3px;background:var(--primary);color:#fff}
+    html.m .cats{display:flex;width:110px;padding:10px 6px;gap:2px}
+    html.m .cats:before{display:none}
+    html.m .mobile-filter{display:none}
+    html.m .brand-item{min-height:40px;padding:9px 8px;font-size:12.5px;white-space:normal;line-height:1.25;border-radius:8px}
+    html.m .brand-item:hover{background:var(--surface-2)}
+    html.m .brand-item.on{padding-left:5px}
     html.m .brand-count{display:none}
-    html.m .filter-summary{margin-left:0;padding:10px 12px 0;font-size:12px}
-    html.m .series-bar{display:none}
+    html.m .filter-summary{margin-left:110px;padding:10px 12px 0;font-size:12px}
+    html.m .series-bar{display:flex;margin-left:110px;padding:10px 12px;flex-wrap:nowrap;overflow-x:auto;max-height:none}
     html.m .series-bar:before{display:none}
     html.m .series-bar .cat{flex-shrink:0}
-    html.m .grid{padding:10px 12px 18px;margin-left:0;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+    html.m .grid{padding:10px 12px 18px;margin-left:110px;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
     html.m .pcard .img{aspect-ratio:4/5;font-size:34px}
     html.m .pcard .body{padding:7px 9px 10px}
     html.m .pcard .pn{font-size:13px}
@@ -233,7 +239,7 @@ $qrAli = posAssetUrl($qrAli);
     html.m .sku-opt .add-btn{width:auto;min-width:64px;height:36px;padding:0 14px;font-size:12.5px;white-space:nowrap;flex-shrink:0}
     html.m .sheet-body .sku-opt{width:100%;margin-bottom:8px}
   @media (pointer: coarse) {
-    .brand-item,.cat,.pcard,.sku-opt,.btn,.pay-opt,.fab-btn{touch-action:manipulation}
+    .brand-item,.cat,.pcard,.sku-opt,.btn,.pay-opt{touch-action:manipulation}
     .fullscreen-btn,.collapse,.stepper button,.citem .cdel{min-height:44px}
     .citem .cdel{min-width:44px;width:44px;height:44px;margin:-8px -8px -8px 0}
   }
@@ -276,7 +282,7 @@ $qrAli = posAssetUrl($qrAli);
   .mask.show{display:flex}
   #successMask{align-items:center}
   .mask>.sheet,.mask>.modal{margin:auto}
-  .sheet{background:var(--surface);width:min(420px,94vw);border-radius:20px;max-height:88vh;display:flex;flex-direction:column;animation:pop .25s ease;box-shadow:0 18px 50px rgba(15,20,40,.35)}
+  .sheet{background:var(--surface);width:min(440px,92vw);border-radius:16px;max-height:88vh;display:flex;flex-direction:column;animation:pop .25s ease;box-shadow:0 18px 50px rgba(15,20,40,.35)}
   @keyframes pop{from{transform:scale(.96) translateY(14px);opacity:.5}to{transform:none;opacity:1}}
   @keyframes up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
   .sheet-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
@@ -292,9 +298,9 @@ $qrAli = posAssetUrl($qrAli);
   .sheet-body .sku-opt{width:100%;flex:none}
   .sheet-body .sku-opt .add-btn{width:auto;min-width:78px;height:44px;border-radius:10px;font-size:13px;padding:0 12px}
   .sheet-body .sku-opt .row{margin-top:9px}
-  .sku-opt{border:1px solid var(--border);border-radius:14px;padding:13px 14px;cursor:pointer;transition:.15s;background:var(--surface-2)}
+  .sku-opt{border:1px solid var(--border);border-radius:12px;padding:13px 16px;cursor:pointer;transition:.15s;background:var(--surface)}
   .sku-opt:active{transform:scale(.98)}
-  .sku-opt.sold{opacity:.45;cursor:not-allowed;background:#f4eef1}
+  .sku-opt.sold{opacity:.5;cursor:not-allowed;background:var(--bg)}
   .sku-opt .lab{font-weight:700;font-size:14.5px;display:flex;align-items:center;gap:7px}
   .sku-opt .cond{font-size:11px;font-weight:700;padding:1px 8px;border-radius:9px}
   .sku-opt .calc{font-size:12px;color:var(--text-2);margin-top:8px}
@@ -313,6 +319,10 @@ $qrAli = posAssetUrl($qrAli);
   .sku-empty{width:100%;text-align:center;padding:30px 10px}
   .sku-empty-txt{font-size:14px;color:var(--text-2);margin-bottom:14px}
   .wish-btn-lg{width:auto;min-width:160px;padding:12px 30px;font-size:15px;border-radius:12px}
+  @media (hover:hover){
+    .pcard:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.10);border-color:var(--border)}
+    .sku-opt:hover{border-color:var(--primary);background:var(--primary-soft)}
+  }
   .cond-sealed{background:#e8f0ff;color:#2f6fed}.cond-opened{background:#eafaf0;color:#16a34a}.cond-boxless{background:#fff4e0;color:#b45309}.cond-flawed{background:#fdecec;color:#dc2626}
   .modal{background:var(--surface);border-radius:18px;width:min(480px,94vw);padding:22px;animation:up .2s ease}
   .modal h3{margin:0 0 14px;font-size:18px}
@@ -398,8 +408,9 @@ $qrAli = posAssetUrl($qrAli);
   </div>
 </div>
 <div class="cart-fab" id="cartFab">
-  <button class="fab-btn fab-cart" onclick="expandCart()"><span class="n" id="fabCnt">0</span>购物车</button>
-  <button class="fab-btn fab-refresh" onclick="refreshWithFullscreen()" title="刷新页面（自动进入全屏）"><span class="ri">⟳</span>刷新</button>
+  <button class="dock-main" onclick="expandCart()"><span class="di">🛒</span><span class="dt"><b id="dockTotal">¥0.00</b><span>已选 <span id="fabCnt">0</span> 件商品</span></span></button>
+  <button class="dock-refresh" onclick="refreshWithFullscreen()" title="刷新页面（自动进入全屏）">⟳</button>
+  <button class="dock-go" onclick="expandCart()">去结算</button>
 </div>
 
 <!-- 品相选择 -->
@@ -961,6 +972,8 @@ function calc() {
 }
 function renderSummary() {
   const c = calc();
+  const dockTotal = $('dockTotal');
+  if (dockTotal) dockTotal.textContent = '¥' + c.payable.toFixed(2);
   let html = `<div class="srow"><span>商品小计（${cart.reduce((a, b) => a + b.qty, 0)}件）</span><span>¥${c.subtotal.toFixed(2)}</span></div>`;
   html += `<div class="srow total"><span>应付合计</span><b>¥${c.payable.toFixed(2)}</b></div>`;
   $('summary').innerHTML = html;

@@ -83,6 +83,16 @@ body.rk-auditing .rk-cell:hover{border-color:var(--success)}
 .rk-ps-item b{color:var(--text)}
 .rk-ps-item .sub2{color:var(--text-tertiary);font-size:11.5px;margin-left:6px}
 .rk-ps-item.sel{background:var(--primary-light);border-color:var(--primary)}
+.rk-ps-item .tag-temp{color:var(--warning,#f59e0b);font-weight:700}
+/* 录入弹窗：临时货架商品快捷选择（点 + 后可直接挑；支持拖拽上架之外的第二条路径） */
+.rk-quick{margin-bottom:12px}
+.rk-quick-head{font-size:12px;color:var(--text-tertiary);font-weight:600;margin-bottom:6px}
+.rk-quick-list{display:flex;flex-wrap:wrap;gap:6px;max-height:126px;overflow-y:auto}
+.rk-quick-item{border:1px solid var(--border);background:var(--bg-hover);border-radius:8px;padding:5px 9px;font-size:12.5px;cursor:pointer;max-width:100%}
+.rk-quick-item:hover{border-color:var(--primary)}
+.rk-quick-item.on{border-color:var(--primary);background:var(--primary-light)}
+.rk-quick-item .st{color:var(--text-tertiary);font-size:11px;margin-left:6px}
+.rk-quick-empty{font-size:12px;color:var(--text-tertiary)}
 .rk-kv{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px dashed var(--border);color:var(--text-secondary)}
 .rk-kv b{font-weight:600;color:var(--text)}
 .rk-msg{font-size:12.5px;margin-top:10px;min-height:18px}
@@ -129,6 +139,23 @@ body.rk-auditing .rk-cell:hover{border-color:var(--success)}
 .rk-drawer .rk-body{padding:16px 18px;overflow-y:auto;flex:1}
 /* 拖拽放置高亮 */
 .rk-droppable.drag-over{border-color:var(--success)!important;box-shadow:0 0 0 2px var(--success)!important;position:relative}
+/* 临时货架：未上架且有库存的商品自动落在这里 */
+.rk-temp .rk-code{color:var(--warning,#f59e0b)}
+.rk-temp-sub{font-size:12px;color:var(--text-tertiary);font-weight:500;margin-left:8px}
+.rk-temp-cell{cursor:grab}
+.rk-temp-cell:active{cursor:grabbing}
+.rk-temp-cell.dragging{opacity:.4}
+.rk-temp-empty{grid-column:1/-1;font-size:12.5px;color:var(--text-tertiary);padding:6px 2px}
+/* 详情抽屉：分区标题 + 近期销量卡片 */
+.rk-sec-title{font-size:12px;font-weight:700;color:var(--text-tertiary);letter-spacing:.5px;margin:16px 0 8px}
+.rk-sec-title:first-child{margin-top:0}
+.rk-sales{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.rk-sale-card{background:var(--bg-hover);border:1px solid var(--border);border-radius:10px;padding:10px 6px;text-align:center}
+.rk-sale-card .n{font-size:21px;font-weight:800;color:var(--primary);line-height:1.15}
+.rk-sale-card .n.zero{color:var(--text-tertiary)}
+.rk-sale-card .t{font-size:11.5px;color:var(--text-tertiary);margin-top:3px}
+.rk-sale-note{font-size:11.5px;color:var(--text-tertiary);margin-top:8px;line-height:1.6}
+.rk-loading{font-size:12.5px;color:var(--text-tertiary);padding:8px 0}
 </style>
 
 <div class="rk-layout">
@@ -223,7 +250,10 @@ body.rk-auditing .rk-cell:hover{border-color:var(--success)}
 <div id="toast" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg-elevated);color:var(--text);padding:10px 18px;border-radius:10px;font-size:13px;z-index:3000;display:none;border:1px solid var(--border)"></div>
 
 <script>
+/* 临时货架：虚拟货架（不落库）。自动收纳「有库存且不在任何货架格」的商品，可拖到真实货架格子。 */
+const RK_TEMP='__temp__', RK_TEMP_NAME='临时货架', RK_TEMP_COLS=5;
 let rkRacks={}, rkOrder=[], rkAdmin=false, rkIdx=[], rkLayout={rows:5,big_cols:5}, rkMeta={}, upItems=[];
+let rkTemp={rows:0,cells:{},count:0};
 const $id=id=>document.getElementById(id);
 const RACK_CAN_AUDIT = <?= $canAuditRack ? 'true' : 'false' ?>;
 let rkToastT;
@@ -260,11 +290,25 @@ function buildIdx(){
       });
     });
   });
+  // 临时货架同样进索引，保证搜索能定位到未上架商品
+  Object.keys(rkTemp.cells).forEach(row=>{
+    Object.keys(rkTemp.cells[row]).forEach(pos=>{
+      const c=rkTemp.cells[row][pos];
+      if(c&&c.product) rkIdx.push({rack:RK_TEMP,row:+row,pos:+pos,span:1,product:c.product});
+    });
+  });
 }
+// 格子数据统一入口：真实货架 / 临时货架
+function rkCellAt(rack,row,pos){
+  if(rack===RK_TEMP)return (rkTemp.cells[row]||{})[pos]||null;
+  const rowData=(rkRacks[rack]&&rkRacks[rack][String(row)])||{};
+  return rowData[String(pos)]||null;
+}
+function rkRackLabel(rack){return rack===RK_TEMP?RK_TEMP_NAME:rack;}
 function rkRender(){
   const keys=rkOrder.slice();
   Object.keys(rkRacks).forEach(k=>{if(keys.indexOf(k)===-1)keys.push(k);});
-  if(!keys.length){
+  if(!keys.length&&!rkTemp.count){
     $id('rkList').innerHTML='<div class="rk-empty">还没有货架，'+(rkAdmin?'点右上角「+ 新增货架」开始。':'请联系店铺管理员新增货架。')+'</div>';
     return;
   }
@@ -294,7 +338,38 @@ function rkRender(){
       rowsHtml+='<div class="rk-row"><div class="rk-row-lbl">第'+row+'层</div><div class="rk-bigs">'+bigs+'</div></div>';
     }
     return '<div class="rk-rack"><div class="rk-rack-head"><span class="rk-code">'+esc(rack)+'</span>'+ops+'</div>'+rowsHtml+'</div>';
-  }).join('')+'</div>';
+  }).join('')+rkTempRackHtml()+'</div>';
+}
+// 临时货架卡片：未上架且有库存的商品自动落格（只读展示 + 可拖到真实货架）
+function rkTempRackHtml(){
+  const rows=Math.max(1,rkTemp.rows);
+  let rowsHtml='';
+  for(let row=rows;row>=1;row--){
+    const rowData=rkTemp.cells[row]||{};
+    let bigs='';
+    for(let b=1;b<=RK_TEMP_COLS;b++){
+      const p1=b*2-1,p2=b*2;
+      let inner='';
+      [p1,p2].forEach(pos=>{
+        const c=rowData[pos];
+        inner+=c?rkTempCellHtml(c):'<div class="rk-cell" style="background:transparent;cursor:default"></div>';
+      });
+      bigs+='<div class="rk-big" style="border-style:solid">'+inner+'</div>';
+    }
+    rowsHtml+='<div class="rk-row"><div class="rk-row-lbl">第'+row+'层</div><div class="rk-bigs">'+bigs+'</div></div>';
+  }
+  const sub=rkTemp.count
+    ? '自动收纳未上架且有库存的商品 · '+rkTemp.count+' 件，可拖到货架格子'
+    : '自动收纳未上架且有库存的商品 · 当前没有未上架商品';
+  return '<div class="rk-rack rk-temp"><div class="rk-rack-head"><span class="rk-code">'+RK_TEMP_NAME+
+    '<span class="rk-temp-sub">'+sub+'</span></span></div>'+
+    (rkTemp.count?rowsHtml:'<div class="rk-temp-empty">暂无需要临时搁置的商品</div>')+'</div>';
+}
+function rkTempCellHtml(c){
+  const p=c.product,stock=p.stock||0;
+  return '<div class="rk-cell half rk-temp-cell" draggable="true" data-pid="'+p.id+'" data-rack="'+RK_TEMP+'" data-row="'+c._row+'" data-pos="'+c._pos+'" onclick="rkInfo(\''+RK_TEMP+'\','+c._row+','+c._pos+')" title="'+esc(p.name)+' · 库存 '+stock+' · 可拖到货架格子">'+
+    '<span class="nm">'+esc(p.name)+'</span>'+
+    '<span class="st'+(stock===0?' zero':'')+'">库存 '+stock+'</span></div>';
 }
 function rkCellHtml(c,posCls){
   if(!c||!c.product) return ''; // 幽灵格（商品已删）：不渲染，避免读取 null.stock
@@ -336,7 +411,7 @@ function rkSearch(){
   if(!hits.length){box.innerHTML='<div class="rk-hit">未找到包含「'+esc($id('rkQ').value.trim())+'」的商品</div>';return;}
   box.innerHTML='<div class="rk-hit" style="color:var(--text-tertiary)">找到 '+hits.length+' 个位置：</div>'+hits.map(it=>{
     const spanTxt=it.span>1?'第 '+it.pos+'-'+(it.pos+1)+' 格':'第 '+it.pos+' 格';
-    return '<div class="rk-hit"><span><b>'+esc(it.product.name)+'</b>'+(it.product.common_name?' <span class="note">('+esc(it.product.common_name)+')</span>':'')+'</span><span class="where">'+esc(it.rack)+' · 第'+it.row+'层 · '+spanTxt+'</span></div>';
+    return '<div class="rk-hit"><span><b>'+esc(it.product.name)+'</b>'+(it.product.common_name?' <span class="note">('+esc(it.product.common_name)+')</span>':'')+'</span><span class="where">'+esc(rkRackLabel(it.rack))+' · 第'+it.row+'层 · '+spanTxt+'</span></div>';
   }).join('');
 }
 
@@ -350,8 +425,24 @@ function rkPickInit(){
   const inp=$id('rkPick');
   const list=$id('rkPickList');
   rkPickProduct=null; list.classList.remove('show');
-  inp.oninput=()=>{ clearTimeout(rkPickTimer); rkPickTimer=setTimeout(()=>rkPickSearch(inp.value.trim()),300); };
+  inp.oninput=()=>{ rkPutQuickRender(); clearTimeout(rkPickTimer); rkPickTimer=setTimeout(()=>rkPickSearch(inp.value.trim()),300); };
   inp.onfocus=()=>{ if(inp.value.trim())rkPickSearch(inp.value.trim()); };
+}
+// 临时货架快捷选择：不必先搜商品库，直接点未上架商品填入
+function rkPutQuickRender(){
+  const box=$id('rkPutQuick'); if(!box)return;
+  const cnt=$id('rkPutQuickCnt'); if(cnt)cnt.textContent=upItems.length+' 件';
+  const kw=($id('rkPick')?$id('rkPick').value:'').trim().toLowerCase();
+  const list=upItems.filter(it=>!kw||(it.name||'').toLowerCase().indexOf(kw)!==-1||(it.common_name||'').toLowerCase().indexOf(kw)!==-1||(it.barcode||'').toLowerCase().indexOf(kw)!==-1||(it.pinyin||'').toLowerCase().indexOf(kw)!==-1);
+  box.innerHTML=list.length?list.map(it=>'<div class="rk-quick-item'+(rkPickProduct===it.id?' on':'')+'" onclick="rkPutQuickSel('+it.id+')" title="'+esc(it.name)+' · 库存 '+(it.stock||0)+'">'+esc(it.name)+'<span class="st">库存 '+(it.stock||0)+'</span></div>').join('')
+    :'<div class="rk-quick-empty">'+(upItems.length?'没有匹配的临时货架商品':'临时货架当前没有商品')+'</div>';
+}
+function rkPutQuickSel(pid){
+  const it=upItems.find(x=>x.id===pid); if(!it)return;
+  rkPickProduct=pid;
+  $id('rkPick').value=it.name;
+  $id('rkPickList').classList.remove('show');
+  rkPutQuickRender();
 }
 async function rkPickSearch(kw){
   const list=$id('rkPickList');
@@ -367,10 +458,12 @@ async function rkPickSearch(kw){
       .sort((a,b)=>(b.stock-a.stock)||0)
       .slice(0,15)
       .map(x=>x.p);
+    const tempIds=new Set(upItems.map(x=>x.id));
     list.innerHTML=ps.length?ps.map(p=>{
       const st=Object.values(p.inventory_summary||{}).reduce((a,s)=>a+(s.total_stock||0),0);
       return '<div class="rk-ps-item" onclick="rkPickSel('+p.id+',this)" data-id="'+p.id+'"><b>'+esc(p.name)+'</b>'+
         (p.common_name?'<span class="sub2">'+esc(p.common_name)+'</span>':'')+
+        (tempIds.has(p.id)?'<span class="sub2 tag-temp">临时货架</span>':'')+
         '<span class="sub2">库存 '+st+'</span></div>';
     }).join('')
       :'<div class="rk-ps-item" style="cursor:default">无匹配商品（当前店铺无「'+esc(kw)+'」相关商品）</div>';
@@ -383,6 +476,7 @@ function rkPickSel(id,el){
   el.classList.add('sel');
   $id('rkPick').value=el.querySelector('b').textContent;
   $id('rkPickList').classList.remove('show');
+  rkPutQuickRender();
 }
 // 录入
 function rkPut(rack,row,pos){
@@ -391,6 +485,7 @@ function rkPut(rack,row,pos){
   const lay=rackLayoutOf(rack), maxPos=lay.big_cols*2;
   $id('rkPutBody').innerHTML=
     '<div class="rk-ps" style="margin-bottom:12px;"><input id="rkPick" class="form-input" placeholder="输入名称/拼音/条码搜索商品…" autocomplete="off"><div class="rk-ps-list" id="rkPickList"></div></div>'+
+    '<div class="rk-quick"><div class="rk-quick-head">临时货架商品（未上架 · 有库存）<span id="rkPutQuickCnt"></span></div><div class="rk-quick-list" id="rkPutQuick"></div></div>'+
     '<div class="rk-flex" style="margin-bottom:12px;">'+
       '<div style="flex:1;min-width:120px;"><label>起始格</label><input id="rkPos" class="form-input" type="number" value="'+pos+'" min="1" max="'+maxPos+'"></div>'+
       '<div style="flex:1;min-width:150px;"><label>占格</label><select id="rkSpan" class="form-input"><option value="1">半大格（1小格）</option><option value="2">整大格（2小格）</option></select></div>'+
@@ -401,6 +496,8 @@ function rkPut(rack,row,pos){
     '<div class="rk-msg" id="rkMsg"></div>';
   $id('rkPutModal').classList.add('show');
   rkPickInit();
+  rkPutQuickRender();
+  loadUnplaced(); // 拉一次最新未上架商品，避免多人同时操作时列表过期
 }
 function rkPutClose(){ $id('rkPutModal').classList.remove('show'); }
 async function rkPutSave(rack,row){
@@ -418,25 +515,54 @@ async function rkPutSave(rack,row){
     else{msg.textContent=d.error||'保存失败';msg.className='rk-msg err';}
   }catch(e){msg.textContent='请求失败';msg.className='rk-msg err';}
 }
-// 详情：移除 / 拆分
+// 详情：商品信息 / 当前库存 / 近期销量 / 操作（真实货架与临时货架共用）
+let rkSalesToken=0;
 function rkInfo(rack,row,pos){
   if(document.body.classList.contains('rk-auditing'))return;
-  const rowData=(rkRacks[rack]&&rkRacks[rack][String(row)])||{};
-  const c=rowData[String(pos)]||null;
+  const c=rkCellAt(rack,row,pos);
   if(!c||!c.product)return;
   const p=c.product;
+  const isTemp=rack===RK_TEMP;
   const spanTxt=c.span>1?'第 '+pos+'-'+(pos+1)+' 格':'第 '+pos+' 格';
-  const splitBtn=c.span>1&&rkAdmin?'<button class="btn btn-outline" style="width:100%;margin-top:12px" onclick="rkSplit(\''+esc(rack)+'\','+row+','+pos+')">拆分为两格</button>':'';
+  const locTxt=isTemp?'临时货架 · 未上架':esc(rack)+' · 第'+row+'层 · '+spanTxt;
+  const splitBtn=(!isTemp&&c.span>1&&rkAdmin)?'<button class="btn btn-outline" style="width:100%;margin-top:12px" onclick="rkSplit(\''+esc(rack)+'\','+row+','+pos+')">拆分为两格</button>':'';
   rkOpen('商品详情',
+    '<div class="rk-sec-title">商品信息</div>'+
     '<div class="rk-kv"><span>商品</span><b>'+esc(p.name)+(p.common_name?'（'+esc(p.common_name)+'）':'')+'</b></div>'+
     '<div class="rk-kv"><span>条码</span><b>'+esc(p.barcode||'-')+'</b></div>'+
-    '<div class="rk-kv"><span>位置</span><b style="color:var(--primary)">'+esc(rack)+' · 第'+row+'层 · '+spanTxt+'</b></div>'+
-    '<div class="rk-kv"><span>当前库存</span><b style="'+(p.stock===0?'color:var(--danger)':'')+'">'+p.stock+' 件</b></div>'+
+    '<div class="rk-kv"><span>位置</span><b style="color:var(--primary)">'+locTxt+'</b></div>'+
     (c.note?'<div class="rk-kv"><span>备注</span><b>'+esc(c.note)+'</b></div>':'')+
+    '<div class="rk-sec-title">当前库存</div>'+
+    '<div class="rk-kv" style="border-bottom:none"><span>合计</span><b style="'+(p.stock===0?'color:var(--danger)':'')+'">'+p.stock+' 件</b></div>'+
+    '<div class="rk-sec-title">近期销量</div>'+
+    '<div class="rk-sales" id="rkRecentSales"><div class="rk-loading" style="grid-column:1/-1">加载中…</div></div>'+
+    '<div class="rk-sec-title">操作</div>'+
+    (isTemp?'<div class="rk-sale-note" style="margin-top:0">该商品未上架，已自动收纳到临时货架。把它拖到左侧货架格子即可上架。</div>':'')+
     splitBtn+
-    '<div class="rk-flex right" style="margin-top:14px;">'+
-      (rkAdmin?'<button class="btn btn-outline" style="color:var(--danger);border-color:rgba(248,113,113,.4)" onclick="rkRemove(\''+esc(rack)+'\','+row+','+pos+')">移除此商品</button>':'')+
+    '<div class="rk-flex right" style="margin-top:12px;">'+
+      (rkAdmin&&!isTemp?'<button class="btn btn-outline" style="color:var(--danger);border-color:rgba(248,113,113,.4)" onclick="rkRemove(\''+esc(rack)+'\','+row+','+pos+')">移除此商品</button>':'')+
       '<button class="btn btn-outline" onclick="rkClose()">关闭</button></div>');
+  rkLoadRecentSales(p.id);
+}
+// 近期销量：近 3/5/7 天售出件数（口径：直播记账出库，不含赠品）
+async function rkLoadRecentSales(pid){
+  const token=++rkSalesToken;
+  try{
+    const res=await fetch('../api/get_product_sales.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({product_id:pid})});
+    const d=await res.json();
+    if(!d.success)throw new Error(d.error||'加载失败');
+    if(token!==rkSalesToken)return; // 期间又打开了别的商品
+    const el=$id('rkRecentSales');
+    if(!el)return;
+    const r=(d.data&&d.data.recent)||{};
+    const card=(n,t)=>{const v=parseInt(n,10)||0;return '<div class="rk-sale-card"><div class="n'+(v?'':' zero')+'">'+v+'</div><div class="t">'+t+'</div></div>';};
+    el.innerHTML=card(r.d3,'近 3 天（件）')+card(r.d5,'近 5 天（件）')+card(r.d7,'近 7 天（件）')+
+      '<div class="rk-sale-note" style="grid-column:1/-1">'+(r.last_sold_at?'最近售出：'+esc(String(r.last_sold_at).replace('T',' ').slice(0,16)):'近期暂无售出记录')+'</div>';
+  }catch(e){
+    if(token!==rkSalesToken)return;
+    const el=$id('rkRecentSales');
+    if(el)el.innerHTML='<div class="rk-sale-note" style="grid-column:1/-1">销量加载失败：'+esc(e.message)+'</div>';
+  }
 }
 async function rkRemove(rack,row,pos){
   if(!confirm('确定移除「'+(rkRacks[rack]&&rkRacks[rack][String(row)]&&rkRacks[rack][String(row)][String(pos)].product.name)+'」？'))return;
@@ -517,6 +643,22 @@ async function rkApi(file,body){
 $id('rkQ').addEventListener('input',rkSearch);
 
 // ---------- 右侧浮窗：未在货架商品（拖拽到格子放置/替换） ----------
+// 由未上架商品（有库存且不在任何货架格）构建临时货架：每行 5 大格 = 10 个小格
+function buildTempRack(){
+  const perRow=RK_TEMP_COLS*2;
+  const totalRows=Math.max(1,Math.ceil(upItems.length/perRow));
+  const cells={};
+  upItems.forEach((it,i)=>{
+    const row=totalRows-Math.floor(i/perRow); // 第一个商品落在最上层，阅读顺序与真实货架一致
+    const pos=(i%perRow)+1;
+    (cells[row]=cells[row]||{})[pos]={
+      _rack:RK_TEMP,_row:row,_pos:pos,span:1,note:'',
+      product:{id:it.id,name:it.name,common_name:it.common_name||'',barcode:it.barcode||'',pinyin:it.pinyin||'',stock:it.stock||0}
+    };
+  });
+  rkTemp={rows:totalRows,cells:cells,count:upItems.length};
+  buildIdx();
+}
 async function loadUnplaced(){
   try{
     const res=await fetch('../api/racks_unplaced.php',{cache:'no-store'});
@@ -524,6 +666,11 @@ async function loadUnplaced(){
     if(!d.success)return;
     upItems=d.items||[];
     renderUnplaced();
+    buildTempRack();
+    rkRender();
+    rkSearch();
+    // 录入弹窗开着时同步刷新「临时货架商品」快捷列表
+    if($id('rkPutModal')&&$id('rkPutModal').classList.contains('show'))rkPutQuickRender();
   }catch(e){}
 }
 function renderUnplaced(){
@@ -571,6 +718,15 @@ document.addEventListener('drop',e=>{
 document.addEventListener('dragenter',e=>{ const c=e.target.closest('.rk-droppable'); if(c)c.classList.add('drag-over'); });
 document.addEventListener('dragleave',e=>{ const c=e.target.closest('.rk-droppable'); if(c)c.classList.remove('drag-over'); });
 document.addEventListener('drop',e=>{ document.querySelectorAll('.rk-droppable.drag-over').forEach(x=>x.classList.remove('drag-over')); });
+// 临时货架格子也是拖拽源：拖到真实货架格子即可上架
+document.addEventListener('dragstart',e=>{
+  const el=e.target.closest('.rk-temp-cell[data-pid]');
+  if(!el)return;
+  e.dataTransfer.setData('text/plain',el.dataset.pid);
+  e.dataTransfer.effectAllowed='copy';
+  el.classList.add('dragging');
+  setTimeout(()=>el.classList.remove('dragging'),300);
+});
 
 document.addEventListener('click',e=>{ const list=$id('rkPickList'); if(list&&!e.target.closest('.rk-ps'))list.classList.remove('show'); });
 

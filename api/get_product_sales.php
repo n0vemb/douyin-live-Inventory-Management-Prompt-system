@@ -83,4 +83,33 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
     ];
 }
 
-success(['data' => ['sales' => $sales]]);
+// 近期销量：近 3/5/7 天售出件数（不含赠品，按实际出库时间；未出库则回退场次结束/创建时间）
+// 按 v23 软删规则，统计口径排除已删除行（li.is_deleted = 0）
+$soldAtSql = 'COALESCE(ob.outbound_at, s.ended_at, s.created_at)';
+$recentSql = "
+    SELECT
+        COALESCE(SUM(CASE WHEN {$soldAtSql} >= DATE_SUB(NOW(), INTERVAL 3 DAY) THEN lo.qty ELSE 0 END), 0) AS d3,
+        COALESCE(SUM(CASE WHEN {$soldAtSql} >= DATE_SUB(NOW(), INTERVAL 5 DAY) THEN lo.qty ELSE 0 END), 0) AS d5,
+        COALESCE(SUM(CASE WHEN {$soldAtSql} >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN lo.qty ELSE 0 END), 0) AS d7,
+        MAX({$soldAtSql}) AS last_sold_at
+    FROM live_ledger_outbound lo
+    JOIN live_ledger_item li ON li.id = lo.item_id
+    JOIN live_ledger_session s ON s.id = lo.session_id
+    LEFT JOIN outbound_log ob ON ob.id = lo.outbound_log_id
+    WHERE lo.product_id = ? AND li.is_gift = 0 AND li.is_deleted = 0";
+$recentParams = [$productId];
+if ($storeId) {
+    $recentSql .= ' AND s.store_id = ?';
+    $recentParams[] = $storeId;
+}
+$stmt = $pdo->prepare($recentSql);
+$stmt->execute($recentParams);
+$recentRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+$recent = [
+    'd3' => (int)($recentRow['d3'] ?? 0),
+    'd5' => (int)($recentRow['d5'] ?? 0),
+    'd7' => (int)($recentRow['d7'] ?? 0),
+    'last_sold_at' => $recentRow['last_sold_at'] ?? null,
+];
+
+success(['data' => ['sales' => $sales, 'recent' => $recent]]);

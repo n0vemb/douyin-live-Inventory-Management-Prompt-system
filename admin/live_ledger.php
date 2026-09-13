@@ -522,6 +522,7 @@ document.getElementById('fastInput').addEventListener('paste', function (e) {
     <h3 style="font-size:16px; font-weight:600; margin:0;">当前场次：<span id="sessionInfoName">-</span></h3>
     <div style="display:flex; gap:15px;">
       <button class="btn btn-outline" onclick="openSettingsModal()">场次设置</button>
+      <button class="btn btn-outline" onclick="openPrintOrderModal()">打印订单</button>
       <button class="btn btn-outline" onclick="exitSession()">返回场次列表</button>
     </div>
   </div>
@@ -627,6 +628,31 @@ document.getElementById('fastInput').addEventListener('paste', function (e) {
     <button class="btn btn-warning" id="offAirBtnBottom" onclick="offAir()">下播</button>
     <button class="btn btn-danger" id="packBtnBottom" onclick="endLive()">打包出库</button>
     <span class="muted" style="margin-left:auto;">点击客户标题栏可收缩/展开</span>
+  </div>
+</div>
+
+<!-- 打印订单（76×130mm：客户编号 + 昵称 + 商品） -->
+<div class="modal" id="printOrderCard">
+  <div class="modal-content" style="width:720px; max-width:96vw; max-height:88vh; display:flex; flex-direction:column;">
+    <div class="modal-header">
+      <h3 class="modal-title">打印订单</h3>
+      <button class="modal-close" onclick="closePrintOrderModal()">&times;</button>
+    </div>
+    <div style="font-size:12.5px; color:var(--text-tertiary); line-height:1.7;">
+      所有勾选客户的订单<b>连续排在一张 76×130mm 小票上</b>（客户编号 + 昵称 + 商品清单，含品相、数量、单价，以及该客户金额合计；客户赠品也会列在商品后面），末尾附<b>本场福袋记录</b>；一张排满自动续下一张。<br>
+      点击「打印」直接唤起浏览器打印窗口，纸张默认 <b>76×130mm</b>（1 张 1 页）。
+    </div>
+    <div style="display:flex; align-items:center; gap:10px; margin:12px 0 8px;">
+      <button class="btn btn-sm btn-outline" onclick="printOrderToggleAll(true)">全选</button>
+      <button class="btn btn-sm btn-outline" onclick="printOrderToggleAll(false)">全不选</button>
+      <span id="printOrderSummary" class="muted" style="margin-left:auto;"></span>
+    </div>
+    <div id="printOrderList" style="flex:1; overflow-y:auto; min-height:120px;"></div>
+    <div class="po-preview" id="printOrderPreview"></div>
+    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px;">
+      <button class="btn btn-outline" onclick="closePrintOrderModal()">取消</button>
+      <button class="btn btn-primary" id="printOrderBtn" onclick="printOrders()">打印</button>
+    </div>
   </div>
 </div>
 
@@ -958,6 +984,53 @@ tr.tr-active td:first-child { border-left: 3px solid var(--primary, #6366f1); }
 .deleted-row .deleted-badge { text-decoration: none; }
 .deleted-note { margin-top:10px; padding:10px 12px; border:1px dashed var(--border); border-radius:8px;
     color:var(--text-tertiary); font-size:12.5px; background:var(--bg-hover); }
+/* ===== 打印订单（76×130mm 小票）===== */
+.po-row { display:flex; align-items:center; gap:10px; padding:9px 11px; border:1px solid var(--border);
+    border-radius:9px; margin-bottom:8px; background:var(--bg-hover); cursor:pointer; }
+.po-row:hover { border-color:var(--primary); }
+.po-row.on { border-color:var(--primary); background:rgba(99,102,241,.10); }
+.po-row input { width:16px; height:16px; flex-shrink:0; }
+.po-row .po-no { font-weight:700; font-size:13px; }
+.po-row .po-nk { font-size:13.5px; font-weight:600; }
+.po-row .po-items { flex:1; min-width:0; font-size:12px; color:var(--text-tertiary);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.po-row .po-qty { font-size:12.5px; color:var(--text-secondary); white-space:nowrap; }
+.po-preview { margin-top:10px; padding:10px 12px; border:1px dashed var(--border); border-radius:8px;
+    font-size:12px; color:var(--text-tertiary); line-height:1.7; background:var(--bg-hover); }
+.po-preview b { color:var(--text); }
+/* 浏览器打印：每张 76×130mm 小票=1 页（@page 决定纸张） */
+#printOrderSheets { display:none; }
+.po-sheet { width:76mm; height:130mm; box-sizing:border-box; padding:3mm 4mm; overflow:hidden;
+    background:#fff; color:#000; font-family:"PingFang SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
+    font-variant-numeric:tabular-nums; }
+.po-title { font-size:4.4mm; font-weight:800; text-align:center; letter-spacing:1.2mm; margin-bottom:1.4mm; }
+.po-meta { display:flex; justify-content:space-between; gap:2mm; font-size:2.7mm; line-height:3.6mm; }
+.po-meta .po-ms { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.po-meta .po-mp { flex-shrink:0; font-weight:700; }
+.po-rule { border-top:0.3mm dashed #000; margin:1.2mm 0; }
+.po-cust { display:flex; gap:1.5mm; font-size:3mm; font-weight:700; line-height:4.6mm; margin-top:0.9mm; }
+.po-rows .po-cust:first-child { margin-top:0; }
+.po-cust .po-cn { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.po-cust .po-cq { flex-shrink:0; }
+.po-item { display:flex; gap:1.5mm; font-size:2.9mm; line-height:4.4mm; }
+.po-nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.po-sf { flex-shrink:0; max-width:36mm; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    text-align:right; }
+.po-foot { margin-top:1.2mm; font-size:2.6mm; color:#333; }
+.po-foot .po-f2 { font-size:2.4mm; color:#444; }
+@page { size: 76mm 130mm; margin: 0; }
+@media print {
+    /* 只保留打印容器。layout.php 未闭合 #mainContainer，页面内容都包在它里面，
+       所以 body 与 #mainContainer 两层都要清空，且不能把包裹层本身隐藏掉。 */
+    body > *:not(#mainContainer):not(#printOrderSheets) { display:none !important; }
+    #mainContainer > *:not(#printOrderSheets) { display:none !important; }
+    #mainContainer { position:static !important; margin:0 !important; padding:0 !important;
+        width:auto !important; max-width:none !important; background:#fff !important; box-shadow:none !important; }
+    #printOrderSheets { display:block !important; }
+    .po-sheet { page-break-after:always; break-after:page; }
+    .po-sheet:last-child { page-break-after:auto; break-after:auto; }
+    html, body { margin:0 !important; padding:0 !important; background:#fff !important; }
+}
 </style>
 
 <script>
@@ -2508,6 +2581,239 @@ function showConfirm(text, okFn) {
 }
 function closeConfirmModal() { document.getElementById('confirmModal').classList.remove('show'); }
 
+/* ===== 打印订单：76×130mm 出库校对单（仓库按单核对）=====
+   把「所有勾选客户」的订单连续排在一张 76×130mm 小票上，填满一张自动续下一张，
+   末尾附本场福袋记录；纸张由 CSS `@page { size: 76mm 130mm; margin: 0 }` 决定。 */
+// 每张的行高预算（mm）：客户标题行比商品行高，用 mm 计算密度，避免「标题多」时溢出、标题少时浪费
+const ORDER_LABEL = { width: 76, height: 130, rowsMm: 96, itemMm: 4.4, custMm: 5.5 };
+let printOrderSel = new Set();
+
+// 本场可打印的客户（未删除 + 有商品）；件数/金额口径与场次统计一致（不计赠品）
+function printOrderCandidates() {
+    const cs = (sessionData && sessionData.customers) || [];
+    return cs.filter(c => !c.is_deleted).map(c => {
+        const items = (c.items || []).filter(i => !i.is_deleted);
+        const gifts = (c.gifts || []).filter(g => !g.is_deleted); // 手工赠品：不入库，仅计成本
+        const real = items.filter(i => !i.is_gift);
+        const m = c.metrics || {};
+        const qty = (m.total_qty != null) ? parseInt(m.total_qty, 10) || 0
+            : real.reduce((a, i) => a + (parseInt(i.qty, 10) || 0), 0);
+        const amount = (m.gmv != null) ? parseFloat(m.gmv) || 0
+            : real.reduce((a, i) => a + (parseFloat(i.sell_price) || 0) * (parseInt(i.qty, 10) || 0), 0);
+        const giftQty = items.filter(i => i.is_gift).reduce((a, i) => a + (parseInt(i.qty, 10) || 0), 0)
+            + gifts.reduce((a, g) => a + (parseInt(g.qty, 10) || 1), 0);
+        return { c, items, gifts, qty, amount, giftQty };
+    }).filter(x => x.items.length || x.gifts.length);
+}
+// 本场福袋记录（场次级）
+function printOrderDraws() {
+    const ds = (sessionData && sessionData.lucky_draws) || [];
+    return ds.map(d => ({
+        winner: poText(d.winner) || '(未填中奖人)',
+        prize: poText(d.prize),
+        cost: parseFloat(d.cost) || 0,
+        shipped: !!d.shipped,
+    }));
+}
+function printOrderNo(c) { return c.vip_no || ('客户#' + (c.id || '')); }
+// 热敏机字库没有 emoji/特殊符号，直接打会变成「?」，出纸前先剔除（保留中英文与常用标点）
+const PO_BAD = /[\u0000-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2060-\u2064\u20E3\u200D\uFE00-\uFE0F\uFEFF\u2190-\u21FF\u2600-\u27BF\u2B00-\u2BFF\u{1F000}-\u{1FAFF}]/gu;
+function poText(s) {
+    return String(s == null ? '' : s).replace(PO_BAD, '').replace(/\s+/g, ' ').trim();
+}
+// 金额：整数不带小数，0 不显示
+function poMoney(v) {
+    const n = Math.round((parseFloat(v) || 0) * 100) / 100;
+    if (!n) return '';
+    return '¥' + n.toFixed(2).replace(/\.?0+$/, '');
+}
+function orderCond(i) {
+    return i.is_gift ? '赠品' : (i.condition_name || (i.is_temp ? '待入库' : (i.condition_type || '')));
+}
+// 商品行右侧：品相 + 单价×数量（赠品不显示价格）
+function poItemSuf(i) {
+    const qty = parseInt(i.qty, 10) || 1;
+    if (i.is_gift) return '赠品 ×' + qty;
+    const price = poMoney(parseFloat(i.sell_price) || 0);
+    return poText(orderCond(i)) + ' ×' + qty + (price ? ' ' + price : '');
+}
+function poNow() {
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    return p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function poPreviewSession() {
+    const s = (sessionData && sessionData.settings) || {};
+    return s.session_name || '本场';
+}
+function openPrintOrderModal() {
+    if (!sessionData) { toast('请先进入场次'); return; }
+    const list = printOrderCandidates();
+    if (!list.length) { toast('本场还没有可打印的商品'); return; }
+    printOrderSel = new Set(list.map(x => x.c.id));
+    renderPrintOrderList();
+    document.getElementById('printOrderCard').classList.add('show');
+}
+function closePrintOrderModal() { document.getElementById('printOrderCard').classList.remove('show'); }
+function printOrderToggleAll(on) {
+    printOrderSel = on ? new Set(printOrderCandidates().map(x => x.c.id)) : new Set();
+    renderPrintOrderList();
+}
+function printOrderToggle(id) {
+    if (printOrderSel.has(id)) printOrderSel.delete(id); else printOrderSel.add(id);
+    renderPrintOrderList();
+}
+function printOrderSelected() {
+    return printOrderCandidates().filter(x => printOrderSel.has(x.c.id));
+}
+function poCustRow(x, more) {
+    const amount = poMoney(x.amount);
+    return {
+        k: 'cust',
+        no: poText(printOrderNo(x.c)),
+        nick: (poText(x.c.nickname) || '(未命名)') + (more ? '（续）' : ''),
+        qty: x.qty + ' 件' + (amount ? ' · ' + amount : ''),
+    };
+}
+// 一位客户 → 客户块（标题行 + 商品行）
+function poGiftRow(g, n) {
+    const qty = parseInt(g.qty, 10) || 1;
+    const name = poText(g.name) || poText(g.description) || '赠品';
+    const desc = (g.name && g.description && g.description !== g.name) ? '　' + poText(g.description) : '';
+    return { k: 'item', no: n + '.', name: name + desc, suf: '赠品 ×' + qty };
+}
+function poCustomerBlocks(list) {
+    const blocks = [];
+    let n = 0;
+    list.forEach(x => {
+        const rows = x.items.map(i => ({
+            k: 'item', no: (++n) + '.', name: poText(i.product_name), suf: poItemSuf(i),
+        }));
+        x.gifts.forEach(g => rows.push(poGiftRow(g, ++n)));
+        blocks.push({ head: poCustRow(x, false), rows: rows });
+    });
+    return blocks;
+}
+// 本场福袋 → 一个附加块（放在所有客户之后）
+function poDrawBlock() {
+    const draws = printOrderDraws();
+    if (!draws.length) return null;
+    const cost = draws.reduce((a, d) => a + d.cost, 0);
+    const unshipped = draws.filter(d => !d.shipped).length;
+    return {
+        head: {
+            k: 'cust', no: '福袋', nick: draws.length + ' 个' + (unshipped ? '（' + unshipped + ' 个未寄出）' : ''),
+            qty: cost ? '成本 ' + poMoney(cost) : '',
+        },
+        rows: draws.map(d => ({
+            k: 'item', no: '', name: d.winner + (d.prize ? '　' + d.prize : ''),
+            suf: (d.shipped ? '已寄出' : '未寄出') + (d.cost ? ' ' + poMoney(d.cost) : ''),
+        })),
+    };
+}
+// 连续排布：按 mm 预算把纸吃满，装不下就换下一张（跨纸的客户续纸标「（续）」）。
+function packOrderSheets(list) {
+    const L = ORDER_LABEL;
+    const blocks = poCustomerBlocks(list);
+    const drawBlock = poDrawBlock();
+    if (drawBlock) blocks.push(drawBlock);
+    const sheets = [];
+    let cur = [], used = 0;
+    const flush = () => { if (cur.length) sheets.push(cur); cur = []; used = 0; };
+    blocks.forEach(b => {
+        let idx = 0, cont = false;
+        while (idx < b.rows.length) {
+            // 本张还能放几行商品（标题行也要占位）
+            const cap = Math.floor((L.rowsMm - used - L.custMm) / L.itemMm);
+            if (cap < 1) { flush(); continue; }
+            const take = Math.min(cap, b.rows.length - idx);
+            cur.push(cont ? Object.assign({}, b.head, { nick: (b.head.nick || '') + '（续）' }) : b.head);
+            used += L.custMm;
+            for (let j = 0; j < take; j++) { cur.push(b.rows[idx++]); used += L.itemMm; }
+            cont = true;
+            if (idx < b.rows.length) flush(); // 本单还有剩 → 换下一张，标「（续）」
+        }
+    });
+    flush();
+    return sheets;
+}
+function packOrderMeta(list, sheets) {
+    const draws = printOrderDraws();
+    return {
+        session: poText(poPreviewSession()) || '本场',
+        customers: list.length,
+        qty: list.reduce((a, x) => a + x.qty, 0),
+        amount: list.reduce((a, x) => a + x.amount, 0),
+        giftQty: list.reduce((a, x) => a + (x.giftQty || 0), 0),
+        draws: draws.length,
+        drawCost: draws.reduce((a, d) => a + d.cost, 0),
+        printedAt: '打印 ' + poNow(),
+        total: sheets.length,
+    };
+}
+function orderSheetHtml(rows, meta, idx) {
+    const body = rows.map(r => r.k === 'cust'
+        ? `<div class="po-cust"><span class="po-cn">${esc(r.no)}${r.no ? '　' : ''}${esc(r.nick)}</span><span class="po-cq">${esc(r.qty)}</span></div>`
+        : `<div class="po-item"><span class="po-nm">${r.no ? esc(r.no) + ' ' : ''}${esc(r.name)}</span><span class="po-sf">${esc(r.suf)}</span></div>`
+    ).join('');
+    const money = poMoney(meta.amount);
+    return `<div class="po-sheet">
+        <div class="po-title">出 库 单</div>
+        <div class="po-meta"><span class="po-ms">${esc(meta.session)}</span><span class="po-mp">第 ${idx + 1}/${meta.total} 张</span></div>
+        <div class="po-rule"></div>
+        <div class="po-rows">${body}</div>
+        <div class="po-rule"></div>
+        <div class="po-foot">
+            <div class="po-f1">合计 ${meta.customers} 位客户 · ${meta.qty} 件${money ? ' · ' + money : ''}${meta.giftQty ? ' · 含赠品 ' + meta.giftQty + ' 件' : ''}${meta.draws ? ' · 福袋 ' + meta.draws + ' 个' : ''}</div>
+            <div class="po-f2">${esc(meta.printedAt)}</div>
+        </div>
+    </div>`;
+}
+function renderPrintOrderList() {
+    const list = printOrderCandidates();
+    const box = document.getElementById('printOrderList');
+    box.innerHTML = list.map(x => {
+        const c = x.c, on = printOrderSel.has(c.id);
+        const names = x.items.map(i => `${i.product_name}×${i.qty}`)
+            .concat(x.gifts.map(g => `〔赠品〕${g.name || g.description || '赠品'}×${g.qty || 1}`)).join('、');
+        const money = poMoney(x.amount);
+        return `<label class="po-row${on ? ' on' : ''}">
+            <input type="checkbox" ${on ? 'checked' : ''} onchange="printOrderToggle(${c.id})">
+            <span class="po-no">${esc(printOrderNo(c))}</span>
+            <span class="po-nk">${esc(c.nickname) || '(未命名)'}</span>
+            <span class="po-items">${esc(names)}</span>
+            <span class="po-qty">${x.qty} 件${money ? ' · ' + money : ''}</span>
+        </label>`;
+    }).join('');
+    const sel = printOrderSelected();
+    const sheets = sel.length ? packOrderSheets(sel) : [];
+    const meta = sel.length ? packOrderMeta(sel, sheets) : { customers: 0, qty: 0, amount: 0, giftQty: 0, draws: 0, drawCost: 0 };
+    const money = poMoney(meta.amount);
+    document.getElementById('printOrderSummary').textContent =
+        `已选 ${sel.length} / ${list.length} 位客户 · ${meta.qty} 件${money ? ' · ' + money : ''}` +
+        `${meta.giftQty ? ' · 赠品 ' + meta.giftQty + ' 件' : ''}${meta.draws ? ' · 福袋 ' + meta.draws + ' 个' : ''} · 共 ${sheets.length} 张`;
+    const head = sheets.length ? sheets[0].slice(0, 3).map(r => r.k === 'cust'
+        ? `<b>${esc(r.no)}${r.no ? '　' : ''}${esc(r.nick)}</b>${r.qty ? '　' + esc(r.qty) : ''}`
+        : `${r.no ? esc(r.no) + ' ' : ''}${esc(r.name)}　${esc(r.suf)}`).join('<br>') : '—';
+    document.getElementById('printOrderPreview').innerHTML = `<b>打样（第 1 张，示意）</b><br>` +
+        `出库单 · ${esc(poPreviewSession())}<br>` +
+        `合计 ${meta.customers} 位客户 · ${meta.qty} 件${money ? ' · ' + money : ''} · ${sheets.length} 张（每张 76×130mm，连续排布）` +
+        `${meta.draws ? ' · 含福袋 ' + meta.draws + ' 个' : ''}<br>` + `${head}${sheets.length && sheets[0].length > 3 ? '<br>…' : ''}`;
+}
+// 唤起浏览器打印（76×130mm，每张 1 页）
+function printOrders() {
+    const list = printOrderSelected();
+    if (!list.length) { toast('请至少勾选一位客户'); return; }
+    const sheets = packOrderSheets(list);
+    if (!sheets.length) { toast('本场还没有可打印的商品'); return; }
+    const meta = packOrderMeta(list, sheets);
+    const box = document.getElementById('printOrderSheets');
+    box.innerHTML = sheets.map((rows, idx) => orderSheetHtml(rows, meta, idx)).join('');
+    closePrintOrderModal();
+    const done = () => { window.removeEventListener('afterprint', done); box.innerHTML = ''; };
+    window.addEventListener('afterprint', done);
+    try { window.print(); } catch (e) { done(); toast('打印失败：' + e.message, true); }
+}
+
 function toast(msg, isError) {
     const t = document.getElementById('toast');
     t.textContent = msg;
@@ -2631,3 +2937,6 @@ window.addEventListener('resize', syncBottomActionBar);
         <div class="ps-empty">本场暂无福袋记录</div>
     </div>
 </div>
+
+<!-- 浏览器打印输出容器（仅在打印时可见） -->
+<div id="printOrderSheets"></div>
