@@ -16,13 +16,36 @@ try {
 
     if ($storeId) {
         // 店铺管理员：保存到 stores 表
-        $allowedFields = ['system_name', 'logo_path', 'condition_types', 'live_display', 'shipping_fee', 'actual_shipping_fee', 'platform_fee_rate', 'offline_price_ratio', 'offline_pay_qr_wx', 'offline_pay_qr_ali', 'pos_enabled', 'pos_screensaver_img', 'pos_screensaver_sec', 'pos_hide_price', 'pos_ad_lines'];
+        $allowedFields = ['system_name', 'logo_path', 'condition_types', 'live_display', 'shipping_fee', 'actual_shipping_fee', 'platform_fee_rate', 'offline_price_ratio', 'offline_pay_qr_wx', 'offline_pay_qr_ali', 'pos_enabled', 'pos_screensaver_img', 'pos_screensaver_sec', 'pos_hide_price', 'pos_ad_lines', 'pos_pay_mode', 'epay_api_url', 'epay_pid', 'epay_sign_type'];
         // store_name 映射到 name 字段
         $fieldMap = ['store_name' => 'name'];
         // 数值字段，不需要 JSON 编码
         $numericFields = ['shipping_fee', 'platform_fee_rate', 'offline_price_ratio', 'pos_enabled', 'pos_screensaver_sec', 'pos_hide_price'];
         $updateFields = [];
         $updateParams = [];
+
+        // 收款方式与易支付配置：金额/开关之外的字段先做白名单与格式归一化
+        if (isset($settings['pos_pay_mode'])) {
+            $settings['pos_pay_mode'] = ($settings['pos_pay_mode'] === 'epay') ? 'epay' : 'static';
+        }
+        if (isset($settings['epay_api_url'])) {
+            $u = rtrim(trim((string)$settings['epay_api_url']), '/');
+            $settings['epay_api_url'] = preg_match('#^https?://#i', $u) ? $u : 'https://www.ezfpy.cn';
+        }
+        if (isset($settings['epay_pid'])) {
+            $settings['epay_pid'] = trim((string)$settings['epay_pid']);
+        }
+        if (isset($settings['epay_sign_type'])) {
+            $settings['epay_sign_type'] = 'MD5';
+        }
+        // 商户密钥：非空才更新（前端留空=不修改），且只在 stores 上维护（门店不单独覆盖）
+        if (isset($settings['epay_mch_key'])) {
+            $epayKey = trim((string)$settings['epay_mch_key']);
+            if ($epayKey !== '' && $epayKey !== '******') {
+                $pdo->prepare('UPDATE stores SET epay_mch_key = ? WHERE id = ?')->execute([$epayKey, $storeId]);
+            }
+            unset($settings['epay_mch_key']);
+        }
 
         // 店管/超管处于店视角时：收银台相关设置写 shops 表（每店独立）
         $shopId = getShopId();

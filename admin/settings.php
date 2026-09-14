@@ -451,6 +451,12 @@ input:checked + .toggle-slider:before {
                 <button class="btn btn-secondary btn-sm" onclick="resetPosToken()">重置链接</button>
             </div>
             <span style="font-size:11px; color:var(--text-tertiary);"><?= $stIsShop ? '重置后本店 8 位码与链接立即更新，旧码失效。' : '集团视角重置的是默认店旧链接；各店 8 位码请到「店管理」查看/重置。' ?></span>
+            <label class="form-label" style="margin-top:10px;">顾客自助下单链接（发顾客 / 印二维码，手机与平板都走点击支付）</label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input type="text" id="posCustLink" class="form-input" readonly style="flex:1; min-width:220px; background:var(--bg-hover);">
+                <button class="btn btn-secondary btn-sm" onclick="copyPosCustLink()">复制</button>
+            </div>
+            <span style="font-size:11px; color:var(--text-tertiary);">顾客自己拿着手机/平板时，扫不到自己屏幕上的收款码，此链接直接给「去付款」按钮；店内一体机/平板（把码显示给顾客扫）请用上面的收银台链接。</span>
         </div>
     </div>
 </div>
@@ -556,6 +562,60 @@ input:checked + .toggle-slider:before {
 
 <?php endif; ?>
 
+<div class="card">
+    <h3 class="card-title">收款方式与易支付配置</h3>
+    <div class="section-hint" style="margin-bottom:10px">
+        默认「静态收款码」：用「线下收银台」里上传的微信/支付宝收款码，顾客扫完自己点「已付款」。<br>
+        改选「易支付」：收银台按订单金额动态生成收款码，收到平台回调才确认收款（顾客无需再点）。<br>
+        一个店铺一套易支付商户信息，本店所有门店共用；商户密钥只用于服务端 MD5 签名，保存后不再回显。
+    </div>
+    <div class="form-row">
+        <div class="form-group" style="flex:1">
+            <label class="form-label">收款方式</label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:6px;">
+                <input type="radio" name="posPayMode" value="static" style="width:16px; height:16px;"
+                    onchange="tempSettings.pos_pay_mode = 'static'; markChanged();">
+                <span style="font-size:13.5px; color:var(--text-secondary);">静态收款码（顾客扫完自己点「已付款」）</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:8px;">
+                <input type="radio" name="posPayMode" value="epay" style="width:16px; height:16px;"
+                    onchange="tempSettings.pos_pay_mode = 'epay'; markChanged();">
+                <span style="font-size:13.5px; color:var(--text-secondary);">易支付（动态收款码，收到付款自动确认收款）</span>
+            </label>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label class="form-label">接口地址</label>
+            <input type="text" id="epayApiUrl" class="form-input" placeholder="https://www.ezfpy.cn"
+                onchange="tempSettings.epay_api_url = this.value.trim(); markChanged();">
+        </div>
+        <div class="form-group">
+            <label class="form-label">商户ID</label>
+            <input type="text" id="epayPid" class="form-input" placeholder="例如 1746"
+                onchange="tempSettings.epay_pid = this.value.trim(); markChanged();">
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label class="form-label">商户密钥 <span id="epayKeyState" style="font-size:11px;color:var(--text-tertiary)"></span></label>
+            <input type="password" id="epayMchKey" class="form-input" placeholder="留空则不修改" autocomplete="new-password"
+                onchange="if(this.value) tempSettings.epay_mch_key = this.value; markChanged();">
+            <span style="font-size:11px; color:var(--text-tertiary);">平台后台的「商户密钥」，不是软件通讯密钥</span>
+        </div>
+        <div class="form-group">
+            <label class="form-label">签名方式</label>
+            <input type="text" class="form-input" value="MD5" readonly style="background:var(--bg-hover)">
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group" style="flex:1">
+            <label class="form-label">异步回调地址（下单时自动随单提交，仅作核对）</label>
+            <input type="text" id="epayNotifyUrl" class="form-input" readonly style="background:var(--bg-hover)">
+        </div>
+    </div>
+</div>
+
 <div class="save-bar">
     <div class="save-status" id="saveStatus">
         <span>•</span> 未保存修改
@@ -622,6 +682,12 @@ const defaultSettings = {
     pos_screensaver_sec: 30,
     pos_hide_price: 0,
     pos_ad_lines: '',
+    pos_pay_mode: 'static',
+    epay_api_url: 'https://www.ezfpy.cn',
+    epay_pid: '',
+    epay_sign_type: 'MD5',
+    epay_mch_key_set: false,
+    epay_mch_key_mask: '',
     pos_token: ''
 };
 
@@ -717,6 +783,23 @@ function applySettings() {
     if (hpEl) hpEl.checked = (tempSettings.pos_hide_price ?? 0) == 1;
     const adEl = document.getElementById('posAdLines');
     if (adEl) adEl.value = tempSettings.pos_ad_lines || '';
+    // 收款方式 + 易支付配置
+    const payMode = tempSettings.pos_pay_mode === 'epay' ? 'epay' : 'static';
+    document.querySelectorAll('input[name="posPayMode"]').forEach(r => { r.checked = (r.value === payMode); });
+    const eauEl = document.getElementById('epayApiUrl');
+    if (eauEl) eauEl.value = tempSettings.epay_api_url || 'https://www.ezfpy.cn';
+    const epidEl = document.getElementById('epayPid');
+    if (epidEl) epidEl.value = tempSettings.epay_pid || '';
+    const ekeyEl = document.getElementById('epayMchKey');
+    if (ekeyEl) ekeyEl.value = '';
+    const ekeyState = document.getElementById('epayKeyState');
+    if (ekeyState) {
+        ekeyState.textContent = tempSettings.epay_mch_key_set
+            ? '（已设置 ' + (tempSettings.epay_mch_key_mask || '') + '）'
+            : '（未设置）';
+    }
+    const enotifyEl = document.getElementById('epayNotifyUrl');
+    if (enotifyEl) enotifyEl.value = location.origin + '/api/epay_notify.php';
     const ssEl = document.getElementById('posSsSec');
     if (ssEl) ssEl.value = tempSettings.pos_screensaver_sec ?? 30;
     const ssUrlEl = document.getElementById('ssImgUrl');
@@ -746,6 +829,14 @@ function applySettings() {
     const pcEl = document.getElementById('posCode');
     if (pcEl) {
         pcEl.value = tempSettings.pos_code || '';
+    }
+    const pclEl = document.getElementById('posCustLink');
+    if (pclEl) {
+        if (tempSettings.pos_code) {
+            pclEl.value = location.origin + '/admin/pos.php?c=' + tempSettings.pos_code + '&as=customer';
+        } else if (tempSettings.pos_token) {
+            pclEl.value = location.origin + '/admin/pos.php?t=' + tempSettings.pos_token + '&as=customer';
+        }
     }
     renderConditionTypes();
     renderElementList();
@@ -1181,6 +1272,18 @@ function copyPosCode() {
         el.select();
         document.execCommand('copy');
         alert('8 位数字码已复制');
+    }
+}
+
+function copyPosCustLink() {
+    const el = document.getElementById('posCustLink');
+    if (!el || !el.value) { alert('请先保存配置生成链接'); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(el.value).then(() => alert('顾客自助链接已复制'));
+    } else {
+        el.select();
+        document.execCommand('copy');
+        alert('顾客自助链接已复制');
     }
 }
 

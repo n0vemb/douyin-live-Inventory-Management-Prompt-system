@@ -9,7 +9,7 @@ try {
 
     if ($storeId) {
         // 店铺管理员：从 stores 表读取店铺级配置
-        $stmt = $pdo->prepare('SELECT name, system_name, logo_path, condition_types, live_display, shipping_fee, actual_shipping_fee, platform_fee_rate, offline_price_ratio, offline_staff_pwd, offline_pay_qr_wx, offline_pay_qr_ali, pos_token, pos_enabled, pos_screensaver_img, pos_screensaver_sec, pos_hide_price, pos_ad_lines FROM stores WHERE id = ?');
+        $stmt = $pdo->prepare('SELECT name, system_name, logo_path, condition_types, live_display, shipping_fee, actual_shipping_fee, platform_fee_rate, offline_price_ratio, offline_staff_pwd, offline_pay_qr_wx, offline_pay_qr_ali, pos_token, pos_enabled, pos_screensaver_img, pos_screensaver_sec, pos_hide_price, pos_ad_lines, pos_pay_mode, epay_api_url, epay_pid, epay_mch_key, epay_sign_type FROM stores WHERE id = ?');
         $stmt->execute([$storeId]);
         $store = $stmt->fetch();
 
@@ -38,6 +38,16 @@ try {
             $formatted['pos_screensaver_sec'] = (int)($store['pos_screensaver_sec'] ?? 30);
             $formatted['pos_hide_price'] = (int)($store['pos_hide_price'] ?? 0);
             $formatted['pos_ad_lines'] = $store['pos_ad_lines'] ?? '';
+            // 收款方式与易支付配置（商户密钥绝不回传，只给是否已设置 + 掩码）
+            $formatted['pos_pay_mode'] = (($store['pos_pay_mode'] ?? 'static') === 'epay') ? 'epay' : 'static';
+            $formatted['epay_api_url'] = $store['epay_api_url'] ?: 'https://www.ezfpy.cn';
+            $formatted['epay_pid'] = $store['epay_pid'] ?? '';
+            $formatted['epay_sign_type'] = 'MD5';
+            $epayKey = (string)($store['epay_mch_key'] ?? '');
+            $formatted['epay_mch_key_set'] = $epayKey !== '';
+            $formatted['epay_mch_key_mask'] = $epayKey !== ''
+                ? (substr($epayKey, 0, 4) . '****' . substr($epayKey, -4))
+                : '';
 
             // 店级视角：收银台设置以本店为准（店没配的项回退集团值），并带出 8 位码
             $shopId = getShopId();

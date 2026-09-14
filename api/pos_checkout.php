@@ -27,8 +27,12 @@ $pdo = getDB();
 $shortages = []; // 库存不足明细（一次性回给收银台，便于展示并自动调整清单）
 
 try {
-    $stmt = $pdo->prepare('SELECT name, offline_price_ratio FROM stores WHERE id = ?');
-    $stmt->execute([$storeId]);
+    // 加价比例：店级(shops)覆盖集团级(stores)——必须与 pos_catalog.php / get_settings.php 同一套取值，
+    // 否则收银台显示的价（购物车/确认订单）会和这里算出来的单价对不上。
+    $stmt = $pdo->prepare('SELECT s.name, COALESCE(sh.offline_price_ratio, s.offline_price_ratio) AS offline_price_ratio
+                           FROM stores s LEFT JOIN shops sh ON sh.id = ?
+                           WHERE s.id = ?');
+    $stmt->execute([$shopId, $storeId]);
     $store = $stmt->fetch();
     $ratio = decimal($store['offline_price_ratio'] ?? 1.80);
     if ($ratio <= 0) $ratio = 1.80;

@@ -8,6 +8,12 @@
  */
 require_once __DIR__ . '/../api/pos_auth.php';
 $storeId = posStoreId();
+// 入口身份：顾客自助(customer) / 店内设备(store)；不传则按屏幕尺寸推断
+// 顾客拿着自己的手机/平板时没法扫自己屏幕上的码 → 只能点击支付；
+// 店内一体机/平板/桌面是把码显示给顾客扫 → 出码。
+// 尺寸判断无法区分「顾客的 iPad」和「店里的 iPad」，所以给了显式入口参数。
+$asMode = (string)($_GET['as'] ?? '');
+if (!in_array($asMode, ['customer', 'store'], true)) $asMode = '';
 if (!$storeId) {
     http_response_code(401);
     echo '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>收银台</title></head>
@@ -17,6 +23,7 @@ if (!$storeId) {
 <form method="post" style="display:flex;gap:10px;justify-content:center">
   <input name="code" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" required autofocus autocomplete="off"
          placeholder="8 位数字码" style="font-size:20px;letter-spacing:4px;text-align:center;padding:10px 14px;border:1px solid #e7c4cc;border-radius:10px;width:200px">
+  <input type="hidden" name="as" value="<?= htmlspecialchars($asMode) ?>">
   <button type="submit" style="background:#e6021f;color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:15px;cursor:pointer">进入收银台</button>
 </form>
 <p style="font-size:12px;color:#b6a7b1;margin-top:14px">老链接如失效，请让店管/集团管理员重新查看编码</p>
@@ -25,6 +32,8 @@ if (!$storeId) {
 }
 $pdo = getDB();
 $stmt = $pdo->prepare('SELECT s.name,
+    s.pos_pay_mode,
+    (s.epay_pid IS NOT NULL AND s.epay_pid <> \'\' AND s.epay_mch_key IS NOT NULL AND s.epay_mch_key <> \'\') AS epay_ready,
     COALESCE(NULLIF(sh.offline_pay_qr_wx, \'\'), s.offline_pay_qr_wx) AS offline_pay_qr_wx,
     COALESCE(NULLIF(sh.offline_pay_qr_ali, \'\'), s.offline_pay_qr_ali) AS offline_pay_qr_ali
     FROM stores s
@@ -50,6 +59,9 @@ function posAssetUrl($path) {
 }
 $qrWx = posAssetUrl($qrWx);
 $qrAli = posAssetUrl($qrAli);
+// 收款方式：static=上传的静态收款码（原行为）；epay=按订单金额动态出码
+$payMode = (($storeRow['pos_pay_mode'] ?? 'static') === 'epay') ? 'epay' : 'static';
+$epayReady = (int)($storeRow['epay_ready'] ?? 0) === 1;
 ?>
 <!doctype html>
 <html lang="zh-CN">
@@ -57,6 +69,8 @@ $qrAli = posAssetUrl($qrAli);
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <script>
+// 入口身份（由服务端按链接参数注入）：customer=顾客自助，store=店内设备，空=按屏幕尺寸推断
+var POS_AS = '<?= $asMode ?>';
 // 设备档位：CSS 短边 < 600 视为手机，其余（安卓收银一体机/平板/桌面）一律收银台布局。
 // 支持 ?layout=desktop|mobile 强制并记住（localStorage），解决个别一体机 DPI 缩放误判。
 (function () {
@@ -200,6 +214,7 @@ $qrAli = posAssetUrl($qrAli);
   .btn:active{transform:scale(.98)}
   .btn-primary{background:var(--primary);color:#fff}
   .btn-ghost{background:var(--surface);border:1px solid var(--border);color:var(--text-2);flex:0 0 auto;width:120px}
+  .btn-soft{background:var(--surface);border:1px solid var(--border);color:var(--text-2)}
   .cart-fab{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:40;display:none;align-items:center;gap:10px;background:rgba(29,29,31,.92);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-radius:28px;padding:8px 8px 8px 18px;color:#fff;box-shadow:0 16px 32px rgba(0,0,0,.18)}
   .dock-main{display:flex;align-items:center;gap:10px;background:transparent;border:none;color:#fff;flex:1;min-width:0;cursor:pointer;text-align:left;padding:0}
   .dock-main .di{font-size:20px}
@@ -378,7 +393,7 @@ $qrAli = posAssetUrl($qrAli);
   .toast.err{background:#b3261e}
   .scan-hint{font-size:11.5px;color:var(--text-3);text-align:center;padding:0 20px 12px}
   .qr-box{width:210px;height:210px;margin:6px auto 4px;background:#fff;border:1px solid var(--border);border-radius:14px;display:flex;align-items:center;justify-content:center;overflow:hidden}
-  .qr-box img{max-width:100%;max-height:100%}
+  .qr-box img,.qr-box canvas{max-width:100%;max-height:100%}
   .qr-missing{color:var(--text-3);font-size:13px;padding:20px;text-align:center}
   .qr-tip{font-size:13.5px;color:var(--text-2);margin:8px 0 2px;font-weight:600}
   .qr-amt{font-size:24px;font-weight:800;color:var(--primary);margin-bottom:6px}
@@ -495,10 +510,13 @@ $qrAli = posAssetUrl($qrAli);
     <div class="qr-badge" id="qrBadge" style="display:inline-block;padding:6px 16px;border-radius:999px;color:#fff;font-size:15px;font-weight:600;background:#07C160;margin:6px 0 10px">微信收款码</div>
     <div class="qr-amt" id="qrAmt">¥0.00</div>
     <div class="qr-box" id="qrBox"></div>
-    <div class="qr-tip">请使用微信/支付宝扫码付款</div>
+    <div class="qr-tip" id="qrTip">请使用微信/支付宝扫码付款</div>
+    <div id="qrStatus" style="font-size:12.5px;color:var(--text-3);margin:-2px 0 6px;min-height:18px"></div>
     <div class="scan-hint" id="qrHint">付款完成后请找工作人员配货</div>
     <div id="qrExpiry" style="font-size:12px;color:var(--text-3);margin:-4px 0 0"></div>
-    <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="onPaid()">已付款</button>
+    <button class="btn btn-primary" id="qrPayBtn" style="width:100%;margin-top:12px;display:none" onclick="goPayPage()">去付款</button>
+    <button class="btn btn-primary" id="qrPaidBtn" style="width:100%;margin-top:12px" onclick="onPaid()">已付款</button>
+    <button class="btn btn-soft" id="qrRetryBtn" style="width:100%;margin-top:8px;display:none" onclick="epayRetry()">重新生成收款码</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="cancelQr()">取消</button>
   </div>
 </div>
@@ -576,7 +594,9 @@ $qrAli = posAssetUrl($qrAli);
 const STORE = {
   name: <?= json_encode($storeName) ?>,
   qrWx: <?= json_encode($qrWx) ?>,
-  qrAli: <?= json_encode($qrAli) ?>
+  qrAli: <?= json_encode($qrAli) ?>,
+  payMode: <?= json_encode($payMode) ?>,
+  epayReady: <?= $epayReady ? 'true' : 'false' ?>
 };
 const API = '../api/';
 
@@ -1169,10 +1189,16 @@ async function startPay(method) {
     return;
   }
   const qrUrl = method === 'wechat' ? STORE.qrWx : STORE.qrAli;
-  if (!qrUrl) { toast('本店未配置收款码，请联系店员', true); return; }
+  const useEpay = STORE.payMode === 'epay';
+  if (useEpay) {
+    if (!STORE.epayReady) { toast('本店收款方式为易支付，但还没配置商户信息，请联系管理员', true); return; }
+  } else if (!qrUrl) {
+    toast('本店未配置收款码，请联系店员', true); return;
+  }
   try {
     const order = await doCheckout(phone);
-    openQr(order, qrUrl);
+    if (useEpay) openQrEpay(order);
+    else openQr(order, qrUrl);
   } catch (e) {
     if (e.failType === 'stock' && Array.isArray(e.shortages) && e.shortages.length) {
       handleStockShortage(e.shortages);
@@ -1251,28 +1277,244 @@ function shortageBack() {
   toast('已按当前可售数量调整清单');
 }
 
-// 收款码弹窗
-function openQr(order, qrUrl) {
-  curOrder = order;
+// ===== 收款码弹窗 =====
+function qrHead(order) {
   const isWx = payMethod === 'wechat';
   const name = isWx ? '微信收款码' : '支付宝收款码';
-  const color = isWx ? '#07C160' : '#1677FF';
   $('qrTitle').textContent = name;
   $('qrBadge').textContent = name;
-  $('qrBadge').style.background = color;
+  $('qrBadge').style.background = isWx ? '#07C160' : '#1677FF';
   $('qrAmt').textContent = '¥' + order.payable.toFixed(2);
+  $('qrTip').textContent = '请使用微信/支付宝扫码付款';
+  $('qrStatus').textContent = '';
+  $('qrStatus').style.color = 'var(--text-3)';
+  $('qrRetryBtn').style.display = 'none';
+  $('qrPayBtn').style.display = 'none';
+  $('qrPaidBtn').style.display = '';
+  epayPayUrl = '';
+}
+
+// 平台给的 http 付款链接（能在手机上直接打开并唤醒对应 App，如支付宝）；为空时「去付款」才走页面跳转
+let epayPayUrl = '';
+
+// 手机布局：顾客没法扫自己屏幕上的码，需要「去付款」把浏览器送到平台收银台
+function isMobileLayout() { return document.documentElement.classList.contains('m'); }
+
+// 顾客自助模式：顾客自己拿着这台设备（手机/平板），屏幕上的码他扫不到 → 点击支付
+// as=customer/store 由链接显式指定；都没指定时按屏幕尺寸推断（手机=顾客，一体机/平板/桌面=店内）
+function isCustomerMode() {
+  if (POS_AS === 'customer') return true;
+  if (POS_AS === 'store') return false;
+  return isMobileLayout();
+}
+
+// 微信内置浏览器：external scheme（alipayqr:// 等）会被微信拦掉，能用的只有「长按识别图中二维码」
+function isWeixinBrowser() { return /MicroMessenger/i.test(navigator.userAgent); }
+
+// 静态收款码：直接显示店铺上传的码，顾客自己点「已付款」
+function openQr(order, qrUrl) {
+  curOrder = order;
+  qrHead(order);
+  $('qrPaidBtn').className = 'btn btn-primary';
+  $('qrPaidBtn').textContent = '已付款';
   $('qrBox').innerHTML = qrUrl
     ? `<img src="${qrUrl}" alt="收款码">`
     : `<div class="qr-missing">未配置收款码</div>`;
-  $('qrHint').textContent = '付款完成后请找工作人员配货';
+  $('qrHint').textContent = isCustomerMode()
+    ? (isWeixinBrowser() ? '长按上方收款码 → 识别图中二维码，即可付款' : '请用微信/支付宝「扫一扫」扫描收款码付款')
+    : '顾客付款完成后请找工作人员配货';
   closeCheckout();
   show('qrMask');
   startQrCountdown(15 * 60);
 }
+
+// 易支付：先弹窗占位，再按订单金额向平台要收款码；收到平台回调自动确认收款
+function openQrEpay(order) {
+  curOrder = order;
+  qrHead(order);
+  // 自动识别为主，手动确认退化成兜底（真到账了才用）
+  $('qrPaidBtn').className = 'btn btn-soft';
+  $('qrPaidBtn').textContent = '人工确认已收款（异常时用）';
+  closeCheckout();
+  show('qrMask');
+  startQrCountdown(15 * 60);
+  if (isCustomerMode()) {
+    // 顾客自己拿着手机/平板：只走「出码」这一条路（平台 mapi），绝不再走「页面跳转支付」。
+    // 两条路都下单的话，同一个商户订单号会被平台判「订单号重复」（实测过）。
+    // 拿到 http 付款链接的通道（支付宝）额外给一个「去付款」直接打开 App —— 同一笔订单，不会重复建单；
+    // 只有码串的通道（微信 wxp://）不给按钮，用「长按保存 → 扫一扫 → 相册」付款。
+    const payName = payMethod === 'wechat' ? '微信收款' : '支付宝收款';
+    $('qrTitle').textContent = payName;
+    $('qrBadge').textContent = payName;
+    $('qrTip').textContent = '正在生成收款码…';
+    $('qrHint').textContent = '付款成功后本页会自动确认，无需手动操作';
+    // 顾客侧不放人工兜底按钮：没收到回调的异常单，由店员在后台处理
+    $('qrPaidBtn').style.display = 'none';
+    $('qrBox').innerHTML = '<div class="qr-missing">正在生成收款码…</div>';
+    $('qrPayBtn').style.display = 'none';
+    $('qrStatus').textContent = '正在生成收款码…';
+    startEpayPoll();
+    epayCreate();
+  } else {
+    $('qrHint').textContent = '顾客付款后会由系统自动确认，无需手动操作';
+    $('qrBox').innerHTML = '<div class="qr-missing">正在生成收款码…</div>';
+    epayCreate();
+  }
+}
+
+// 「去付款」：优先打开平台给的 http 付款链接（同一笔订单，手机可直接唤醒 App）。
+// 没有链接时（微信这种只给码串的通道）退回「页面跳转支付」；顾客侧的按钮在无链接时不会显示。
+function goPayPage() {
+  if (!curOrder) return;
+  const url = epayPayUrl || (API + 'pos_epay_pay.php?order_id=' + curOrder.order_id + '&method=' + payMethod);
+  const w = window.open(url, '_blank', 'noopener');
+  if (!w) { location.href = url; return; }
+  $('qrStatus').textContent = '已打开付款页，付完请切回本页面';
+  if (!epayPollTimer) startEpayPoll();
+}
+
+// 向平台要收款码；同一订单重复调用是幂等的（订单号不变，不会重复下单/重复扣款）
+// 平台下单接口实测经常 15~30s 无响应，所以失败后自动再试 2 次，仍失败才交回人工
+let epayAttempt = 0;
+let epayRetryTimer = null;
+async function epayCreate(isAuto) {
+  if (!curOrder) return;
+  const orderId = curOrder.order_id;
+  if (!isAuto) epayAttempt = 0;
+  $('qrStatus').textContent = '正在生成收款码，请稍候…';
+  $('qrStatus').style.color = 'var(--text-3)';
+  $('qrBox').innerHTML = '<div class="qr-missing">正在生成收款码…</div>';
+  $('qrRetryBtn').style.display = 'none';
+  try {
+    const res = await fetch(API + 'pos_epay_create.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: orderId, method: payMethod })
+    });
+    const data = await res.json();
+    if (!curOrder || curOrder.order_id !== orderId) return; // 已换单/已关闭
+    if (!data.success) throw new Error(data.error || '收款码生成失败');
+    if (data.qr_image && isCustomerMode()) {
+      // 服务端出的真图（自己域名下的 png）：微信长按才有「识别图中二维码」，
+      // data:URL 的图微信不认，长按没反应
+      $('qrBox').innerHTML = `<img src="${escHtml(data.qr_image)}" alt="收款码">`;
+    } else if (data.qrcode) {
+      await renderQrToBox(data.qrcode, isCustomerMode());
+    } else if (data.code_url) {
+      $('qrBox').innerHTML = `<img src="${escHtml(data.code_url)}" alt="收款码">`;
+    } else {
+      throw new Error('平台未返回收款码');
+    }
+    if (!curOrder || curOrder.order_id !== orderId) return;
+    $('qrStatus').textContent = '正在自动检测付款…';
+    // 支付宝这类通道会给一个能直接打开 App 的 http 链接：它就是同一笔订单，不会重复建单
+    epayPayUrl = /^https?:/i.test(data.qrcode || '') ? data.qrcode
+      : (/^https?:/i.test(data.code_url || '') ? data.code_url : '');
+    if (epayPayUrl) {
+      $('qrPayBtn').textContent = isCustomerMode() ? ('去付款 ¥' + curOrder.payable.toFixed(2)) : '打开付款页（手机可点这里）';
+      $('qrPayBtn').className = isCustomerMode() ? 'btn btn-primary' : 'btn btn-soft';
+      $('qrPayBtn').style.display = '';
+    }
+    if (isCustomerMode()) {
+      if (epayPayUrl) {
+        $('qrTip').textContent = '点下方「去付款」完成支付';
+      } else if (payMethod === 'wechat') {
+        // 微信通道平台只给 wxp:// 码串，微信内起不来，只能长按识别（不跳出不截图）
+        $('qrTip').textContent = isWeixinBrowser()
+          ? '长按上方二维码 → 识别图中二维码，即可付款'
+          : '请用微信「扫一扫」扫描上方二维码付款';
+      } else {
+        $('qrTip').textContent = '请用支付宝「扫一扫」扫描上方二维码付款';
+      }
+    }
+    startEpayPoll();
+  } catch (e) {
+    if (!curOrder || curOrder.order_id !== orderId) return;
+    $('qrBox').innerHTML = `<div class="qr-missing">${escHtml(e.message || '收款码生成失败')}</div>`;
+    $('qrStatus').style.color = 'var(--danger)';
+    if (epayAttempt < 2) {
+      epayAttempt++;
+      $('qrStatus').textContent = `平台暂无响应，${3 - epayAttempt} 秒后自动重试（第 ${epayAttempt + 1}/3 次）…`;
+      clearTimeout(epayRetryTimer);
+      epayRetryTimer = setTimeout(() => {
+        if (curOrder && curOrder.order_id === orderId) epayCreate(true);
+      }, 3000);
+    } else {
+      $('qrStatus').textContent = '平台多次未响应，可稍后点下面重试（订单号不变）';
+      $('qrRetryBtn').style.display = '';
+    }
+  }
+}
+function epayRetry() { clearTimeout(epayRetryTimer); epayAttempt = 0; epayCreate(false); }
+
+// 本地渲染二维码（bwip-js 按需加载：静态收款码的店不会白下 1MB）
+let bwipLoading = null;
+function loadBwip() {
+  if (window.bwipjs) return Promise.resolve();
+  if (!bwipLoading) {
+    bwipLoading = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'assets/hiprint/lib/vendor/bwip-js-min.js';
+      s.onload = () => window.bwipjs ? resolve() : reject(new Error('二维码库加载失败'));
+      s.onerror = () => reject(new Error('二维码库加载失败'));
+      document.head.appendChild(s);
+    });
+  }
+  return bwipLoading;
+}
+// asImage=true 时先画到离屏 canvas 再转成 <img>：
+// 微信内置浏览器长按 canvas 不会出现「识别图中二维码」，只有 <img> 才有。
+async function renderQrToBox(text, asImage) {
+  await loadBwip();
+  // 白底必须显式给：默认透明底在深色页面上会变黑底，扫码枪识别不了
+  const opt = { bcid: 'qrcode', text: text, scale: 8, padding: 2, backgroundcolor: 'FFFFFF' };
+  if (asImage) {
+    const cv = document.createElement('canvas');
+    bwipjs.toCanvas(cv, opt);
+    $('qrBox').innerHTML = `<img src="${cv.toDataURL('image/png')}" alt="收款码">`;
+    return;
+  }
+  $('qrBox').innerHTML = '<canvas id="qrCanvas"></canvas>';
+  bwipjs.toCanvas(document.getElementById('qrCanvas'), opt);
+}
+
+// 轮询「这笔单收款了没」：状态由平台回调写入，前端只读
+let epayPollTimer = null;
+function startEpayPoll() {
+  clearInterval(epayPollTimer);
+  epayPollTimer = setInterval(async () => {
+    if (!curOrder) { clearInterval(epayPollTimer); epayPollTimer = null; return; }
+    const orderId = curOrder.order_id;
+    try {
+      const res = await fetch(API + 'pos_epay_status.php?order_id=' + orderId, { cache: 'no-store' });
+      const data = await res.json();
+      if (!curOrder || curOrder.order_id !== orderId) return;
+      if (!data.success) { clearInterval(epayPollTimer); epayPollTimer = null; return; }
+      if (data.paid) {
+        clearInterval(epayPollTimer); epayPollTimer = null;
+        const done = curOrder;
+        closeQr();
+        showSuccess(done);
+        lotteryPrepare(done.order_id);
+        return;
+      }
+      if (data.released) {
+        clearInterval(epayPollTimer); epayPollTimer = null;
+        $('qrStatus').textContent = '本单已超时释放，如需购买请重新下单';
+        $('qrStatus').style.color = 'var(--danger)';
+      }
+    } catch (e) { /* 网络抖动继续轮询 */ }
+  }, 2500);
+}
+
 // 纯关闭收款码弹窗（已付款成功路径）
 function closeQr() {
   clearInterval(qrTimer);
   qrTimer = null;
+  clearInterval(epayPollTimer);
+  epayPollTimer = null;
+  clearTimeout(epayRetryTimer);
+  epayRetryTimer = null;
   hide('qrMask');
 }
 // 15 分钟未付款自动释放的提示倒计时（服务端为准，前端仅作提醒）
