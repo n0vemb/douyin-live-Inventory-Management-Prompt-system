@@ -12,8 +12,10 @@ $storeId = posStoreId();
 // 顾客拿着自己的手机/平板时没法扫自己屏幕上的码 → 只能点击支付；
 // 店内一体机/平板/桌面是把码显示给顾客扫 → 出码。
 // 尺寸判断无法区分「顾客的 iPad」和「店里的 iPad」，所以给了显式入口参数。
-$asMode = (string)($_GET['as'] ?? '');
-if (!in_array($asMode, ['customer', 'store'], true)) $asMode = '';
+// 身份由「用的是哪个 8 位码」决定（见 api/pos_auth.php）：店内码=店内设备，顾客自助码=顾客自助。
+// ?as=customer 只允许降级成顾客自助，不能反向提权，所以这里不再直接读 $_GET['as']。
+$asMode = posAsMode();
+$asFormValue = (($_GET['as'] ?? '') === 'customer') ? 'customer' : '';
 if (!$storeId) {
     http_response_code(401);
     echo '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>收银台</title></head>
@@ -23,7 +25,7 @@ if (!$storeId) {
 <form method="post" style="display:flex;gap:10px;justify-content:center">
   <input name="code" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" required autofocus autocomplete="off"
          placeholder="8 位数字码" style="font-size:20px;letter-spacing:4px;text-align:center;padding:10px 14px;border:1px solid #e7c4cc;border-radius:10px;width:200px">
-  <input type="hidden" name="as" value="<?= htmlspecialchars($asMode) ?>">
+  <input type="hidden" name="as" value="<?= htmlspecialchars($asFormValue) ?>">
   <button type="submit" style="background:#e6021f;color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:15px;cursor:pointer">进入收银台</button>
 </form>
 <p style="font-size:12px;color:#b6a7b1;margin-top:14px">老链接如失效，请让店管/集团管理员重新查看编码</p>
@@ -1321,7 +1323,7 @@ function openQr(order, qrUrl) {
     ? `<img src="${qrUrl}" alt="收款码">`
     : `<div class="qr-missing">未配置收款码</div>`;
   $('qrHint').textContent = isCustomerMode()
-    ? (isWeixinBrowser() ? '长按上方收款码 → 识别图中二维码，即可付款' : '请用微信/支付宝「扫一扫」扫描收款码付款')
+    ? (isWeixinBrowser() ? '长按上方收款码保存至相册，用微信「扫一扫 → 相册」选中即可付款' : '请用微信/支付宝「扫一扫」扫描收款码付款')
     : '顾客付款完成后请找工作人员配货';
   closeCheckout();
   show('qrMask');
@@ -1419,9 +1421,10 @@ async function epayCreate(isAuto) {
       if (epayPayUrl) {
         $('qrTip').textContent = '点下方「去付款」完成支付';
       } else if (payMethod === 'wechat') {
-        // 微信通道平台只给 wxp:// 码串，微信内起不来，只能长按识别（不跳出不截图）
+        // 微信通道平台只给 wxp:// 码串：实测微信内既点不起来、也没有「识别图中二维码」，
+        // 只能长按保存后用「扫一扫 → 相册」选中这张图
         $('qrTip').textContent = isWeixinBrowser()
-          ? '长按上方二维码 → 识别图中二维码，即可付款'
+          ? '长按上方二维码保存至相册，用微信「扫一扫 → 相册」选中即可付款'
           : '请用微信「扫一扫」扫描上方二维码付款';
       } else {
         $('qrTip').textContent = '请用支付宝「扫一扫」扫描上方二维码付款';

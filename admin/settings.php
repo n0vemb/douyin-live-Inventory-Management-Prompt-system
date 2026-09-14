@@ -438,25 +438,32 @@ input:checked + .toggle-slider:before {
     </div>
     <div class="form-row">
         <div class="form-group" style="flex:1">
-            <label class="form-label">8 位数字码（顾客平板/手机输入进店）</label>
+            <label class="form-label">店内收银台码（店员设备用，有店员能力）</label>
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
                 <input type="text" id="posCode" class="form-input" readonly
                     style="width:150px; background:var(--bg-hover); font-size:18px; letter-spacing:3px; text-align:center;">
                 <button class="btn btn-secondary btn-sm" onclick="copyPosCode()">复制码</button>
             </div>
-            <label class="form-label">收银台访问链接（顾客触屏 / 门店平板，免登录）</label>
+            <label class="form-label">收银台访问链接（店内一体机/平板，把码显示给顾客扫）</label>
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                 <input type="text" id="posLink" class="form-input" readonly style="flex:1; min-width:220px; background:var(--bg-hover);">
                 <button class="btn btn-secondary btn-sm" onclick="copyPosLink()">复制</button>
                 <button class="btn btn-secondary btn-sm" onclick="resetPosToken()">重置链接</button>
             </div>
             <span style="font-size:11px; color:var(--text-tertiary);"><?= $stIsShop ? '重置后本店 8 位码与链接立即更新，旧码失效。' : '集团视角重置的是默认店旧链接；各店 8 位码请到「店管理」查看/重置。' ?></span>
-            <label class="form-label" style="margin-top:10px;">顾客自助下单链接（发顾客 / 印二维码，手机与平板都走点击支付）</label>
+            <label class="form-label" style="margin-top:14px;">顾客自助码（发顾客 / 印二维码；只有下单付款等自助能力）</label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+                <input type="text" id="posCustCode" class="form-input" readonly
+                    style="width:150px; background:var(--bg-hover); font-size:18px; letter-spacing:3px; text-align:center;">
+                <button class="btn btn-secondary btn-sm" onclick="copyPosCustCode()">复制码</button>
+                <button class="btn btn-secondary btn-sm" onclick="resetPosCustomerCode()">重置自助码</button>
+            </div>
+            <label class="form-label">顾客自助下单链接</label>
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                 <input type="text" id="posCustLink" class="form-input" readonly style="flex:1; min-width:220px; background:var(--bg-hover);">
                 <button class="btn btn-secondary btn-sm" onclick="copyPosCustLink()">复制</button>
             </div>
-            <span style="font-size:11px; color:var(--text-tertiary);">顾客自己拿着手机/平板时，扫不到自己屏幕上的收款码，此链接直接给「去付款」按钮；店内一体机/平板（把码显示给顾客扫）请用上面的收银台链接。</span>
+            <span style="font-size:11px; color:var(--text-tertiary);">身份由「用的是哪个码」决定：拿顾客码进来的人只能自助下单付款（没有「人工确认已收款」等店员能力），改链接参数也提不了权，所以可以放心发给顾客。顾客自己拿着手机时，请用这条链接。</span>
         </div>
     </div>
 </div>
@@ -688,6 +695,7 @@ const defaultSettings = {
     epay_sign_type: 'MD5',
     epay_mch_key_set: false,
     epay_mch_key_mask: '',
+    pos_customer_code: '',
     pos_token: ''
 };
 
@@ -831,11 +839,19 @@ function applySettings() {
         pcEl.value = tempSettings.pos_code || '';
     }
     const pclEl = document.getElementById('posCustLink');
+    const pccEl = document.getElementById('posCustCode');
+    if (pccEl) {
+        pccEl.value = tempSettings.pos_customer_code || '';
+    }
     if (pclEl) {
-        if (tempSettings.pos_code) {
-            pclEl.value = location.origin + '/admin/pos.php?c=' + tempSettings.pos_code + '&as=customer';
-        } else if (tempSettings.pos_token) {
-            pclEl.value = location.origin + '/admin/pos.php?t=' + tempSettings.pos_token + '&as=customer';
+        if (tempSettings.pos_customer_code) {
+            pclEl.value = location.origin + '/admin/pos.php?c=' + tempSettings.pos_customer_code;
+            pclEl.placeholder = '';
+        } else {
+            // 不再回退到 ?t=token&as=customer：顾客删掉参数就能拿到店员能力，
+            // 顾客链接必须由独立的自助码生成（到「店管理」按店复制）。
+            pclEl.value = '';
+            pclEl.placeholder = '请到「店管理」按店铺复制顾客自助链接';
         }
     }
     renderConditionTypes();
@@ -1285,6 +1301,27 @@ function copyPosCustLink() {
         document.execCommand('copy');
         alert('顾客自助链接已复制');
     }
+}
+
+function copyPosCustCode() {
+    const el = document.getElementById('posCustCode');
+    if (!el || !el.value) { alert('请先保存配置生成自助码'); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(el.value).then(() => alert('顾客自助码已复制：' + el.value));
+    } else {
+        el.select();
+        document.execCommand('copy');
+        alert('顾客自助码已复制');
+    }
+}
+
+function resetPosCustomerCode() {
+    if (!confirm('重置后旧的顾客自助码与链接立即失效，确定重置？')) return;
+    tempSettings.offline_reset_customer_code = true;
+    saveSettings().then(() => {
+        tempSettings.offline_reset_customer_code = false;
+        loadSettings();
+    });
 }
 
 function resetPosToken() {

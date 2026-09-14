@@ -42,6 +42,9 @@ foreach ($shops as &$sh) {
     $code = ensureShopPosCode($pdo, (int)$sh['id']);
     $sh['pos_code'] = $code;
     $sh['pos_url'] = $code ? '/admin/pos.php?c=' . $code : null;
+    $custCode = ensureShopCustomerCode($pdo, (int)$sh['id']);
+    $sh['pos_customer_code'] = $custCode;
+    $sh['pos_customer_url'] = $custCode ? '/admin/pos.php?c=' . $custCode : null;
     // 店员密码不回传明文/哈希，只给“是否已设置”
     $sh['offline_staff_pwd_set'] = !empty($sh['offline_staff_pwd']);
     unset($sh['offline_staff_pwd']);

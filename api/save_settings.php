@@ -60,6 +60,10 @@ try {
                 $shopFields[] = 'pos_code = ?';
                 $shopParams[] = generateShopPosCode($pdo);
             }
+            if (!empty($settings['offline_reset_customer_code'])) {
+                $shopFields[] = 'pos_customer_code = ?';
+                $shopParams[] = generateShopCustomerCode($pdo);
+            }
             foreach (['offline_price_ratio', 'offline_pay_qr_wx', 'offline_pay_qr_ali', 'pos_enabled', 'pos_screensaver_img', 'pos_screensaver_sec', 'pos_hide_price', 'pos_ad_lines'] as $f) {
                 if (isset($settings[$f])) {
                     $shopFields[] = "{$f} = ?";
@@ -75,7 +79,7 @@ try {
                     ->execute($shopParams);
             }
             // 店级保存完成后，从 stores 更新里剔除这些字段
-            foreach (['offline_price_ratio', 'offline_pay_qr_wx', 'offline_pay_qr_ali', 'pos_enabled', 'pos_screensaver_img', 'pos_screensaver_sec', 'offline_staff_pwd', 'offline_reset_token', 'pos_hide_price', 'pos_ad_lines'] as $f) {
+            foreach (['offline_price_ratio', 'offline_pay_qr_wx', 'offline_pay_qr_ali', 'pos_enabled', 'pos_screensaver_img', 'pos_screensaver_sec', 'offline_staff_pwd', 'offline_reset_token', 'offline_reset_customer_code', 'pos_hide_price', 'pos_ad_lines'] as $f) {
                 unset($settings[$f]);
             }
         } else {

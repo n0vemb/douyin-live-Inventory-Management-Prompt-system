@@ -173,8 +173,14 @@ function generateShopPosCode(PDO $pdo): string {
     $maxAttempts = 30;
     for ($i = 0; $i < $maxAttempts; $i++) {
         $code = str_pad((string)mt_rand(0, 99999999), 8, '0', STR_PAD_LEFT);
-        $stmt = $pdo->prepare('SELECT id FROM shops WHERE pos_code = ?');
-        $stmt->execute([$code]);
+        try {
+            // 两个码共用同一个数字空间：任一码重复都会让「用哪个码进门」失去意义
+            $stmt = $pdo->prepare('SELECT id FROM shops WHERE pos_code = ? OR pos_customer_code = ?');
+            $stmt->execute([$code, $code]);
+        } catch (Exception $e) {
+            $stmt = $pdo->prepare('SELECT id FROM shops WHERE pos_code = ?'); // 列未迁移时降级
+            $stmt->execute([$code]);
+        }
         if (!$stmt->fetch()) {
             return $code;
         }
@@ -182,6 +188,45 @@ function generateShopPosCode(PDO $pdo): string {
     // 保底：时间戳末8位去重
     $ts = (string)time();
     return substr($ts, -8);
+}
+
+/**
+ * 生成「顾客自助下单」8 位数字码（平台内唯一，可重置）
+ *
+ * 与店内收银台码（pos_code）分开，是因为「身份」必须由某个顾客拿不到的东西决定：
+ *   pos_code          → 店内设备（有店员能力）
+ *   pos_customer_code → 顾客自助（只能下单/付款/抽奖）
+ * 以前靠链接上的 ?as=customer 区分，顾客把参数删掉就能拿到店员界面，所以拆成两个码。
+ */
+function generateShopCustomerCode(PDO $pdo): string {
+    $maxAttempts = 30;
+    for ($i = 0; $i < $maxAttempts; $i++) {
+        $code = str_pad((string)mt_rand(0, 99999999), 8, '0', STR_PAD_LEFT);
+        $stmt = $pdo->prepare('SELECT id FROM shops WHERE pos_code = ? OR pos_customer_code = ?');
+        $stmt->execute([$code, $code]);
+        if (!$stmt->fetch()) {
+            return $code;
+        }
+    }
+    return substr((string)time(), -8);
+}
+
+/** 幂等保证店有顾客自助码（迁移回填/新建/读取时兜底） */
+function ensureShopCustomerCode(PDO $pdo, int $shopId): ?string {
+    try {
+        $stmt = $pdo->prepare('SELECT pos_customer_code FROM shops WHERE id = ?');
+        $stmt->execute([$shopId]);
+        $code = $stmt->fetchColumn();
+        if ($code) {
+            return (string)$code;
+        }
+        $code = generateShopCustomerCode($pdo);
+        $stmt = $pdo->prepare('UPDATE shops SET pos_customer_code = ? WHERE id = ?');
+        $stmt->execute([$code, $shopId]);
+        return $code;
+    } catch (Exception $e) {
+        return null; // pos_customer_code 列尚未迁移时降级
+    }
 }
 
 /**

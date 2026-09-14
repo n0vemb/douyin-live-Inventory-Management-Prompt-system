@@ -5,12 +5,23 @@
  */
 require_once __DIR__ . '/pos_auth.php';
 require_once __DIR__ . '/coupon_lib.php';
+require_once __DIR__ . '/epay_lib.php';
 $storeId = requirePosStore();
 $shopId = posShopId();
 $input = json_decode(file_get_contents('php://input'), true);
 $orderId = intval($input['order_id'] ?? 0);
 if (!$orderId) error('缺少订单ID');
 $pdo = getDB();
+
+// 易支付模式：顾客侧不能手动确认收款，只能等平台异步回调（epay_notify.php）。
+// 以前只靠前端隐藏按钮，顾客把 &as=customer 删掉、甚至直接调本接口就能白拿，
+// 所以这里按「进门用的码」在服务端拦死；店内设备仍保留人工兜底（异常单用）。
+if (posAsMode() === 'customer') {
+    $payCfg = epayStoreConfig($pdo, $storeId);
+    if ($payCfg['mode'] === 'epay') {
+        error('本店为易支付收款，付款成功后会自动确认；如长时间未确认请联系店员');
+    }
+}
 
 // 与 15 分钟自动释放 / 取消互斥，防止“付款”与“释放/作废”竞争
 $lockName = 'pp_pos_auto_release_' . (int)$storeId;

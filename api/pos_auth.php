@@ -15,27 +15,49 @@ function posAuthContext(): ?array {
     $token = $_GET['t'] ?? ($_POST['token'] ?? '');
     $code = $_GET['c'] ?? ($_POST['code'] ?? ($_POST['pos_code'] ?? ''));
 
-    // ?c=8位数字码（店级入口）
+    // ?c=8位数字码（店级入口）：店内码=店内设备；顾客自助码=顾客自助。
+    // 身份由「用的是哪个码」决定，存在 session 里，链接参数改不了 → 顾客删参数也拿不到店员界面。
     if ($code !== '') {
         $code = trim((string)$code);
         if (!preg_match('/^\d{8}$/', $code)) {
             return null;
         }
         $pdo = getDB();
-        $stmt = $pdo->prepare('SELECT s.id AS store_id, sh.id AS shop_id, sh.name AS shop_name
-                               FROM shops sh
-                               JOIN stores s ON s.id = sh.store_id
-                               WHERE sh.pos_code = ?');
-        $stmt->execute([$code]);
-        $row = $stmt->fetch();
+        $row = null;
+        $asMode = 'store';
+        try {
+            $stmt = $pdo->prepare('SELECT s.id AS store_id, sh.id AS shop_id, sh.name AS shop_name
+                                   FROM shops sh
+                                   JOIN stores s ON s.id = sh.store_id
+                                   WHERE sh.pos_code = ?');
+            $stmt->execute([$code]);
+            $row = $stmt->fetch();
+        } catch (Exception $e) {
+            $row = null;
+        }
+        if (!$row) {
+            try {
+                $stmt = $pdo->prepare('SELECT s.id AS store_id, sh.id AS shop_id, sh.name AS shop_name
+                                       FROM shops sh
+                                       JOIN stores s ON s.id = sh.store_id
+                                       WHERE sh.pos_customer_code = ?');
+                $stmt->execute([$code]);
+                $row = $stmt->fetch();
+                if ($row) $asMode = 'customer';
+            } catch (Exception $e) {
+                $row = null; // pos_customer_code 列尚未迁移
+            }
+        }
         if ($row) {
             $_SESSION['pos_store_id'] = (int)$row['store_id'];
             $_SESSION['pos_shop_id'] = (int)$row['shop_id'];
             $_SESSION['pos_shop_name'] = $row['shop_name'];
+            $_SESSION['pos_as'] = $asMode;
             return [
                 'store_id' => (int)$row['store_id'],
                 'shop_id' => (int)$row['shop_id'],
                 'shop_name' => $row['shop_name'],
+                'as' => $asMode,
             ];
         }
         return null; // 码无效：不信任 session 残留，直接拒绝
@@ -61,7 +83,8 @@ function posAuthContext(): ?array {
             $_SESSION['pos_store_id'] = $storeId;
             $_SESSION['pos_shop_id'] = $shopId;
             $_SESSION['pos_shop_name'] = $shopName;
-            return ['store_id' => $storeId, 'shop_id' => $shopId, 'shop_name' => $shopName];
+            $_SESSION['pos_as'] = 'store';
+            return ['store_id' => $storeId, 'shop_id' => $shopId, 'shop_name' => $shopName, 'as' => 'store'];
         }
         return null; // token 无效：不信任 session 残留，直接拒绝
     }
@@ -72,9 +95,24 @@ function posAuthContext(): ?array {
             'store_id' => (int)$_SESSION['pos_store_id'],
             'shop_id' => (int)$_SESSION['pos_shop_id'],
             'shop_name' => $_SESSION['pos_shop_name'] ?? '',
+            'as' => (($_SESSION['pos_as'] ?? 'store') === 'customer') ? 'customer' : 'store',
         ];
     }
     return null;
+}
+
+/**
+ * 当前收银台身份：store=店内设备（有店员能力），customer=顾客自助。
+ *
+ * 由进门用的 8 位码决定（见 posAuthContext），?as=customer 只允许「降级」，
+ * 不允许把顾客自助提权成店内设备。
+ */
+function posAsMode() {
+    $ctx = posAuthContext();
+    if (!$ctx) return 'store';
+    $want = (string)($_GET['as'] ?? ($_POST['as'] ?? ''));
+    if ($want === 'customer') return 'customer'; // 只降不升
+    return (($ctx['as'] ?? 'store') === 'customer') ? 'customer' : 'store';
 }
 
 function posStoreId() {

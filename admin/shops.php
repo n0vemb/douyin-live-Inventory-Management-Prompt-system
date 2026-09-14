@@ -187,8 +187,14 @@ async function loadShops() {
                 <td><strong>${s.name}</strong></td>
                 <td>
                     <code style="font-size:15px; letter-spacing:2px; background:var(--bg-hover); padding:3px 8px; border-radius:4px;">${s.pos_code || '待生成'}</code>
-                    <button class="btn btn-sm btn-outline" onclick="copyPosLink(${s.id}, '${s.pos_code || ''}')">复制</button>
-                    <button class="btn btn-sm btn-outline" onclick="resetPosCode(${s.id}, '${s.name.replace(/'/g, "\\'")}')" style="color:var(--warning);border-color:var(--warning);">重置</button>
+                    <button class="btn btn-sm btn-outline" onclick="copyPosLink(${s.id}, '${s.pos_code || ''}', 'store')">复制</button>
+                    <button class="btn btn-sm btn-outline" onclick="resetPosCode(${s.id}, '${s.name.replace(/'/g, "\\'")}', 'store')" style="color:var(--warning);border-color:var(--warning);">重置</button>
+                    <div style="margin-top:6px;">
+                        <code style="font-size:15px; letter-spacing:2px; background:var(--bg-hover); padding:3px 8px; border-radius:4px; color:var(--success,#0a7d34);">${s.pos_customer_code || '待生成'}</code>
+                        <button class="btn btn-sm btn-outline" onclick="copyPosLink(${s.id}, '${s.pos_customer_code || ''}', 'customer')">复制</button>
+                        <button class="btn btn-sm btn-outline" onclick="resetPosCode(${s.id}, '${s.name.replace(/'/g, "\\'")}', 'customer')" style="color:var(--warning);border-color:var(--warning);">重置</button>
+                        <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">上一行=店内收银台码（店员能力）<br>这一行=顾客自助码（可发给顾客）</div>
+                    </div>
                 </td>
                 <td>${s.remark || '-'}</td>
                 <td>${s.created_at || '-'}</td>
@@ -205,23 +211,27 @@ async function loadShops() {
     }
 }
 
-function copyPosLink(shopId, code) {
-    if (!code) { alert('收银台码尚未生成，请先重置'); return; }
+function copyPosLink(shopId, code, type) {
+    const isCust = type === 'customer';
+    const label = isCust ? '顾客自助' : '收银台';
+    if (!code) { alert(label + '码尚未生成，请先重置'); return; }
     const url = location.origin + '/admin/pos.php?c=' + code;
     if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url).then(() => alert('收银台链接已复制：' + url)).catch(() => prompt('复制收银台链接：', url));
+        navigator.clipboard.writeText(url).then(() => alert(label + '链接已复制：' + url)).catch(() => prompt('复制' + label + '链接：', url));
     } else {
-        prompt('复制收银台链接：', url);
+        prompt('复制' + label + '链接：', url);
     }
 }
 
-async function resetPosCode(shopId, shopName) {
-    if (!confirm(`确定重置「${shopName}」的收银台码？旧码立即失效，需要把新码发给该店。`)) return;
+async function resetPosCode(shopId, shopName, type) {
+    const isCust = type === 'customer';
+    const label = isCust ? '顾客自助码' : '收银台码';
+    if (!confirm(`确定重置「${shopName}」的${label}？旧码立即失效，需要把新码重新发出去。`)) return;
     try {
         const res = await fetch('../api/reset_pos_code.php', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({shop_id: shopId})
+            body: JSON.stringify({shop_id: shopId, type: isCust ? 'customer' : 'store'})
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || '重置失败');

@@ -59,6 +59,10 @@ try {
                     $code = ensureShopPosCode($pdo, (int)$shopRow['id']);
                     $formatted['pos_code'] = $code;
                     $formatted['pos_url'] = $code ? '/admin/pos.php?c=' . $code : null;
+                    // 顾客自助码：与店内码分开，顾客拿到它也只能进自助模式（改链接参数没用）
+                    $custCode = ensureShopCustomerCode($pdo, (int)$shopRow['id']);
+                    $formatted['pos_customer_code'] = $custCode;
+                    $formatted['pos_customer_url'] = $custCode ? '/admin/pos.php?c=' . $custCode : null;
                     $formatted['pos_shop_name'] = $shopRow['name'] ?? '';
                     $formatted['is_shop_config'] = true;
                     $formatted['offline_price_ratio'] = $shopRow['offline_price_ratio'] !== null ? floatval($shopRow['offline_price_ratio']) : $formatted['offline_price_ratio'];
