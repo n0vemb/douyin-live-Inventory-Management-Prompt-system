@@ -76,6 +76,9 @@ $poPick = in_array($currentUser['role'] ?? '', ['group_admin', 'super_admin'], t
 .order-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .cond-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 9px; margin-left: 6px; }
 .rack-tag { display: inline-block; font-size: 11px; font-weight: 700; color: #4f46e5; background: #eef2ff; padding: 1px 8px; border-radius: 9px; margin-left: 6px; border: 1px solid #c7d2fe; }
+.prize-tag { display: inline-block; font-size: 11px; font-weight: 700; color: #b45309; background: #fff7e6; padding: 1px 8px; border-radius: 9px; margin-left: 6px; border: 1px solid #fcd34d; }
+.prize-reg { display: inline-block; font-size: 11px; font-weight: 700; color: #b91c1c; background: #fee2e2; padding: 1px 8px; border-radius: 9px; margin-left: 6px; }
+.cond-prize { background: #fff7e6; color: #b45309; }
 .cond-sealed { background: #e8f0ff; color: #2f6fed; }
 .cond-opened { background: #eafaf0; color: #16a34a; }
 .cond-boxless { background: #fff4e0; color: #b45309; }
@@ -165,7 +168,7 @@ function render(d) {
         const costCol = IS_OPERATOR ? '' : `<th class="num">${o.outbound_status === 'pending' ? '操作' : '成本/操作'}</th>`;
         const rows = o.items.map(it => `
             <tr>
-                <td>${esc(it.name)}<span class="cond-tag cond-${esc(it.condition_type)}">${esc(it.cond_name || it.condition_type)}</span>${posMap[it.product_id] ? `<span class="rack-tag" title="货架位置">${posMap[it.product_id]}</span>` : ''}</td>
+                <td>${esc(it.name)}<span class="cond-tag cond-${esc(it.condition_type)}">${esc(it.cond_name || it.condition_type)}</span>${it.is_prize ? `<span class="prize-tag">抽奖奖品</span>` : ''}${(it.is_prize && !it.inventory_tracked) ? `<span class="prize-reg">仅登记 · 不扣库存</span>` : ''}${posMap[it.product_id] ? `<span class="rack-tag" title="货架位置">${posMap[it.product_id]}</span>` : ''}</td>
                 <td class="num">¥${it.unit_price.toFixed(2)}</td>
                 <td class="num">${it.qty}</td>
                 <td class="num">¥${it.line_total.toFixed(2)}</td>
@@ -192,7 +195,7 @@ function render(d) {
             ? `<div class="order-foot">
                 <div class="note">${payInfo}</div>
                 <div class="order-actions">
-                    <button class="btn btn-primary" onclick="outbound(${o.id})">出库（扣库存）</button>
+                    <button class="btn btn-primary" onclick="outbound(${o.id})">${o.items.length && o.items.every(it => !it.inventory_tracked) ? '确认发放（不扣库存）' : '出库（扣库存）'}</button>
                     <button class="btn btn-danger" onclick="voidOrder(${o.id})">作废（=退款）</button>
                     ${IS_OPERATOR ? '' : `<button class="btn btn-outline" onclick="deleteOrder(${o.id})">删除</button>`}
                 </div>
@@ -213,6 +216,7 @@ function render(d) {
             <div class="customer-header" onclick="toggle(${o.id})">
                 <span class="toggle-arrow">▼</span>
                 <span class="nickname">${esc(o.order_no)}</span>
+                ${o.source === 'lottery' ? '<span class="badge" style="background:#fff7e6;color:#b45309">抽奖奖品</span>' : ''}
                 ${o.shop_name ? `<span class="badge" style="background:#eef2ff;color:#4f46e5">${esc(o.shop_name)}</span>` : ''}
                 ${o.customer_phone ? `<span class="badge" style="background:#eef2ff;color:#4f46e5">📱 ${esc(o.customer_phone)}</span>` : ''}
                 <span class="badge" style="background:${bg};color:${fg}">${bl}</span>

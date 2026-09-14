@@ -12,11 +12,13 @@ try {
     // 待出库订单（已收款 pending）的 active 商品
     $sql = "
         SELECT po.id AS order_id, po.order_no, po.created_at,
-               pi.product_id, pi.qty, p.name AS product_name, p.common_name, p.barcode
+               pi.product_id, pi.qty,
+               COALESCE(NULLIF(pi.item_name, ''), p.name) AS product_name, p.common_name, p.barcode
         FROM pos_order_items pi
         JOIN pos_orders po ON po.id = pi.order_id
         LEFT JOIN products p ON p.id = pi.product_id
         WHERE po.outbound_status = 'pending' AND pi.status = 'active' AND po.pay_status = 'paid'
+          AND pi.inventory_tracked = 1
     ";
     $params = [];
     if ($storeId) { $sql .= ' AND po.store_id = ?'; $params[] = $storeId; }

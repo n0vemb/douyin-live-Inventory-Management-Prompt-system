@@ -87,6 +87,7 @@ $qrAli = posAssetUrl($qrAli);
     var tb = document.querySelector('.topbar');
     if (tb) document.documentElement.style.setProperty('--top-h', tb.offsetHeight + 'px');
   }
+  window.syncTopBar = syncTop;
   document.addEventListener('DOMContentLoaded', syncTop);
   window.addEventListener('resize', syncTop);
   window.addEventListener('orientationchange', function () { setTimeout(syncTop, 180); });
@@ -108,6 +109,15 @@ $qrAli = posAssetUrl($qrAli);
   .topbar{position:fixed;left:0;right:0;top:0;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:12px 18px;background:var(--primary);color:#fff;box-shadow:var(--shadow);z-index:20}
   .topbar .store{font-size:17px;font-weight:800;letter-spacing:.5px;white-space:nowrap;justify-self:start}
   .search-wrap{display:flex;align-items:center;gap:7px;background:#fff;border-radius:22px;padding:8px 15px;width:min(380px,60vw);justify-self:center;box-shadow:0 1px 5px rgba(0,0,0,.12)}
+  /* 顶部滚动广告词（多条轮播） */
+  .adbar{grid-column:1 / -1;display:none;align-items:center;gap:8px;height:28px;margin-top:2px;padding:0 12px;border-radius:8px;background:rgba(0,0,0,.16);overflow:hidden}
+  .adbar.on{display:flex}
+  .adbar .ad-tag{flex-shrink:0;font-size:11px;font-weight:800;letter-spacing:1px;padding:1px 7px;border-radius:6px;background:rgba(255,255,255,.92);color:var(--primary)}
+  .adbar .ad-view{flex:1;min-width:0;overflow:hidden}
+  .adbar .ad-track{display:inline-flex;align-items:center;white-space:nowrap;font-size:14px;font-weight:600;animation:adscroll var(--ad-dur,26s) linear infinite}
+  .adbar .ad-track span{display:inline-block;padding:0 26px}
+  .adbar .ad-track i{opacity:.55;font-style:normal}
+  @keyframes adscroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
   .search-wrap:focus-within{box-shadow:0 0 0 3px rgba(255,255,255,.35)}
   .search-wrap .si{font-size:14px;opacity:.55}
   .search-wrap .search{border:none;outline:none;background:transparent;font-size:14.5px;width:100%;color:var(--text)}
@@ -256,7 +266,7 @@ $qrAli = posAssetUrl($qrAli);
     html:not(.m) .stepper span{min-width:28px;font-size:13px}
     html:not(.m) .cart-head{padding:10px 14px;font-size:15px}
     html.m.p .topbar{grid-template-columns:auto minmax(0,1fr) auto;padding:8px 10px;gap:6px}
-    html.m.p .topbar>div:last-child{grid-column:auto;justify-self:end}
+    html.m.p .topbar>.bar-right{grid-column:auto;justify-self:end}
     html.m.p .topbar .store{max-width:86px;overflow:hidden;text-overflow:ellipsis}
     html.m.p .search-wrap{width:100%;padding:7px 10px}
     html.m.p .fullscreen-btn{padding:6px 8px;font-size:12px;white-space:nowrap}
@@ -343,6 +353,26 @@ $qrAli = posAssetUrl($qrAli);
   .shortage-item .sn{font-size:14px;font-weight:800;line-height:1.4}
   .shortage-item .sn .c{color:var(--text-2);font-weight:600;font-size:12px}
   .shortage-item .msg{font-size:13px;color:var(--danger);font-weight:700;line-height:1.5;margin-top:2px}
+  /* ===== 抽奖转盘 ===== */
+  .srow.lt-hint{display:block;color:var(--primary-d);font-weight:700;font-size:12.5px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);line-height:1.5}
+  .lt-card{background:var(--surface);border-radius:20px;width:min(430px,94vw);max-height:90vh;overflow-y:auto;overflow-x:hidden;padding:16px 18px 20px;text-align:center;box-shadow:0 22px 60px rgba(15,20,40,.4);animation:pop .25s ease}
+  .lt-head{display:flex;align-items:center;justify-content:center;position:relative}
+  .lt-head .st{font-size:18px;font-weight:800;color:var(--primary)}
+  .lt-head .lt-close{position:absolute;right:-4px;top:-6px;border:0;background:transparent;font-size:26px;line-height:1;color:var(--text-3);cursor:pointer}
+  .lt-sub{font-size:12.5px;color:var(--text-3);margin:2px 0 8px}
+  .lt-stage{position:relative}
+  .lt-wheel-wrap{position:relative;width:min(300px,72vw);margin:6px auto 8px;aspect-ratio:1/1;border-radius:50%;overflow:hidden;box-shadow:0 6px 16px rgba(230,2,31,.18)}
+  .lt-wheel{position:absolute;inset:0;transition:transform 3.6s cubic-bezier(.16,.72,.2,1);will-change:transform;backface-visibility:hidden;transform:translateZ(0)}
+  .lt-wheel svg{width:100%;height:100%;display:block}
+  .lt-wheel svg text{text-rendering:geometricPrecision}
+  .lt-pointer{position:absolute;left:50%;top:-2px;transform:translateX(-50%);width:0;height:0;border-left:11px solid transparent;border-right:11px solid transparent;border-top:20px solid var(--primary);z-index:3;filter:drop-shadow(0 2px 4px rgba(0,0,0,.25))}
+  .lt-go{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:88px;height:88px;border-radius:50%;border:4px solid #fff;background:linear-gradient(180deg,#ff5040,#e6021f);color:#fff;font-size:15px;font-weight:800;line-height:1.2;cursor:pointer;z-index:2;box-shadow:0 6px 18px rgba(230,2,31,.35)}
+  .lt-go:disabled{opacity:.6;cursor:default}
+  .lt-result{margin-top:6px;border-top:1px dashed var(--border);padding-top:12px}
+  .lt-prize{font-size:21px;font-weight:800;color:var(--primary);margin:4px 0 6px;line-height:1.3}
+  .lt-note{font-size:13.5px;color:var(--text-2);line-height:1.65}
+  .lt-phone{width:100%;padding:12px 13px;border:1px solid var(--border);border-radius:10px;font-size:15px;margin:10px 0 6px}
+  .lt-ok{color:var(--ok);font-weight:700;font-size:14.5px;margin:8px 0;line-height:1.6}
   .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:#1c2230;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;opacity:0;transition:.25s;z-index:90;pointer-events:none}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .toast.err{background:#b3261e}
@@ -378,8 +408,12 @@ $qrAli = posAssetUrl($qrAli);
     <span class="si">🔍</span>
     <input class="search" id="searchInput" placeholder="搜索商品名称" oninput="onSearch(this.value)">
   </div>
-  <div style="justify-self:end;display:flex;align-items:center;gap:10px">
+  <div class="bar-right" style="justify-self:end;display:flex;align-items:center;gap:10px">
     <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ 全屏</button>
+  </div>
+  <div class="adbar" id="adBar">
+    <span class="ad-tag">公告</span>
+    <div class="ad-view"><div class="ad-track" id="adTrack"></div></div>
   </div>
 </div>
 
@@ -480,8 +514,30 @@ $qrAli = posAssetUrl($qrAli);
       <div class="ot" id="sPay">应付 —</div>
       <div class="ot" id="sMethod">支付方式 —</div>
       <div class="ot note" id="sNote">订单已提交，请凭订单号找工作人员配货</div>
-      <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="backHome()">返回</button>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn btn-ghost" style="flex:1 1 0;width:auto" onclick="backHome()">返回</button>
+        <button class="btn btn-primary" style="flex:1 1 0;width:auto;display:none" id="sLotteryBtn" onclick="lotteryGoFromSuccess()">去抽奖</button>
+      </div>
     </div>
+  </div>
+</div>
+
+<!-- 抽奖转盘（付款成功后出现） -->
+<div class="mask" id="lotteryMask" style="align-items:flex-start;padding:5vh 0;z-index:80">
+  <div class="lt-card">
+    <div class="lt-head">
+      <span class="st" id="ltTitle">幸运大转盘</span>
+      <button class="lt-close" id="ltCloseBtn" onclick="lotterySkip()" title="暂不参与">×</button>
+    </div>
+    <div class="lt-sub" id="ltSub">已付款成功，点击中间按钮开始抽奖</div>
+    <div class="lt-stage">
+      <div class="lt-pointer"></div>
+      <div class="lt-wheel-wrap" id="ltWheelWrap">
+        <div class="lt-wheel" id="ltWheel"><svg viewBox="0 0 200 200" id="ltWheelSvg"></svg></div>
+        <button class="lt-go" id="ltGoBtn" onclick="lotterySpin()">开始<br>抽奖</button>
+      </div>
+    </div>
+    <div class="lt-result" id="ltResult" style="display:none"></div>
   </div>
 </div>
 
@@ -541,6 +597,27 @@ let posCoupons = [];    // 当前手机号可用券
 let posCouponSel = new Set(); // 已勾选券 claim_id
 let posCouponTimer = null;
 
+// ===== 顶部滚动广告词（多条轮播）=====
+function renderAdBar(lines) {
+  const bar = $('adBar'), track = $('adTrack');
+  if (!bar || !track) return;
+  const items = (lines || []).map(t => String(t).trim()).filter(t => t !== '');
+  if (!items.length) {
+    bar.classList.remove('on');
+    track.innerHTML = '';
+    if (window.syncTopBar) window.syncTopBar();
+    return;
+  }
+  // 两份相同内容首尾相接 → 位移 -50% 无缝循环
+  const one = items.map(t => `<span>${escapeHtml(t)}</span>`).join('<i>·</i>') + '<i>·</i>';
+  track.innerHTML = one + one;
+  // 时长随字数自适应，短文案也别滚太快
+  const chars = items.join('').length;
+  track.style.setProperty('--ad-dur', Math.max(16, Math.min(90, Math.round(chars * 0.6))) + 's');
+  bar.classList.add('on');
+  if (window.syncTopBar) requestAnimationFrame(window.syncTopBar);
+}
+
 // ===== 加载目录 =====
 async function loadCatalog(keepFilter) {
   try {
@@ -550,6 +627,7 @@ async function loadCatalog(keepFilter) {
     const prevBrand = curBrand, prevSeries = curSeries, prevKw = kw;
     CATALOG = data;
     $('storeName').textContent = CATALOG.store_name || STORE.name;
+    renderAdBar(CATALOG.ad_lines);
     const brands = listBrands();
     if (keepFilter && (!prevBrand || brands.includes(prevBrand))) {
       curBrand = prevBrand || '';
@@ -975,6 +1053,13 @@ function renderSummary() {
   const dockTotal = $('dockTotal');
   if (dockTotal) dockTotal.textContent = '¥' + c.payable.toFixed(2);
   let html = `<div class="srow"><span>商品小计（${cart.reduce((a, b) => a + b.qty, 0)}件）</span><span>¥${c.subtotal.toFixed(2)}</span></div>`;
+  const lot = CATALOG.lottery;
+  if (lot && cart.length) {
+    const need = +(lot.threshold - c.subtotal).toFixed(2);
+    html += need > 0.001
+      ? `<div class="srow lt-hint">再买 ¥${need.toFixed(2)} 可参与「${escapeHtml(lot.name || '抽奖')}」</div>`
+      : `<div class="srow lt-hint">已满 ¥${(lot.threshold || 0).toFixed(2)}，付款后即可参与抽奖哦</div>`;
+  }
   html += `<div class="srow total"><span>应付合计</span><b>¥${c.payable.toFixed(2)}</b></div>`;
   $('summary').innerHTML = html;
 }
@@ -1245,6 +1330,8 @@ async function onPaid() {
     if (!data.success) throw new Error(data.error || '确认失败');
     closeQr();
     showSuccess(curOrder);
+    lotteryPrepare(curOrder.order_id); // 满足抽奖条件才在下单成功弹窗显示「去抽奖」
+
   } catch (e) {
     const msg = e.message || '';
     // 订单已超时释放/被取消/已作废：收起收款码，避免顾客对着失效订单继续操作
@@ -1269,8 +1356,267 @@ function showSuccess(order) {
 function backHome() {
   cart = []; curOrder = null; payMethod = 'wechat';
   posCoupons = []; posCouponSel.clear();
-  renderCart(); hide('successMask'); expandCart();
+  resetLottery();
+  renderCart(); hide('successMask'); hide('lotteryMask'); expandCart();
   toast('已返回');
+}
+
+// ===== 抽奖转盘（付款成功 → 抽奖 → 结果页补录手机号领取）=====
+let ltState = { orderId: 0, orderPhone: '', segments: [], spinning: false, rotation: 0, maxSpins: 1, spinsUsed: 0, resultType: '', resultClaimable: false };
+const LT_PALETTE = ['#ffe4e6', '#fff7e6', '#e8f5ec'];
+const LT_NAMES = { coupon: '优惠券', product: '商品', custom: '自定义商品', spin_again: '再来一次', none: '未中奖' };
+
+function resetLottery() {
+  ltState = { orderId: 0, orderPhone: '', segments: [], spinning: false, rotation: 0, maxSpins: 1, spinsUsed: 0, resultType: '', resultClaimable: false };
+  const wheel = $('ltWheel');
+  if (wheel) { wheel.style.transition = 'none'; wheel.style.transform = 'rotate(0deg)'; }
+  const res = $('ltResult'); if (res) { res.style.display = 'none'; res.innerHTML = ''; }
+  const go = $('ltGoBtn');
+  if (go) { go.style.display = ''; go.disabled = false; go.innerHTML = '开始<br>抽奖'; }
+  const wrap = $('ltWheelWrap'); if (wrap) wrap.classList.remove('lt-done');
+  const close = $('ltCloseBtn'); if (close) close.style.display = '';
+  const sbtn = $('sLotteryBtn'); if (sbtn) { sbtn.style.display = 'none'; sbtn.disabled = false; }
+}
+
+// 付款成功后：只在满足抽奖条件时，在下单成功弹窗里亮出「去抽奖」
+async function lotteryPrepare(orderId) {
+  const btn = $('sLotteryBtn');
+  if (btn) { btn.style.display = 'none'; btn.disabled = false; }
+  if (!orderId) return;
+  ltState.orderId = orderId;
+  try {
+    const res = await fetch(API + 'pos_lottery_status.php?order_id=' + orderId, { cache: 'no-store' });
+    const data = await res.json();
+    if (!data.success || !data.active || !data.can_spin) return;
+    if (btn) btn.style.display = '';
+    $('ltTitle').textContent = (data.campaign && data.campaign.name) || '幸运大转盘';
+  } catch (e) { /* 抽奖不可用不影响收款流程 */ }
+}
+
+// 下单成功弹窗 → 去抽奖
+async function lotteryGoFromSuccess() {
+  const btn = $('sLotteryBtn');
+  if (btn) btn.disabled = true;
+  try {
+    await lotteryStart(curOrder ? curOrder.order_id : ltState.orderId, true);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// 打开转盘（付款成功后由「去抽奖」按钮触发；notifyIfNone=点了却没机会时给提示）
+async function lotteryStart(orderId, notifyIfNone) {
+  if (!orderId) return;
+  try {
+    const res = await fetch(API + 'pos_lottery_status.php?order_id=' + orderId, { cache: 'no-store' });
+    const data = await res.json();
+    if (!data.success || !data.active) return;
+    resetLottery(); // 新一轮抽奖：清掉上一单遗留的「抽奖中」按钮与结果
+    ltState.orderId = orderId;
+    ltState.orderPhone = (data.order && data.order.phone) || '';
+    ltState.maxSpins = data.max_spins || 1;
+    ltState.spinsUsed = data.spins_used || 0;
+    ltState.segments = data.segments || [];
+    $('ltTitle').textContent = (data.campaign && data.campaign.name) || '幸运大转盘';
+    if (data.pending_draw) {
+      // 刷新/中断后回来：直接恢复领取表单
+      show('lotteryMask');
+      buildWheel(ltState.segments);
+      ltState.spinning = false;
+      renderLotteryResult({ prize: { name: data.pending_draw.prize_name, type: data.pending_draw.prize_type }, draw_id: data.pending_draw.draw_id, need_claim: true, can_spin_again: false, is_guarantee: data.pending_draw.is_guarantee });
+      return;
+    }
+    if (!data.can_spin) {
+      if (notifyIfNone) toast('本单暂无抽奖机会');
+      return;
+    }
+    buildWheel(ltState.segments);
+    show('lotteryMask');
+  } catch (e) { /* 抽奖不可用不影响收款流程 */ }
+}
+
+// 两批扇区是否完全一致（顺序、名称、权重、类型）
+function sameWheelSegments(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i] || {}, y = b[i] || {};
+    if (String(x.id) !== String(y.id) || String(x.name) !== String(y.name)
+      || String(x.type) !== String(y.type)
+      || (parseInt(x.weight) || 0) !== (parseInt(y.weight) || 0)
+      || (parseInt(x.guarantee) || 0) !== (parseInt(y.guarantee) || 0)) return false;
+  }
+  return true;
+}
+
+// 画转盘（服务端给扇区，前端只负责展示）
+function buildWheel(segments) {
+  const svg = $('ltWheelSvg');
+  const n = (segments || []).length;
+  if (!svg || !n) { if (svg) svg.innerHTML = ''; return; }
+  const step = 360 / n, cx = 100, cy = 100, R = 96;
+  const pt = (deg, r) => {
+    const rad = (deg - 90) * Math.PI / 180;
+    return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
+  };
+  let html = '<circle cx="100" cy="100" r="99" fill="#fff"></circle>';
+  segments.forEach((sg, i) => {
+    const a0 = i * step, a1 = (i + 1) * step;
+    const color = LT_PALETTE[i % LT_PALETTE.length];
+    if (n === 1) {
+      html += `<circle cx="100" cy="100" r="${R}" fill="${color}"></circle>`;
+    } else {
+      const [x0, y0] = pt(a0, R), [x1, y1] = pt(a1, R);
+      html += `<path d="M${cx},${cy} L${x0.toFixed(2)},${y0.toFixed(2)} A${R},${R} 0 ${step > 180 ? 1 : 0} 1 ${x1.toFixed(2)},${y1.toFixed(2)} Z" fill="${color}" stroke="#fff" stroke-width="1"></path>`;
+    }
+    const mid = a0 + step / 2;
+    const [tx, ty] = pt(mid, 60);
+    const label = String(sg.name || '').length > 7 ? String(sg.name).slice(0, 6) + '…' : String(sg.name || '');
+    const fs = n > 10 ? 7.5 : (n > 6 ? 9 : 11);
+    // 下半圈文字翻转 180°，保证所有扇区文字正着读
+    const rotText = (mid > 90 && mid < 270) ? mid + 180 : mid;
+    html += `<text x="${tx.toFixed(2)}" y="${ty.toFixed(2)}" transform="rotate(${rotText.toFixed(2)} ${tx.toFixed(2)} ${ty.toFixed(2)})" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" font-weight="700" fill="#b91c1c">${escapeHtml(label)}</text>`;
+  });
+  svg.innerHTML = html;
+  const wheel = $('ltWheel');
+  wheel.style.transition = 'none';
+  wheel.style.transform = `rotate(${ltState.rotation}deg)`;
+  void wheel.offsetWidth; // 提交无动画状态，保证接下来的旋转有过渡
+}
+
+// 抽奖：服务端定结果，转盘只演动画
+async function lotterySpin() {
+  if (ltState.spinning || !ltState.orderId) return;
+  ltState.spinning = true;
+  const go = $('ltGoBtn');
+  go.disabled = true; go.innerHTML = '抽奖中';
+  $('ltResult').style.display = 'none';
+  try {
+    const res = await fetch(API + 'pos_lottery_draw.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: ltState.orderId })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || '抽奖失败');
+    // 扇区与当前转盘一致时不重绘，避免点击后转盘闪一下换形
+    if (Array.isArray(data.segments) && data.segments.length && !sameWheelSegments(ltState.segments, data.segments)) {
+      ltState.segments = data.segments;
+      buildWheel(data.segments);
+    }
+    const n = ltState.segments.length || 1;
+    const step = 360 / n;
+    const idx = Math.max(0, Math.min(n - 1, parseInt(data.segment_index) || 0));
+    const mid = idx * step + step / 2;
+    const jitter = (Math.random() - 0.5) * step * 0.55;
+    let target = ltState.rotation - (ltState.rotation % 360) + 360 * 5 - mid + jitter;
+    while (target <= ltState.rotation + 360) target += 360;
+    const wheel = $('ltWheel');
+    void wheel.offsetWidth;
+    wheel.style.transition = 'transform 3.6s cubic-bezier(.16,.72,.2,1)';
+    wheel.style.transform = `rotate(${target.toFixed(2)}deg)`;
+    ltState.rotation = target;
+    await new Promise(r => setTimeout(r, 3700));
+    go.style.display = 'none';
+    $('ltWheelWrap').classList.add('lt-done');
+    renderLotteryResult(data);
+  } catch (e) {
+    toast(e.message || '抽奖失败', true);
+    go.disabled = false; go.innerHTML = '开始<br>抽奖';
+  } finally {
+    ltState.spinning = false;
+  }
+}
+
+// 结果卡：券奖品必填手机号；商品/自定义奖品登记进门店待出库
+function renderLotteryResult(data) {
+  const p = data.prize || {};
+  const box = $('ltResult');
+  box.style.display = '';
+  const again = data.can_spin_again;
+  const type = p.type || 'none';
+  ltState.resultType = type;
+  ltState.resultClaimable = !!(data.need_claim || data.draw_id) && type !== 'none' && type !== 'spin_again';
+  $('ltCloseBtn').style.display = '';
+  const go = $('ltGoBtn');
+  if (go) go.style.display = 'none';
+
+  if (again) {
+    box.innerHTML = `
+      <div class="lt-prize">再来一次！</div>
+      <div class="lt-note">运气不错，还有一次抽奖机会</div>
+      <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="lotteryRetry()">再抽一次</button>
+      <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="lotterySkip(true)">就到这里</button>`;
+    return;
+  }
+  if (type === 'none') {
+    box.innerHTML = `
+      <div class="lt-prize">谢谢参与</div>
+      <div class="lt-note">本次没有抽中奖品，欢迎下次再来～</div>
+      ${lotteryPhoneInput(false)}
+      <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="lotteryClaim(${data.draw_id || 0})">保存手机号并返回</button>
+      <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="lotterySkip()">返回收银台</button>`;
+    return;
+  }
+  const needPhone = type === 'coupon';
+  const tips = {
+    coupon: '优惠券将发放到该手机号，收银台下单时输入手机号即可使用',
+    product: '恭喜，请凭手机号找工作人员领奖取奖品',
+    custom: '恭喜，请凭手机号找工作人员领奖取奖品',
+  };
+  box.innerHTML = `
+    <div class="lt-prize">${escapeHtml(p.name || '')}${data.is_guarantee ? '<span style="font-size:12px;color:var(--text-3);font-weight:600"> · 保底</span>' : ''}</div>
+    <div class="lt-note">${escapeHtml(tips[type] || '')}</div>
+    ${lotteryPhoneInput(needPhone)}
+    <button class="btn btn-primary" style="width:100%;margin-top:12px" id="ltClaimBtn" onclick="lotteryClaim(${data.draw_id || 0})">${needPhone ? '领取优惠券' : '确认领取'}</button>`;
+}
+
+function lotteryPhoneInput(required) {
+  const v = /^1[3-9]\d{9}$/.test(ltState.orderPhone) ? ltState.orderPhone : '';
+  return `<input class="lt-phone" id="ltPhone" type="tel" maxlength="11" inputmode="numeric"
+    placeholder="${required ? '请输入手机号领取（必填）' : '手机号（选填，便于门店通知）'}" value="${escapeHtml(v)}">`;
+}
+
+async function lotteryClaim(drawId) {
+  const el = $('ltPhone');
+  const phone = el ? el.value.trim() : '';
+  const needPhone = ltState.resultType === 'coupon';
+  if ((needPhone || phone) && !/^1[3-9]\d{9}$/.test(phone)) { toast('请输入正确的手机号', true); return; }
+  const btn = $('ltClaimBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '领取中…'; }
+  try {
+    const res = await fetch(API + 'pos_lottery_claim.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ draw_id: drawId, phone })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || '领取失败');
+    ltState.resultClaimable = false; // 已领取：返回收银台时不要再提示「奖品还没领取」
+    const box = $('ltResult');
+    box.innerHTML = `
+      <div class="lt-prize">${escapeHtml(data.prize_name || '')}</div>
+      <div class="lt-ok">${escapeHtml(data.message || '已领取')}</div>
+      ${data.prize_order_no ? `<div class="lt-note">出库单号 ${escapeHtml(data.prize_order_no)}</div>` : ''}
+      <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="lotterySkip(true)">返回收银台</button>`;
+  } catch (e) {
+    toast(e.message || '领取失败', true);
+    if (btn) { btn.disabled = false; btn.textContent = '重新领取'; }
+  }
+}
+
+function lotteryRetry() {
+  $('ltResult').style.display = 'none';
+  $('ltWheelWrap').classList.remove('lt-done');
+  const go = $('ltGoBtn');
+  go.style.display = ''; go.disabled = false; go.innerHTML = '开始<br>抽奖';
+  ltState.spinning = false;
+  lotterySpin();
+}
+
+// 关闭抽奖（未领取的中奖会二次确认，避免误触丢奖）
+function lotterySkip(silent) {
+  if (ltState.resultClaimable && !silent && !confirm('奖品还没领取，确定放弃吗？')) return;
+  resetLottery();
+  hide('lotteryMask');
+  backHome();
 }
 
 // ===== 工具 =====

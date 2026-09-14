@@ -10,6 +10,7 @@
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/coupon_lib.php';
+require_once __DIR__ . '/lottery_lib.php';
 requireAuth();
 $storeId = getStoreId();
 $scopeShopId = getShopId();
@@ -39,7 +40,11 @@ try {
             $lockStmt = $pdo->prepare('SELECT * FROM pos_order_locks WHERE order_id = ? AND status = ? FOR UPDATE');
             $lockStmt->execute([$orderId, 'locked']);
             $locks = $lockStmt->fetchAll();
-            if (!$locks) throw new Exception('订单无锁定库存，可能已释放');
+            // 抽奖奖品单可能全部是「仅登记」的行（自定义奖品/无库存奖品）：无需扣库存，直接完成
+            $trackStmt = $pdo->prepare("SELECT COALESCE(SUM(inventory_tracked), 0) FROM pos_order_items WHERE order_id = ? AND status = 'active'");
+            $trackStmt->execute([$orderId]);
+            $trackedCount = (int)$trackStmt->fetchColumn();
+            if (!$locks && $trackedCount > 0) throw new Exception('订单无锁定库存，可能已释放');
 
             $deductBatch = $pdo->prepare('UPDATE inventory_batches SET remaining_qty = remaining_qty - ?, locked_qty = GREATEST(locked_qty - ?, 0) WHERE id = ?');
             $setLockDone = $pdo->prepare("UPDATE pos_order_locks SET status = 'deducted' WHERE id = ?");
@@ -110,6 +115,8 @@ try {
             $reason = trim($input['reason'] ?? '整单作废（已退款）');
             // 已核销/占用的券退回可用
             couponSetClaimsByOrder($pdo, $orderId, 'unused');
+            // 该单抽中的奖品同步作废（券收回、奖品出库单作废），避免退款后奖品白送
+            lotteryVoidBySourceOrder($pdo, $orderId, $reason);
             $pdo->prepare("UPDATE pos_orders SET outbound_status = 'voided', void_reason = ?, completed_at = NOW() WHERE id = ?")
                 ->execute([$reason, $orderId]);
             $pdo->commit();
@@ -145,6 +152,7 @@ try {
             if (!$actives) {
                 // 全部删空 → 自动作废整单
                 couponSetClaimsByOrder($pdo, $orderId, 'unused');
+                lotteryVoidBySourceOrder($pdo, $orderId, '商品全部删除');
                 $pdo->prepare("UPDATE pos_orders SET outbound_status = 'voided', void_reason = '商品全部删除', completed_at = NOW() WHERE id = ?")->execute([$orderId]);
             } else {
                 $subtotal = 0;
@@ -170,6 +178,7 @@ try {
         $pdo->beginTransaction();
         try {
             couponSetClaimsByOrder($pdo, $orderId, 'unused');
+            lotteryVoidBySourceOrder($pdo, $orderId, '来源订单已删除');
             $lockStmt = $pdo->prepare('SELECT id, batch_id, qty FROM pos_order_locks WHERE order_id = ? AND status = ? FOR UPDATE');
             $lockStmt->execute([$orderId, 'locked']);
             $relBatch = $pdo->prepare('UPDATE inventory_batches SET locked_qty = GREATEST(locked_qty - ?, 0) WHERE id = ?');

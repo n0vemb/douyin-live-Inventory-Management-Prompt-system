@@ -23,7 +23,8 @@ if (!$shopId && isset($_GET['shop_id']) && $_GET['shop_id'] !== '' && $storeId) 
 }
 
 try {
-    $where = "po.created_at >= ? AND po.created_at < DATE_ADD(?, INTERVAL 1 DAY)";
+    // 抽奖奖品单（source=lottery）不计入营业报表
+    $where = "po.source = 'pos' AND po.created_at >= ? AND po.created_at < DATE_ADD(?, INTERVAL 1 DAY)";
     $params = [$from . ' 00:00:00', $to . ' 00:00:00'];
     if ($storeId) {
         $where .= " AND po.store_id = ?";

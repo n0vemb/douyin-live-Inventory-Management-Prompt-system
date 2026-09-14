@@ -79,7 +79,7 @@ try {
     )->fetchAll();
 
     $itemStmt = $pdo->prepare(
-        "SELECT pi.*, p.name, p.series
+        "SELECT pi.*, COALESCE(NULLIF(pi.item_name, ''), p.name) AS name, p.series
          FROM pos_order_items pi LEFT JOIN products p ON p.id = pi.product_id
          WHERE pi.order_id = ? AND pi.status = 'active' ORDER BY pi.id"
     );
@@ -114,6 +114,7 @@ try {
             'id' => (int)$o['id'],
             'shop_id' => $o['shop_id'] !== null ? (int)$o['shop_id'] : null,
             'shop_name' => $o['shop_name'] ?? '',
+            'source' => $o['source'] ?? 'pos',
             'order_no' => $o['order_no'],
             'created_at' => $o['created_at'],
             'cashier_name' => $o['cashier_name'],
@@ -132,13 +133,16 @@ try {
             'void_reason' => $o['void_reason'],
             'item_count' => $qty,
             'items' => array_map(function ($it) use ($condNames) {
+                $isPrize = (int)($it['is_prize'] ?? 0) === 1;
                 return [
                     'id' => (int)$it['id'],
                     'product_id' => (int)$it['product_id'],
                     'name' => $it['name'],
                     'series' => $it['series'],
                     'condition_type' => $it['condition_type'],
-                    'cond_name' => $condNames[$it['condition_type']] ?? $it['condition_type'],
+                    'cond_name' => $isPrize ? '奖品' : ($condNames[$it['condition_type']] ?? $it['condition_type']),
+                    'is_prize' => $isPrize ? 1 : 0,
+                    'inventory_tracked' => (int)($it['inventory_tracked'] ?? 1),
                     'qty' => (int)$it['qty'],
                     'unit_price' => floatval($it['unit_price']),
                     'cost_price' => $hideCost ? null : ($it['cost_price'] !== null ? floatval($it['cost_price']) : null),

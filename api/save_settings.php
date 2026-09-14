@@ -16,7 +16,7 @@ try {
 
     if ($storeId) {
         // 店铺管理员：保存到 stores 表
-        $allowedFields = ['system_name', 'logo_path', 'condition_types', 'live_display', 'shipping_fee', 'actual_shipping_fee', 'platform_fee_rate', 'offline_price_ratio', 'offline_pay_qr_wx', 'offline_pay_qr_ali', 'pos_enabled', 'pos_screensaver_img', 'pos_screensaver_sec', 'pos_hide_price'];
+        $allowedFields = ['system_name', 'logo_path', 'condition_types', 'live_display', 'shipping_fee', 'actual_shipping_fee', 'platform_fee_rate', 'offline_price_ratio', 'offline_pay_qr_wx', 'offline_pay_qr_ali', 'pos_enabled', 'pos_screensaver_img', 'pos_screensaver_sec', 'pos_hide_price', 'pos_ad_lines'];
         // store_name 映射到 name 字段
         $fieldMap = ['store_name' => 'name'];
         // 数值字段，不需要 JSON 编码
@@ -37,7 +37,7 @@ try {
                 $shopFields[] = 'pos_code = ?';
                 $shopParams[] = generateShopPosCode($pdo);
             }
-            foreach (['offline_price_ratio', 'offline_pay_qr_wx', 'offline_pay_qr_ali', 'pos_enabled', 'pos_screensaver_img', 'pos_screensaver_sec', 'pos_hide_price'] as $f) {
+            foreach (['offline_price_ratio', 'offline_pay_qr_wx', 'offline_pay_qr_ali', 'pos_enabled', 'pos_screensaver_img', 'pos_screensaver_sec', 'pos_hide_price', 'pos_ad_lines'] as $f) {
                 if (isset($settings[$f])) {
                     $shopFields[] = "{$f} = ?";
                     $val = in_array($f, ['offline_price_ratio', 'pos_enabled', 'pos_screensaver_sec', 'pos_hide_price'], true)
@@ -52,7 +52,7 @@ try {
                     ->execute($shopParams);
             }
             // 店级保存完成后，从 stores 更新里剔除这些字段
-            foreach (['offline_price_ratio', 'offline_pay_qr_wx', 'offline_pay_qr_ali', 'pos_enabled', 'pos_screensaver_img', 'pos_screensaver_sec', 'offline_staff_pwd', 'offline_reset_token', 'pos_hide_price'] as $f) {
+            foreach (['offline_price_ratio', 'offline_pay_qr_wx', 'offline_pay_qr_ali', 'pos_enabled', 'pos_screensaver_img', 'pos_screensaver_sec', 'offline_staff_pwd', 'offline_reset_token', 'pos_hide_price', 'pos_ad_lines'] as $f) {
                 unset($settings[$f]);
             }
         } else {

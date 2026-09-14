@@ -9,7 +9,7 @@ try {
 
     if ($storeId) {
         // 店铺管理员：从 stores 表读取店铺级配置
-        $stmt = $pdo->prepare('SELECT name, system_name, logo_path, condition_types, live_display, shipping_fee, actual_shipping_fee, platform_fee_rate, offline_price_ratio, offline_staff_pwd, offline_pay_qr_wx, offline_pay_qr_ali, pos_token, pos_enabled, pos_screensaver_img, pos_screensaver_sec, pos_hide_price FROM stores WHERE id = ?');
+        $stmt = $pdo->prepare('SELECT name, system_name, logo_path, condition_types, live_display, shipping_fee, actual_shipping_fee, platform_fee_rate, offline_price_ratio, offline_staff_pwd, offline_pay_qr_wx, offline_pay_qr_ali, pos_token, pos_enabled, pos_screensaver_img, pos_screensaver_sec, pos_hide_price, pos_ad_lines FROM stores WHERE id = ?');
         $stmt->execute([$storeId]);
         $store = $stmt->fetch();
 
@@ -37,6 +37,7 @@ try {
             $formatted['pos_screensaver_img'] = $store['pos_screensaver_img'] ?? '';
             $formatted['pos_screensaver_sec'] = (int)($store['pos_screensaver_sec'] ?? 30);
             $formatted['pos_hide_price'] = (int)($store['pos_hide_price'] ?? 0);
+            $formatted['pos_ad_lines'] = $store['pos_ad_lines'] ?? '';
 
             // 店级视角：收银台设置以本店为准（店没配的项回退集团值），并带出 8 位码
             $shopId = getShopId();
@@ -58,6 +59,7 @@ try {
                     $formatted['pos_screensaver_img'] = $shopRow['pos_screensaver_img'] ?: $formatted['pos_screensaver_img'];
                     $formatted['pos_screensaver_sec'] = $shopRow['pos_screensaver_sec'] !== null ? (int)$shopRow['pos_screensaver_sec'] : $formatted['pos_screensaver_sec'];
                     $formatted['pos_hide_price'] = $shopRow['pos_hide_price'] !== null ? (int)$shopRow['pos_hide_price'] : $formatted['pos_hide_price'];
+                    if (!empty($shopRow['pos_ad_lines'])) $formatted['pos_ad_lines'] = $shopRow['pos_ad_lines'];
                 }
             }
         }

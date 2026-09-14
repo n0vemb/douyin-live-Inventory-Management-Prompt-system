@@ -5,6 +5,7 @@
  * 库存 = remaining_qty - locked_qty - 直播active场次占用（可售口径）
  */
 require_once __DIR__ . '/pos_auth.php';
+require_once __DIR__ . '/lottery_lib.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 $storeId = requirePosStore();
@@ -28,7 +29,8 @@ try {
         COALESCE(sh.offline_price_ratio, s.offline_price_ratio) AS offline_price_ratio,
         COALESCE(sh.pos_enabled, s.pos_enabled) AS pos_enabled,
         COALESCE(NULLIF(sh.pos_screensaver_img, \'\'), s.pos_screensaver_img) AS pos_screensaver_img,
-        COALESCE(sh.pos_screensaver_sec, s.pos_screensaver_sec) AS pos_screensaver_sec
+        COALESCE(sh.pos_screensaver_sec, s.pos_screensaver_sec) AS pos_screensaver_sec,
+        COALESCE(NULLIF(sh.pos_ad_lines, \'\'), s.pos_ad_lines) AS pos_ad_lines
         FROM stores s
         LEFT JOIN shops sh ON sh.id = ?
         WHERE s.id = ?');
@@ -111,8 +113,25 @@ try {
         ];
     }
 
+    // 顶部滚动广告词：一行一条（也兼容 | 分隔），过滤空行
+    $adLines = [];
+    foreach (preg_split('/[\r\n|]+/u', (string)($store['pos_ad_lines'] ?? '')) as $line) {
+        $line = trim($line);
+        if ($line !== '') $adLines[] = $line;
+    }
+
+    // 抽奖活动（购物车提示用）：全场生效活动即显示满额文案
+    $lotteryCamp = lotteryActiveCampaign($pdo, $storeId, $shopId);
+    $lottery = $lotteryCamp ? [
+        'id' => (int)$lotteryCamp['id'],
+        'name' => (string)$lotteryCamp['name'],
+        'threshold' => round((float)$lotteryCamp['threshold'], 2),
+    ] : null;
+
     success([
         'store_name' => $storeName,
+        'ad_lines' => $adLines,
+        'lottery' => $lottery,
         'pos_enabled' => $posEnabled,
         'screensaver_img' => $ssImg ? posCatAssetUrl($ssImg) : '',
         'screensaver_sec' => $ssSec,

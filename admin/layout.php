@@ -222,6 +222,10 @@ if ($isSuperAdmin && $currentViewStoreId) {
                     <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v3h20v-3a3 3 0 0 1 0-6V6H2v3z"/><path d="M13 7v10"/></svg></span>
                     <span class="nav-label">优惠券</span>
                 </a>
+                <a href="lottery.php" class="nav-item <?= ($currentPage ?? '') === 'lottery' ? 'active' : '' ?>">
+                    <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></span>
+                    <span class="nav-label">抽奖活动</span>
+                </a>
             </div>
             <?php endif; ?>
         </nav>

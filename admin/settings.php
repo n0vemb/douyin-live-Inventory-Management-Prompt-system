@@ -371,6 +371,15 @@ input:checked + .toggle-slider:before {
         </div>
     </div>
     <div class="form-row">
+        <div class="form-group" style="flex:1">
+            <label class="form-label">顶部滚动广告词（一行一条，可多条轮播）</label>
+            <textarea id="posAdLines" class="form-input" rows="3" placeholder="例：&#10;本店满 100 元可参与幸运转盘抽奖&#10;关注店铺进群，每周上新"
+                style="resize:vertical; font-size:13.5px; line-height:1.5;"
+                oninput="tempSettings.pos_ad_lines = this.value; markChanged();"></textarea>
+            <span style="font-size:11px; color:var(--text-tertiary);">显示在收银台顶部栏，自动横向滚动；留空则不显示</span>
+        </div>
+    </div>
+    <div class="form-row">
         <div class="form-group">
             <label class="form-label">静止进入屏保（秒）</label>
             <input type="number" id="posSsSec" class="form-input" step="1" min="5" placeholder="30"
@@ -612,6 +621,7 @@ const defaultSettings = {
     pos_screensaver_img: '',
     pos_screensaver_sec: 30,
     pos_hide_price: 0,
+    pos_ad_lines: '',
     pos_token: ''
 };
 
@@ -705,6 +715,8 @@ function applySettings() {
     if (peEl) peEl.checked = (tempSettings.pos_enabled ?? 1) == 1;
     const hpEl = document.getElementById('posHidePrice');
     if (hpEl) hpEl.checked = (tempSettings.pos_hide_price ?? 0) == 1;
+    const adEl = document.getElementById('posAdLines');
+    if (adEl) adEl.value = tempSettings.pos_ad_lines || '';
     const ssEl = document.getElementById('posSsSec');
     if (ssEl) ssEl.value = tempSettings.pos_screensaver_sec ?? 30;
     const ssUrlEl = document.getElementById('ssImgUrl');
@@ -1012,6 +1024,11 @@ function updateSaveStatus(hasChanges) {
         status.innerHTML = '<span style="color:var(--success);">✓</span> 已保存';
         status.className = 'save-status saved';
     }
+}
+
+// 兼容旧写法：表单项变更后标记「有未保存的修改」
+function markChanged() {
+    updateSaveStatus(true);
 }
 
 function resetToSaved() {
