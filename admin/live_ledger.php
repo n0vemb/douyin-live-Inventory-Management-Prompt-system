@@ -967,13 +967,16 @@ tr.tr-active td:first-child { border-left: 3px solid var(--primary, #6366f1); }
 .ps-product { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; overflow: hidden; background: var(--bg-elevated); }
 .ps-product .ps-pname { padding: 9px 12px; font-weight: 600; font-size: 13.5px; background: var(--bg-hover); color: var(--text); }
 .ps-product .ps-pmeta { padding: 0 12px 4px; font-size: 11px; color: var(--text-tertiary); }
-.ps-sku { display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; border-top: 1px dashed var(--border); font-size: 13px; }
+.ps-sku { padding: 7px 12px; border-top: 1px dashed var(--border); font-size: 13px; }
+.ps-sku .sline { display: flex; align-items: center; justify-content: space-between; }
 .ps-sku .sname { color: var(--text-secondary); }
 .ps-sku .sval { font-weight: 600; }
 .ps-sku .sval .stock { color: #34d399; }
 .ps-sku .sval .occ { color: var(--text-tertiary); margin-left: 4px; font-weight: 600; }
 .ps-sku .sval .occ.warn { color: var(--warning); }
-.ps-sku .sval .price { color: var(--text); margin-left: 10px; }
+.ps-sku .sprices { display: flex; gap: 14px; margin-top: 2px; font-size: 12px; }
+.ps-sku .sprices .price { color: var(--text-secondary); }
+.ps-sku .sprices .price-latest { color: var(--primary); font-weight: 600; }
 /* ===== 软删除（已下播/已打包）灰显保留 ===== */
 .deleted-badge { display:inline-block; font-size:11px; font-weight:700; color:#8b8b9a; border:1px solid var(--border);
     background:var(--bg-hover); border-radius:9px; padding:0 7px; margin-left:6px; vertical-align:middle; }
@@ -2861,12 +2864,17 @@ function psRenderResults(body, products) {
     body.innerHTML = products.map(p => {
         const skus = (p.skus || []).map(s => `
             <div class="ps-sku">
-                <span class="sname">${esc(s.condition_name)}</span>
-                <span class="sval">
-                    <span class="stock">可售 ${s.stock}</span>
-                    ${s.occupied > 0 ? `<span class="occ${s.other_occupied > 0 ? ' warn' : ''}" title="本场已录 ${s.local_occupied} · 其他场次已录 ${s.other_occupied}">(-${s.occupied})</span>` : ''}
+                <div class="sline">
+                    <span class="sname">${esc(s.condition_name)}</span>
+                    <span class="sval">
+                        <span class="stock">可售 ${s.stock}</span>
+                        ${s.occupied > 0 ? `<span class="occ${s.other_occupied > 0 ? ' warn' : ''}" title="本场已录 ${s.local_occupied} · 其他场次已录 ${s.other_occupied}">(-${s.occupied})</span>` : ''}
+                    </span>
+                </div>
+                <div class="sprices">
                     <span class="price">均价 ¥${s.avg_price ? s.avg_price.toFixed(2) : '-'}</span>
-                </span>
+                    <span class="price-latest" title="最新有库存批次的售价">最新 ¥${s.price ? s.price.toFixed(2) : '-'}</span>
+                </div>
             </div>`).join('');
         return `<div class="ps-product">
             <div class="ps-pname">${esc(p.name)}</div>
