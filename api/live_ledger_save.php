@@ -68,6 +68,69 @@ function ledgerSoftDeleteCustomerRow(PDO $pdo, int $custId, int $sessionId, int 
     }
 }
 
+/**
+ * 撤销一条明细的软删除（误删可恢复）：恢复记录 + 还原仓库联动
+ * - 软删时被取消的待出库单 → 恢复 pending（仅 type='out'）
+ * - 软删时生成的待回库单 → 取消；若回库单已被仓库完成（货已回仓），补一条待出库单
+ */
+function ledgerRestoreItemRow(PDO $pdo, array $item, int $sessionId, int $storeId, ?int $shopId, bool $sessionEnded): void {
+    $itemId = (int)$item['id'];
+    $pdo->prepare('UPDATE live_ledger_item SET is_deleted = 0 WHERE id = ?')->execute([$itemId]);
+
+    // 还原被软删取消的出库单（已打包场次的单据在打包时已清理，此处匹配不到则跳过）
+    $pdo->prepare("UPDATE warehouse_task SET status = 'pending' WHERE source_type = 'item' AND source_id = ? AND type = 'out' AND status = 'cancelled'")
+        ->execute([$itemId]);
+
+    // 赠品/临时商品不回收，软删时未生成回库单，无需处理
+    if ($sessionEnded || !empty($item['is_gift']) || !empty($item['is_temp'])) return;
+
+    // 撤销软删时生成的待回库单
+    $stmt = $pdo->prepare("SELECT id FROM warehouse_task WHERE source_type = 'item' AND source_id = ? AND type = 'return' AND status = 'pending'");
+    $stmt->execute([$itemId]);
+    $returnIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    if (!empty($returnIds)) {
+        $ph = implode(',', array_fill(0, count($returnIds), '?'));
+        $pdo->prepare("UPDATE warehouse_task SET status = 'cancelled' WHERE id IN ($ph)")->execute($returnIds);
+    }
+
+    // 回库单已 done：货已实际回仓，撤销后商品重新有效 → 需要重新出库
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM warehouse_task WHERE source_type = 'item' AND source_id = ? AND type = 'return' AND status = 'done'");
+    $stmt->execute([$itemId]);
+    if ((int)$stmt->fetchColumn() > 0) {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM warehouse_task WHERE source_type = 'item' AND source_id = ? AND type = 'out' AND status = 'pending'");
+        $stmt->execute([$itemId]);
+        if ((int)$stmt->fetchColumn() === 0) {
+            $pdo->prepare("INSERT INTO warehouse_task (store_id, shop_id, session_id, source_type, source_id, customer_id, product_id, product_name, condition_type, qty, is_gift, type, status)
+                           VALUES (?, ?, ?, 'item', ?, ?, ?, ?, ?, ?, 0, 'out', 'pending')")
+                ->execute([$storeId, $shopId, $sessionId, $itemId, (int)$item['customer_id'], (int)$item['product_id'], $item['product_name'], $item['condition_type'], (int)$item['qty']]);
+        }
+    }
+}
+
+/** 撤销一条赠品的软删除：恢复记录 + 还原被取消的待出库单（赠品不回收） */
+function ledgerRestoreGiftRow(PDO $pdo, array $gift): void {
+    $giftId = (int)$gift['id'];
+    $pdo->prepare('UPDATE live_ledger_gift SET is_deleted = 0 WHERE id = ?')->execute([$giftId]);
+    $pdo->prepare("UPDATE warehouse_task SET status = 'pending' WHERE source_type = 'gift' AND source_id = ? AND type = 'out' AND status = 'cancelled'")
+        ->execute([$giftId]);
+}
+
+/** 撤销整个客户的软删除：客户 + 仍标记删除的明细/赠品全部恢复，并还原仓库联动 */
+function ledgerRestoreCustomerRow(PDO $pdo, int $custId, int $sessionId, int $storeId, ?int $shopId, bool $sessionEnded): void {
+    $pdo->prepare('UPDATE live_ledger_customer SET is_deleted = 0 WHERE id = ?')->execute([$custId]);
+
+    $stmt = $pdo->prepare('SELECT * FROM live_ledger_item WHERE customer_id = ? AND is_deleted = 1');
+    $stmt->execute([$custId]);
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $it) {
+        ledgerRestoreItemRow($pdo, $it, $sessionId, $storeId, $shopId, $sessionEnded);
+    }
+    $stmt = $pdo->prepare('SELECT * FROM live_ledger_gift WHERE customer_id = ? AND is_deleted = 1');
+    $stmt->execute([$custId]);
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $g) {
+        ledgerRestoreGiftRow($pdo, $g);
+    }
+}
+
 $pdo->beginTransaction();
 try {
     // 现有客户 id 集合（用于删除）
@@ -103,6 +166,9 @@ try {
             $stmt->execute([$nickname, $vipNo, $sortOrder, $custDeleted, $custId]);
             if ($custDeleted && empty($existCust['is_deleted'])) {
                 ledgerSoftDeleteCustomerRow($pdo, $custId, $sessionId, $storeId, $sessionShopId, $sessionEnded);
+            } elseif (!$custDeleted && !empty($existCust['is_deleted'])) {
+                // 撤销删除：客户及其明细/赠品全部恢复，仓库单据同步还原
+                ledgerRestoreCustomerRow($pdo, $custId, $sessionId, $storeId, $sessionShopId, $sessionEnded);
             }
             $seenCustomerIds[] = $custId;
         } else {
@@ -187,6 +253,12 @@ try {
                     $rowStmt->execute([$itemId]);
                     $row = $rowStmt->fetch(PDO::FETCH_ASSOC);
                     if ($row) ledgerSoftDeleteItemRow($pdo, $row, $sessionId, $storeId, $sessionShopId, $sessionEnded);
+                } elseif (!$isDeleted && $wasDeleted) {
+                    // 撤销删除：恢复出库单 / 撤回回库单
+                    $rowStmt = $pdo->prepare('SELECT * FROM live_ledger_item WHERE id = ?');
+                    $rowStmt->execute([$itemId]);
+                    $row = $rowStmt->fetch(PDO::FETCH_ASSOC);
+                    if ($row) ledgerRestoreItemRow($pdo, $row, $sessionId, $storeId, $sessionShopId, $sessionEnded);
                 }
 
                 // 同步仓库出库单（仅 pending 状态跟随修改，已处理的历史单不动）；临时商品无出库单
@@ -265,6 +337,12 @@ try {
                     $rowStmt->execute([$giftId]);
                     $row = $rowStmt->fetch(PDO::FETCH_ASSOC);
                     if ($row) ledgerSoftDeleteGiftRow($pdo, $row);
+                } elseif (!$isDeleted && $wasDeleted) {
+                    // 撤销删除：恢复被取消的赠品出库单
+                    $rowStmt = $pdo->prepare('SELECT * FROM live_ledger_gift WHERE id = ?');
+                    $rowStmt->execute([$giftId]);
+                    $row = $rowStmt->fetch(PDO::FETCH_ASSOC);
+                    if ($row) ledgerRestoreGiftRow($pdo, $row);
                 }
                 // 同步仓库出库单（仅 pending 跟随修改）
                 if (!$isDeleted) {

@@ -985,6 +985,9 @@ tr.tr-active td:first-child { border-left: 3px solid var(--primary, #6366f1); }
 .customer.deleted .customer-header { background: repeating-linear-gradient(45deg, rgba(255,255,255,.02), rgba(255,255,255,.02) 8px, transparent 8px, transparent 16px); }
 .deleted-row td { color: var(--text-tertiary); text-decoration: line-through; }
 .deleted-row .deleted-badge { text-decoration: none; }
+.restore-btn { padding:2px 10px; font-size:12px; text-decoration:none; color:var(--primary); border-color:var(--primary); background:transparent; }
+.restore-btn:hover { background:var(--primary); color:#fff; }
+.deleted-row .restore-btn { text-decoration:none; }
 .deleted-note { margin-top:10px; padding:10px 12px; border:1px dashed var(--border); border-radius:8px;
     color:var(--text-tertiary); font-size:12.5px; background:var(--bg-hover); }
 /* ===== 打印订单（76×130mm 小票）===== */
@@ -1655,7 +1658,7 @@ function render() {
                     <td>${fmt(item.sell_price)}</td>
                     <td>${item.qty}</td>
                     <td>${fmt(item.sell_price * item.qty)}</td>
-                    <td></td>
+                    <td><button class="btn btn-sm btn-outline restore-btn" onclick="restoreItem(${c.id}, ${item.id})" title="撤销删除，恢复该商品">撤销</button></td>
                 </tr>`;
             }
             const tempBadge = isTemp ? '<span class="temp-badge">临时</span>' : '';
@@ -1689,7 +1692,7 @@ function render() {
                     <td>${gname}<span class="deleted-badge">已删除</span></td>
                     ${CAN_SEE_PROFIT ? `<td>${fmt(g.cost)}</td>` : ''}
                     <td colspan="${CAN_SEE_PROFIT ? 4 : 3}" style="color:var(--text-tertiary);">不入库，仅计成本</td>
-                    <td></td>
+                    <td><button class="btn btn-sm btn-outline restore-btn" onclick="restoreGift(${c.id}, ${gi})" title="撤销删除，恢复该赠品">撤销</button></td>
                 </tr>`;
             }
             const delCell = (!isReadOnly || isSoftDeleteMode())
@@ -1735,7 +1738,8 @@ function render() {
                     ${needsGift ? `<span class="gift-remind">🎁 待赠</span>` : ''}
                     ${custDeleted ? '<span class="deleted-badge">已删除</span>' : `<span class="summary"><span>${m.totalQty}件</span><span>¥${fmt(m.gmv)}</span></span>`}
                     <span class="actions" onclick="event.stopPropagation()">
-                        ${custDeleted ? ''
+                        ${custDeleted
+                          ? `<button class="btn btn-sm btn-outline restore-btn" onclick="restoreCustomer(${c.id})" title="撤销删除，恢复该客户及其全部记录">撤销删除</button>`
                           : (isReadOnly
                             ? `<button class="btn btn-sm btn-danger" style="padding:2px 10px; font-size:12px;" onclick="cancelOrder(${c.id}, '${esc(c.nickname) || '未命名'}')">撤单</button>
                                ${isSoftDeleteMode() ? `<button class="btn btn-sm btn-outline" onclick="confirmDeleteCustomer(${c.id})">删除</button>` : ''}`
@@ -1758,7 +1762,7 @@ function render() {
                         <button class="btn btn-sm btn-primary" onclick="openProductModal(${c.id})">添加商品</button>
                         <button class="btn btn-sm btn-warning" style="background:var(--warning,#f59e0b); border-color:var(--warning,#f59e0b); color:#fff;" onclick="openTempProductModal(${c.id})">临时商品</button>
                     </div>`}
-                    ${custDeleted ? '<div class="deleted-note">该客户已删除，记录保留可查（不计入本场统计与打包出库）</div>' : metrics}
+                    ${custDeleted ? '<div class="deleted-note">该客户已删除，记录保留可查（不计入本场统计与打包出库）。如为误删，可点右上角「撤销删除」恢复。</div>' : metrics}
                 </div>
             </div>`);
     });
@@ -2025,16 +2029,47 @@ function isSoftDeleteMode() {
 }
 
 // 只读场次（已打包）下的软删保存：绕过自动保存的只读限制
-async function saveSoftDelete() {
+async function saveSoftDelete(msg) {
     if (!currentSessionId) return;
     const ok = await doSave();
     if (ok) {
         await reloadSessionData();
         render();
-        toast('已删除（记录保留可查）');
+        toast(msg || '已删除（记录保留可查）');
     } else {
         toast('保存失败，请重试', true);
     }
+}
+
+// 撤销软删除（误删可恢复）：连同仓库出库单/回库单一并还原
+function restoreItem(cid, iid) {
+    const c = (sessionData.customers || []).find(x => x.id === cid);
+    if (!c) return;
+    const item = (c.items || []).find(i => i.id === iid);
+    if (!item || !item.is_deleted) return;
+    item.is_deleted = 0;
+    render();
+    saveSoftDelete('已撤销删除，商品恢复（仓库出库单已还原）');
+}
+
+function restoreGift(cid, gi) {
+    const c = (sessionData.customers || []).find(x => x.id === cid);
+    if (!c) return;
+    const gift = (c.gifts || [])[gi];
+    if (!gift || !gift.is_deleted) return;
+    gift.is_deleted = 0;
+    render();
+    saveSoftDelete('已撤销删除，赠品恢复（仓库出库单已还原）');
+}
+
+function restoreCustomer(id) {
+    const c = (sessionData.customers || []).find(x => x.id === id);
+    if (!c || !c.is_deleted) return;
+    c.is_deleted = 0;
+    (c.items || []).forEach(i => { i.is_deleted = 0; });
+    (c.gifts || []).forEach(g => { g.is_deleted = 0; });
+    render();
+    saveSoftDelete('已撤销删除，客户及其全部记录已恢复');
 }
 
 function deleteItem(cid, iid) {
