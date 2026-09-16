@@ -66,12 +66,50 @@ if ($keyword !== '') {
 }
 
 $sql .= "
-    ORDER BY CAST(vc.vip_no AS UNSIGNED) ASC
+    ORDER BY vc.id ASC
 ";
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $customers = $stmt->fetchAll();
+
+/**
+ * 会员编号自然排序：纯数字按数值（33 < 100）；
+ * 字母+数字混合按「字母段字典序 + 数字段数值序」（A1 < A2 < A10 < B1，D99 < D100）；
+ * 空编号排最后。
+ * 不能用 ORDER BY CAST(vip_no AS UNSIGNED)：英文+数字编号（如 D324）会被转成 0，全部并列且顺序错乱。
+ * MySQL 5.7 无 REGEXP_SUBSTR/REGEXP_REPLACE，故在 PHP 侧排序（与前端 vipNaturalCompare 语义一致）。
+ */
+function vipNaturalCompare($a, $b) {
+    $a = (string)$a; $b = (string)$b;
+    $ea = trim($a) === ''; $eb = trim($b) === '';
+    if ($ea && $eb) return 0;
+    if ($ea) return 1;
+    if ($eb) return -1;
+
+    preg_match_all('/\d+|\D+/', strtolower($a), $ma);
+    preg_match_all('/\d+|\D+/', strtolower($b), $mb);
+    $ca = $ma[0]; $cb = $mb[0];
+    $na = count($ca); $nb = count($cb);
+    $n = max($na, $nb);
+    for ($i = 0; $i < $n; $i++) {
+        if ($i >= $na) return -1; // a 更短且此前相等 → a 靠前
+        if ($i >= $nb) return 1;
+        $xa = $ca[$i]; $xb = $cb[$i];
+        if ($xa === $xb) continue;
+        $da = ctype_digit($xa); $db = ctype_digit($xb);
+        if ($da && $db) {
+            $va = (int)$xa; $vb = (int)$xb;
+            if ($va !== $vb) return $va - $vb;
+            continue; // 数值相同（如 001 vs 1）保持原有顺序
+        }
+        return $xa < $xb ? -1 : 1;
+    }
+    return 0;
+}
+usort($customers, function ($a, $b) {
+    return vipNaturalCompare($a['vip_no'] ?? '', $b['vip_no'] ?? '');
+});
 
 // 确保字段类型
 foreach ($customers as &$c) {

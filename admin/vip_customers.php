@@ -182,12 +182,45 @@ initVipPage();
 let sortField = 'vip_no';    // 当前排序字段
 let sortDir = 1;             // 1升序 -1降序
 
+/**
+ * 会员编号自然排序：纯数字按数值（33 < 100）；
+ * 字母+数字混合按「字母段字典序 + 数字段数值序」（A1 < A2 < A10 < B1，D99 < D100）；
+ * 空编号排最后、保持添加顺序（稳定排序）。
+ * 注意：不能用 parseInt，否则 D324 等英文+数字编号会被当成 NaN→0，全部并列且顺序错乱。
+ */
+function vipNaturalCompare(a, b) {
+    const ea = a === undefined || a === null || String(a).trim() === '';
+    const eb = b === undefined || b === null || String(b).trim() === '';
+    if (ea && eb) return 0;
+    if (ea) return 1;
+    if (eb) return -1;
+
+    const ca = String(a).toLowerCase().match(/\d+|\D+/g) || [];
+    const cb = String(b).toLowerCase().match(/\d+|\D+/g) || [];
+    const n = Math.max(ca.length, cb.length);
+    for (let i = 0; i < n; i++) {
+        if (i >= ca.length) return -1; // a 更短且此前相等 → a 靠前
+        if (i >= cb.length) return 1;
+        const xa = ca[i], xb = cb[i];
+        if (xa === xb) continue;
+        const da = /^\d+$/.test(xa), db = /^\d+$/.test(xb);
+        if (da && db) {
+            const na = parseInt(xa, 10), nb = parseInt(xb, 10);
+            if (na !== nb) return na - nb;
+            continue; // 数值相同（如 001 vs 1）保持稳定
+        }
+        return xa < xb ? -1 : 1;
+    }
+    return 0;
+}
+
 function sortCustomers() {
     const list = [...allCustomers];
     list.sort((a, b) => {
         let va, vb;
         if (sortField === 'vip_no') {
-            va = parseInt(a.vip_no) || 0; vb = parseInt(b.vip_no) || 0;
+            // 自然排序：英文+数字编号（如 D324）不再被 parseInt 归零
+            return sortDir * vipNaturalCompare(a.vip_no, b.vip_no);
         } else if (sortField === 'total_spent') {
             va = Number(a.total_spent || 0); vb = Number(b.total_spent || 0);
         } else if (sortField === 'session_count') {
