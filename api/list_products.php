@@ -48,6 +48,7 @@ $productIds = array_column($products, 'id');
 
 $batchesData = [];
 $inventoryData = [];
+$liveHoldData = [];
 if (!empty($productIds)) {
     $placeholders = implode(',', array_fill(0, count($productIds), '?'));
     // 批次查询限定当前店铺，防止跨店批次串入库存统计
@@ -131,6 +132,30 @@ if (!empty($productIds)) {
             $latestPurchaseAt[$pid] = $b['purchased_at'];
         }
     }
+
+    // 直播未出库占用：未打包出库场次（status=active）中已售出的数量（非软删/非赠品/非临时）
+    // 打包出库（status=ended）时实际库存已扣减，不再计入占用
+    $holdParams = $productIds;
+    $holdStoreFilter = '';
+    if ($storeId) {
+        $holdStoreFilter = ' AND s.store_id = ?';
+        $holdParams[] = $storeId;
+    }
+    $stmt = $pdo->prepare("
+        SELECT i.product_id, i.condition_type, SUM(i.qty) AS hold_qty
+        FROM live_ledger_item i
+        JOIN live_ledger_session s ON s.id = i.session_id
+        WHERE i.product_id IN ({$placeholders})
+          AND s.status = 'active'
+          AND i.is_deleted = 0
+          AND i.is_gift = 0
+          {$holdStoreFilter}
+        GROUP BY i.product_id, i.condition_type
+    ");
+    $stmt->execute($holdParams);
+    foreach ($stmt->fetchAll() as $row) {
+        $liveHoldData[$row['product_id'] . '_' . $row['condition_type']] = (int)$row['hold_qty'];
+    }
 }
 
 foreach ($products as &$p) {
@@ -140,6 +165,8 @@ foreach ($products as &$p) {
         $key = $p['id'] . '_' . $ct;
         if (isset($inventoryData[$key])) {
             $p['inventory_summary'][$ct] = $inventoryData[$key];
+            // 直播未出库占用（可售 = 在库数量 − 占用）
+            $p['inventory_summary'][$ct]['live_hold'] = $liveHoldData[$key] ?? 0;
             // 运营不可见进价
             if (!$canSeeProfit) {
                 $p['inventory_summary'][$ct]['purchase_price'] = null;

@@ -64,6 +64,7 @@ $canAudit = canPerm('audit.inventory');
                 <th class="pm-sortable" onclick="sortProductsBy('series')">系列 <span class="pm-arrow" id="ar-series"></span></th>
                 <th class="pm-sortable" onclick="sortProductsBy('brand')">品牌 <span class="pm-arrow" id="ar-brand"></span></th>
                 <th>在库数量</th>
+                <th title="可售 = 在库数量 − 直播场次未出库占用（已下播未打包/直播中已售，尚未扣减库存的数量）">可售</th>
                 <th>最新售价</th>
                 <th title="按在库批次数量加权的均价">均价</th>
                 <th class="pm-sortable" onclick="sortProductsBy('stock')">库存 <span class="pm-arrow" id="ar-stock"></span></th>
@@ -498,6 +499,10 @@ $canAudit = canPerm('audit.inventory');
 .pm-sku-line{display:flex;align-items:center;gap:8px;min-height:28px;white-space:nowrap;}
 .pm-sku-line .condition-badge{min-width:72px;text-align:center;}
 .pm-sku-qty{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;color:var(--text);}
+/* 可售：在库数量 − 直播未出库占用；0 橙、负数红 */
+.pm-sku-avail{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;color:var(--success);}
+.pm-sku-avail.zero{color:var(--warning);}
+.pm-sku-avail.neg{color:var(--danger);}
 .pm-sku-empty{font-size:12px;color:var(--text-tertiary);}
 /* 均价与最新售价不一致：橙色 + 虚线下划线 + 悬停解释 */
 .pm-sku-line.pm-avg-diff{color:var(--warning);text-decoration:underline dotted;text-underline-offset:3px;cursor:help;}
@@ -879,6 +884,14 @@ function renderProducts(products) {
         const skuQtyHtml = skuLines.length
             ? skuLines.map(l => `<div class="pm-sku-line"><span class="condition-badge ${getCondColor(l.key)}">${escapeHtml(getCN(l.key))}</span><span class="pm-sku-qty">${l.qty}</span></div>`).join('')
             : '<span class="pm-sku-empty">暂无库存</span>';
+        // 可售 = 在库数量 − 直播未出库占用；占用为 0 时不加提示，占用大于 0 悬停说明
+        const skuAvailHtml = skuLines.length
+            ? skuLines.map(l => {
+                const cls = l.avail < 0 ? 'neg' : (l.avail === 0 ? 'zero' : '');
+                const tip = l.hold > 0 ? ` title="在库 ${l.qty} 件，直播未出库占用 ${l.hold} 件"` : '';
+                return `<div class="pm-sku-line"><span class="pm-sku-avail ${cls}"${tip}>${l.avail}</span></div>`;
+            }).join('')
+            : '<span class="pm-sku-empty">-</span>';
         const skuLatestHtml = skuLines.length
             ? skuLines.map(l => `<div class="pm-sku-line pm-price">${fmtSkuPrice(l.latest)}</div>`).join('')
             : '<span class="pm-sku-empty">-</span>';
@@ -906,6 +919,7 @@ function renderProducts(products) {
             <td>${seriesHtml}</td>
             <td>${brandHtml}</td>
             <td>${skuQtyHtml}</td>
+            <td>${skuAvailHtml}</td>
             <td>${skuLatestHtml}</td>
             <td>${skuAvgHtml}</td>
             <td><span class="pm-warn-dot ${sc}"></span><span class="pm-stock-total">${t}</span></td>
@@ -930,7 +944,9 @@ function getSkuLines(inventory) {
         const it = inventory && inventory[k];
         const q = (it && it.total_stock) || 0;
         if (q <= 0) return;
-        lines.push({ key: k, qty: q, latest: it.latest_price, avg: it.avg_price });
+        // 直播未出库占用（未打包出库场次已售数量）：可售 = 在库数量 − 占用
+        const hold = (it && it.live_hold) || 0;
+        lines.push({ key: k, qty: q, hold: hold, avail: q - hold, latest: it.latest_price, avg: it.avg_price });
     });
     return lines;
 }
