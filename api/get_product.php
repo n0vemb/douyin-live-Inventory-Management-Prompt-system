@@ -65,18 +65,19 @@ try {
 $stmt = $pdo->prepare('
     SELECT * FROM inventory_batches
     WHERE product_id = ?' . ($storeId ? ' AND store_id = ?' : '') . '
-    ORDER BY condition_type, purchased_at ASC
+    ORDER BY condition_type, purchased_at DESC, id DESC
 ');
 $stmt->execute($storeId ? [$productId, $storeId] : [$productId]);
 $batches = $stmt->fetchAll();
 
 $inventoryData = [];
 foreach ($conditionNames as $key => $name) {
-    $conditionBatches = array_filter($batches, fn($b) => $b['condition_type'] === $key);
+    $conditionBatches = array_values(array_filter($batches, fn($b) => $b['condition_type'] === $key));
 
     $totalStock = 0;
     $totalCost = 0;
-    $latestSuggestedPrice = 0;
+    // 批次已按 purchased_at DESC 排序，首条即最新批次
+    $latestSuggestedPrice = $conditionBatches ? $conditionBatches[0]['suggested_price'] : 0;
     $batchList = [];
 
     foreach ($conditionBatches as $batch) {
@@ -84,7 +85,6 @@ foreach ($conditionNames as $key => $name) {
             $totalStock += $batch['remaining_qty'];
             $totalCost += $batch['purchase_price'] * $batch['remaining_qty'];
         }
-        $latestSuggestedPrice = $batch['suggested_price'];
         $batchList[] = [
             'batch_id' => $batch['id'],
             'id' => $batch['id'],
