@@ -19,8 +19,8 @@ $isOperator = in_array($currentUser['role'], ['operator', 'deputy_store_admin'],
 .lp-panel .card-title{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .lp-panel .sub{font-size:12px;color:var(--text-tertiary);font-weight:500}
 .lp-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-.lp-filters input[type=date]{padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text);background:var(--bg-body)}
-.lp-filters input[type=date]:focus{outline:none;border-color:var(--primary)}
+.lp-filters .lp-date-range{width:210px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text);background:var(--bg-body);cursor:pointer}
+.lp-filters .lp-date-range:focus{outline:none;border-color:var(--primary)}
 .lp-filters .fsep{color:var(--text-tertiary)}
 .lp-sku-filters{display:flex;gap:6px;flex-wrap:wrap;margin-left:2px}
 .lp-sku-btn{padding:6px 10px;font-size:12px;border:1px solid var(--border);border-radius:7px;background:var(--bg-hover);color:var(--text-secondary);cursor:pointer;transition:all .15s}
@@ -136,9 +136,9 @@ $isOperator = in_array($currentUser['role'], ['operator', 'deputy_store_admin'],
   <div class="card lp-panel">
     <div class="card-title">① 选择商品 / SKU <span class="sub" id="selSub">份数 = 张数</span></div>
     <div class="lp-filters">
-      <input type="date" id="fStart" onchange="loadProducts(1)">
-      <span class="fsep">—</span>
-      <input type="date" id="fEnd" onchange="loadProducts(1)">
+      <input type="text" id="dateRangeInput" class="lp-date-range" placeholder="点击选择日期范围" readonly>
+      <input type="hidden" id="fStart">
+      <input type="hidden" id="fEnd">
       <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;white-space:nowrap;" title="仅显示均价与最新售价不一致的SKU">
         <input type="checkbox" id="priceDiffFilter" onchange="toggleDiffFilter('diff')">
         仅看价差
@@ -309,6 +309,7 @@ Chrome 会报 mixed content 拦截）。print_server.py 已带 CORS 头，无需
 
 <div id="toast" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg-elevated);color:var(--text);padding:10px 18px;border-radius:10px;font-size:13px;z-index:3000;display:none;border:1px solid var(--border)"></div>
 
+<script src="assets/js/date-range-picker.js?v=<?= @filemtime(__DIR__ . '/assets/js/date-range-picker.js') ?: 1 ?>"></script>
 <script>
 const SCALE=7; // px per mm（预览）
 let conditionNameMap={}, conditionClassMap={}, allConditionTypes=[];
@@ -459,11 +460,12 @@ function renderPagination(total){
     <button class="btn btn-sm btn-secondary" ${currentPage>=totalPages?'disabled':''} onclick="loadProducts(${currentPage+1})">下一页</button>`;
 }
 function setRange(n){
-  const now=new Date();const fmt=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-  if(n===0){$('fStart').value='';$('fEnd').value='';}
-  else{const s=new Date(now);s.setDate(s.getDate()-(n-1));$('fEnd').value=fmt(now);$('fStart').value=fmt(s);}
-  loadProducts(1);
+  // 走日期范围选择器，选完由 onChange 统一触发查询
+  if(n===0){dateRangePicker.clear();return;}
+  const now=new Date();const s=new Date(now);s.setDate(s.getDate()-(n-1));
+  dateRangePicker.setRange(fmtYmd(s),fmtYmd(now));
 }
+function fmtYmd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function step(id,d){copies[id]=Math.max(0,(copies[id]||0)+d);renderProducts();}
 function setCopies(id,v){copies[id]=Math.max(0,+v||0);renderProducts();}
 function bulk(mode){
@@ -1151,6 +1153,14 @@ function browserPrint(){
 }
 
 // ---------- init ----------
+// 日期范围选择（酒店入住式：点开始日 → 点结束日），选完自动重新查询
+const dateRangePicker=DateRangePicker.attach({
+  input:'#dateRangeInput',
+  onChange:(start,end)=>{
+    $('fStart').value=start;$('fEnd').value=end;
+    loadProducts(1);
+  }
+});
 psHost=localStorage.getItem('ppmart_print_host')||'';
 psPrinter=localStorage.getItem('ppmart_print_printer')||'';
 window.addEventListener('resize',()=>{if(curTpl)renderPreview();});
