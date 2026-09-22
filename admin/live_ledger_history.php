@@ -11,8 +11,12 @@ $canSeeProfit = $user['can_see_profit'] ?? true;
 <!-- 筛选 -->
 <div class="card">
   <div class="search-bar" style="gap:12px; align-items:flex-end;">
-    <div><label>开始日期</label><br><input type="date" id="startDate" class="form-input"></div>
-    <div><label>结束日期</label><br><input type="date" id="endDate" class="form-input"></div>
+    <div>
+      <label>日期范围</label><br>
+      <input type="text" id="dateRangeInput" class="form-input" style="width:260px;" placeholder="点击选择开始 ~ 结束" readonly>
+      <input type="hidden" id="startDate">
+      <input type="hidden" id="endDate">
+    </div>
     <div><label>场次</label><br><select id="sessionFilter" class="form-input" style="min-width:140px;"><option value="">全部</option></select></div>
     <div><label>客户昵称</label><br><input type="text" id="nicknameFilter" class="form-input" placeholder="模糊搜索" style="width:130px;"></div>
     <div><label>VIP编号</label><br><input type="text" id="vipFilter" class="form-input" placeholder="模糊搜索" style="width:120px;"></div>
@@ -71,6 +75,7 @@ $canSeeProfit = $user['can_see_profit'] ?? true;
 .empty-state { text-align:center; color:var(--text-tertiary, #9ca3af); padding:48px 20px; font-size:14px; }
 </style>
 
+<script src="assets/js/date-range-picker.js?v=<?= @filemtime(__DIR__ . '/assets/js/date-range-picker.js') ?: 1 ?>"></script>
 <script>
 let currentView = 'session';
 let CAN_SEE_PROFIT = <?= $canSeeProfit ? 'true' : 'false' ?>;
@@ -241,12 +246,23 @@ function renderProducts(products) {
 function resetFilter() {
     document.getElementById('startDate').value = '';
     document.getElementById('endDate').value = '';
+    dateRangePicker.sync('', '');
     document.getElementById('sessionFilter').value = '';
     document.getElementById('nicknameFilter').value = '';
     document.getElementById('vipFilter').value = '';
     document.getElementById('activityFilter').value = '';
     search();
 }
+
+// 日期范围选择（酒店入住式：点开始日 → 点结束日，含快捷区间），选完自动查询
+const dateRangePicker = DateRangePicker.attach({
+    input: '#dateRangeInput',
+    onChange: function (start, end) {
+        document.getElementById('startDate').value = start;
+        document.getElementById('endDate').value = end;
+        search();
+    }
+});
 
 loadSessions();
 search();
