@@ -181,6 +181,34 @@ function epayStoreConfig(PDO $pdo, $storeId) {
     ];
 }
 
+/**
+ * 店铺静态收款码（门店覆盖优先），返回绝对 URL 的 ['wx' => .., 'ali' => ..]。
+ *
+ * 收银台页面在加载时就把收款方式写进了 HTML：后台把「易支付」切回「静态收款码」后，
+ * 已经打开的页面仍会来要易支付码，这里把静态码一并回传，让它就地切成静态码流程。
+ */
+function epayStaticQrUrls(PDO $pdo, $storeId, $shopId = 0) {
+    $out = ['wx' => '', 'ali' => ''];
+    try {
+        $stmt = $pdo->prepare(
+            "SELECT COALESCE(NULLIF(sh.offline_pay_qr_wx, ''), s.offline_pay_qr_wx) AS qr_wx,
+                    COALESCE(NULLIF(sh.offline_pay_qr_ali, ''), s.offline_pay_qr_ali) AS qr_ali
+             FROM stores s LEFT JOIN shops sh ON sh.id = ?
+             WHERE s.id = ?"
+        );
+        $stmt->execute([(int)$shopId, (int)$storeId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        foreach (['wx' => 'qr_wx', 'ali' => 'qr_ali'] as $k => $col) {
+            $path = trim((string)($row[$col] ?? ''));
+            if ($path === '') continue;
+            $out[$k] = preg_match('#^https?://#i', $path) ? $path : epaySelfUrl($path);
+        }
+    } catch (Exception $e) {
+        // 查询失败不影响主流程：前端拿不到静态码会退回原提示
+    }
+    return $out;
+}
+
 /** 收银台支付方式（wechat/alipay）→ 易支付 type */
 function epayPayType($method) {
     if ($method === 'alipay') return 'alipay';

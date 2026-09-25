@@ -33,7 +33,22 @@ if ($order['pay_status'] === 'paid') error('订单已收款');
 if ($order['outbound_status'] !== 'pending') error('订单已超时释放或已取消，请重新下单');
 
 $cfg = epayStoreConfig($pdo, $storeId);
-if ($cfg['mode'] !== 'epay') error('本店收款方式为静态收款码，未启用易支付');
+if ($cfg['mode'] !== 'epay') {
+    // 收款方式在收银台页面加载时就写死了：后台切回静态收款码后，顾客手上这个旧页面还可能点「去付款」。
+    // 这里给一句人话（不是 JSON），让他回收银台扫静态码。
+    http_response_code(409);
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
+       . '<meta name="viewport" content="width=device-width, initial-scale=1"><title>收款方式已变更</title></head>'
+       . '<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;'
+       . 'font-family:-apple-system,BlinkMacSystemFont,\'PingFang SC\',sans-serif;background:#f5f6f8;color:#1c2230">'
+       . '<div style="width:100%;max-width:380px;text-align:center;background:#fff;border-radius:16px;padding:26px 22px;'
+       . 'box-shadow:0 8px 28px rgba(15,20,40,.08)">'
+       . '<div style="font-size:17px;font-weight:800;margin-bottom:8px">本店已改为静态收款码</div>'
+       . '<div style="font-size:13.5px;color:#64748b;line-height:1.7">请返回收银台，用微信/支付宝「扫一扫」'
+       . '扫描屏幕上的收款码付款。</div></div></body></html>';
+    exit;
+}
 if (!$cfg['ready']) error('本店已启用易支付但未配置商户ID/密钥，请联系管理员');
 
 $outTradeNo = (string)$order['order_no'];

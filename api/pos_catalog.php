@@ -26,7 +26,11 @@ posAutoReleaseUnpaid($pdo, $storeId, 15);
 
 try {
     $stmt = $pdo->prepare('SELECT s.name,
+        s.pos_pay_mode,
+        (s.epay_pid IS NOT NULL AND s.epay_pid <> \'\' AND s.epay_mch_key IS NOT NULL AND s.epay_mch_key <> \'\') AS epay_ready,
         COALESCE(sh.offline_price_ratio, s.offline_price_ratio) AS offline_price_ratio,
+        COALESCE(NULLIF(sh.offline_pay_qr_wx, \'\'), s.offline_pay_qr_wx) AS qr_wx,
+        COALESCE(NULLIF(sh.offline_pay_qr_ali, \'\'), s.offline_pay_qr_ali) AS qr_ali,
         COALESCE(sh.pos_enabled, s.pos_enabled) AS pos_enabled,
         COALESCE(NULLIF(sh.pos_screensaver_img, \'\'), s.pos_screensaver_img) AS pos_screensaver_img,
         COALESCE(sh.pos_screensaver_sec, s.pos_screensaver_sec) AS pos_screensaver_sec,
@@ -130,6 +134,12 @@ try {
 
     success([
         'store_name' => $storeName,
+        // 收款方式/收款码可能被后台随时改动：每轮目录刷新都回传，收银台页面同步，
+        // 避免页面一直停留在「加载时」的那套收款流程（切回静态码后仍去要易支付码）
+        'pay_mode' => (($store['pos_pay_mode'] ?? 'static') === 'epay') ? 'epay' : 'static',
+        'epay_ready' => (int)($store['epay_ready'] ?? 0) === 1,
+        'qr_wx' => posCatAssetUrl($store['qr_wx'] ?? ''),
+        'qr_ali' => posCatAssetUrl($store['qr_ali'] ?? ''),
         'ad_lines' => $adLines,
         'lottery' => $lottery,
         'pos_enabled' => $posEnabled,

@@ -641,10 +641,21 @@ function renderAdBar(lines) {
 }
 
 // ===== 加载目录 =====
+// 收款方式/收款码是后台随时可改的配置，收银台页面却只在加载时读一次：
+// 每轮目录刷新（30s 静默轮询）同步一次，避免切回静态收款码后页面还在走易支付流程。
+function applyStoreConfig(data) {
+  if (!data) return;
+  if (data.pay_mode === 'epay' || data.pay_mode === 'static') STORE.payMode = data.pay_mode;
+  if (typeof data.epay_ready === 'boolean') STORE.epayReady = data.epay_ready;
+  if (typeof data.qr_wx === 'string') STORE.qrWx = data.qr_wx;
+  if (typeof data.qr_ali === 'string') STORE.qrAli = data.qr_ali;
+}
+
 async function loadCatalog(keepFilter) {
   try {
     const res = await fetch(API + 'pos_catalog.php', { cache: 'no-store' });
     const data = await res.json();
+    applyStoreConfig(data);
     if (!data.success) throw new Error(data.error || '加载失败');
     const prevBrand = curBrand, prevSeries = curSeries, prevKw = kw;
     CATALOG = data;
@@ -733,6 +744,7 @@ async function refreshStockQuietly() {
   try {
     const res = await fetch(API + 'pos_catalog.php', { cache: 'no-store' });
     const data = await res.json();
+    applyStoreConfig(data);
     if (!data.success || !Array.isArray(data.products)) return;
     mergeCatalogFresh(data);
 
@@ -1395,7 +1407,16 @@ async function epayCreate(isAuto) {
     });
     const data = await res.json();
     if (!curOrder || curOrder.order_id !== orderId) return; // 已换单/已关闭
-    if (!data.success) throw new Error(data.error || '收款码生成失败');
+    if (!data.success) {
+      const err = new Error(data.error || '收款码生成失败');
+      if (data.mode === 'static') {
+        // 后台已把本店切回静态收款码：就地切成静态码流程，别让顾客停在「平台未响应」
+        err.switchToStatic = true;
+        err.qrWx = data.qr_wx || '';
+        err.qrAli = data.qr_ali || '';
+      }
+      throw err;
+    }
     if (data.qr_image && isCustomerMode()) {
       // 服务端出的真图（自己域名下的 png）：微信长按才有「识别图中二维码」，
       // data:URL 的图微信不认，长按没反应
@@ -1433,6 +1454,21 @@ async function epayCreate(isAuto) {
     startEpayPoll();
   } catch (e) {
     if (!curOrder || curOrder.order_id !== orderId) return;
+    if (e.switchToStatic) {
+      STORE.payMode = 'static';
+      if (e.qrWx) STORE.qrWx = e.qrWx;
+      if (e.qrAli) STORE.qrAli = e.qrAli;
+      const staticQr = payMethod === 'wechat' ? STORE.qrWx : STORE.qrAli;
+      if (staticQr) {
+        toast('本店已切回静态收款码，请扫码付款');
+        openQr(curOrder, staticQr); // 同一笔订单，就地换成静态收款码
+        return;
+      }
+      // 切回静态码但没配这个通道的码：重试易支付没有意义，直接说清楚
+      $('qrBox').innerHTML = '<div class="qr-missing">本店已切回静态收款码，但未配置该通道收款码，请联系店员</div>';
+      $('qrStatus').textContent = '';
+      return;
+    }
     $('qrBox').innerHTML = `<div class="qr-missing">${escHtml(e.message || '收款码生成失败')}</div>`;
     $('qrStatus').style.color = 'var(--danger)';
     if (epayAttempt < 2) {

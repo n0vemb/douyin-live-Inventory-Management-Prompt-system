@@ -48,7 +48,18 @@ if ($existingQr !== '') {
 }
 
 $cfg = epayStoreConfig($pdo, $storeId);
-if ($cfg['mode'] !== 'epay') error('本店收款方式为静态收款码，未启用易支付');
+if ($cfg['mode'] !== 'epay') {
+    // 收款方式在收银台页面加载时就写进了 HTML，后台切回「静态收款码」后旧页面仍会来要易支付码。
+    // 这里把静态码一起回传（mode=static），收银台据此就地切成静态码流程，而不是让顾客卡在「平台未响应」。
+    $qr = epayStaticQrUrls($pdo, $storeId, $shopId);
+    jsonResponse([
+        'success' => false,
+        'error'   => '本店收款方式为静态收款码，未启用易支付',
+        'mode'    => 'static',
+        'qr_wx'   => $qr['wx'],
+        'qr_ali'  => $qr['ali'],
+    ]);
+}
 if (!$cfg['ready']) error('本店已启用易支付但未配置商户ID/密钥，请联系管理员');
 
 $outTradeNo = (string)$order['order_no'];
