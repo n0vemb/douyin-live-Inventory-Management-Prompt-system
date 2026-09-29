@@ -60,6 +60,7 @@ body.rk-panel-open .rk-main{width:calc(100% - 330px)}
 /* 盘点模式：点击货架格子，点一格盘一格 */
 body.rk-auditing .rk-cell{cursor:pointer}
 body.rk-auditing .rk-cell:hover{border-color:var(--success)}
+body.rk-auditing .rk-temp-cell{cursor:pointer}
 .rk-audbar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:400;display:flex;align-items:center;gap:12px;background:var(--bg-elevated);border:1px solid var(--success);border-radius:12px;padding:10px 16px;box-shadow:0 10px 28px rgba(0,0,0,.45);font-size:13px;flex-wrap:wrap;justify-content:center;max-width:94vw}
 .rk-audbar .rk-ab-info b{color:var(--success)}
 .rk-audbar .rk-ab-ops{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -367,7 +368,9 @@ function rkTempRackHtml(){
 }
 function rkTempCellHtml(c){
   const p=c.product,stock=p.stock||0;
-  return '<div class="rk-cell half rk-temp-cell" draggable="true" data-pid="'+p.id+'" data-rack="'+RK_TEMP+'" data-row="'+c._row+'" data-pos="'+c._pos+'" onclick="rkInfo(\''+RK_TEMP+'\','+c._row+','+c._pos+')" title="'+esc(p.name)+' · 库存 '+stock+' · 可拖到货架格子">'+
+  const aud=c.audit;
+  const audTitle=aud?(' · 已盘 '+esc(String(aud.at).replace('T',' ').slice(5,16))+(aud.result==='adjusted'?'（已调整）':'（一致）')):'';
+  return '<div class="rk-cell half rk-temp-cell'+(aud?' rk-audited':'')+'" draggable="true" data-pid="'+p.id+'" data-rack="'+RK_TEMP+'" data-row="'+c._row+'" data-pos="'+c._pos+'" onclick="rkInfo(\''+RK_TEMP+'\','+c._row+','+c._pos+')" title="'+esc(p.name)+' · 库存 '+stock+' · 可拖到货架格子'+audTitle+'">'+
     '<span class="nm">'+esc(p.name)+'</span>'+
     '<span class="st'+(stock===0?' zero':'')+'">库存 '+stock+'</span></div>';
 }
@@ -653,6 +656,7 @@ function buildTempRack(){
     const pos=(i%perRow)+1;
     (cells[row]=cells[row]||{})[pos]={
       _rack:RK_TEMP,_row:row,_pos:pos,span:1,note:'',
+      audit:it.audited_at?{at:it.audited_at,result:it.audit_result,by:it.audit_by}:null,
       product:{id:it.id,name:it.name,common_name:it.common_name||'',barcode:it.barcode||'',pinyin:it.pinyin||'',stock:it.stock||0}
     };
   });
@@ -722,6 +726,7 @@ document.addEventListener('drop',e=>{ document.querySelectorAll('.rk-droppable.d
 document.addEventListener('dragstart',e=>{
   const el=e.target.closest('.rk-temp-cell[data-pid]');
   if(!el)return;
+  if(document.body.classList.contains('rk-auditing'))return;
   e.dataTransfer.setData('text/plain',el.dataset.pid);
   e.dataTransfer.effectAllowed='copy';
   el.classList.add('dragging');
@@ -807,13 +812,13 @@ function rkAuditCellCount(){
 /* ---------- 打开某格 / 某未上架项 ---------- */
 function rkAuditOpenCell(rack,row,pos){
   if(!rkAudit.active)return;
-  const rowData=(rkRacks[rack]&&rkRacks[rack][String(row)])||{};
-  const cell=rowData[String(pos)];
+  const cell=rkCellAt(rack,row,pos);
   if(!cell||!cell.product)return;
   const ap=rkAudit.pdata[cell.product.id];
   if(!ap){rkToast('该商品盘点数据缺失，请退出后重新进入盘点模式');return;}
+  const isTemp=rack===RK_TEMP;
   rkAudit.ctx={
-    kind:'cell',rack:rack,row:row,pos:pos,span:cell.span||1,pid:cell.product.id,
+    kind:'cell',isTemp:isTemp,rack:rack,row:row,pos:pos,span:cell.span||1,pid:cell.product.id,
     name:ap.product_name,official:ap.official_name,barcode:ap.barcode||'',
     skus:ap.conditions||{},audited:cell.audit||null,draft:{}
   };
@@ -822,11 +827,14 @@ function rkAuditOpenCell(rack,row,pos){
 function rkAuditUnplacedShow(){
   if(!rkAudit.active)return;
   if(!rkAudit.unplaced.length){rkToast('当前没有未上架但有库存的商品');return;}
+  const amap={};
+  upItems.forEach(it=>{if(it.audited_at)amap[it.id]={at:it.audited_at,result:it.audit_result};});
   $id('rkAuditUpCnt').textContent=rkAudit.unplaced.length+' 项';
   $id('rkAuditUpList').innerHTML=rkAudit.unplaced.map(p=>{
     let total=0;Object.values(p.conditions||{}).forEach(s=>total+=(s.qty||0));
+    const aud=amap[p.product_id];
     return '<div class="rk-upaud-item"><div style="flex:1;min-width:0"><div class="nm">'+esc(p.product_name)+'</div>'+
-      '<div class="meta">'+(p.barcode?esc(p.barcode)+' · ':'')+'线上 '+total+'</div></div>'+
+      '<div class="meta">'+(p.barcode?esc(p.barcode)+' · ':'')+'线上 '+total+(aud?' · <span style="color:var(--success)">24h内已盘'+(aud.result==='adjusted'?'（已调整）':'（一致）')+'</span>':'')+'</div></div>'+
       '<button class="btn btn-sm btn-primary" onclick="rkAuditOpenUp('+p.product_id+')">盘点</button></div>';
   }).join('');
   $id('rkAuditUpModal').classList.add('show');
@@ -845,12 +853,13 @@ function rkAuditShowCard(){
   if(!c)return;
   const d=c.draft;
   const spanTxt=c.span>1?'第'+c.pos+'-'+(c.pos+1)+'格':'第'+c.pos+'格';
-  const loc=c.kind==='cell'?'货架 '+esc(c.rack)+' · 第'+c.row+'层 · '+spanTxt:'未上架商品';
+  const isSlot=c.kind==='cell'; // 真实货架格 / 临时货架格
+  const loc=isSlot?((c.isTemp?'临时货架':'货架 '+esc(c.rack))+' · 第'+c.row+'层 · '+spanTxt):'未上架商品';
   $id('rkAuditTitle').textContent='盘点 · '+loc;
   let html='<div style="font-size:15px;font-weight:700;margin-bottom:2px">'+esc(c.name)+'</div>'+
-    '<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px">'+(c.official&&c.official!==c.name?esc(c.official)+' · ':'')+esc(c.barcode)+(c.kind==='cell'?' · '+loc:'')+'</div>';
-  if(c.kind==='cell'&&c.audited){
-    html+='<div style="font-size:12px;color:var(--success);background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.35);border-radius:8px;padding:7px 10px;margin-bottom:10px">该格 24h 内已盘过：'+esc(String(c.audited.at).replace('T',' ').slice(0,16))+
+    '<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px">'+(c.official&&c.official!==c.name?esc(c.official)+' · ':'')+esc(c.barcode)+(isSlot?' · '+loc:'')+'</div>';
+  if(isSlot&&c.audited){
+    html+='<div style="font-size:12px;color:var(--success);background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.35);border-radius:8px;padding:7px 10px;margin-bottom:10px">'+(c.isTemp?'该商品（临时货架）':'该格')+' 24h 内已盘过：'+esc(String(c.audited.at).replace('T',' ').slice(0,16))+
       (c.audited.result==='adjusted'?'（有差异已调整）':'（与线上一致）')+(c.audited.by?' · '+esc(c.audited.by):'')+'。如需重盘可直接继续。</div>';
   }
   const keys=Object.keys(c.skus);
@@ -883,9 +892,12 @@ function rkAuditMissing(c){
   return Object.keys(c.skus).filter(k=>c.draft[k]===undefined);
 }
 async function rkAuditRecordCell(c,result){
-  if(c.kind!=='cell')return true;
+  const productScope=(c.kind!=='cell')||!!c.isTemp; // 未上架商品（临时货架 / 清单入口）按商品留痕
+  const body=productScope
+    ?{action:'record',scope:'product',product_id:c.pid,result}
+    :{action:'record',scope:'cell',rack:c.rack,row:c.row,pos:c.pos,product_id:c.pid,result};
   try{
-    const res=await fetch('../api/rack_cell_audit.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'record',rack:c.rack,row:c.row,pos:c.pos,product_id:c.pid,result})});
+    const res=await fetch('../api/rack_cell_audit.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await res.json();
     if(!d.success){rkToast(d.error||'盘点记录失败');return false;}
     return true;
@@ -903,10 +915,10 @@ function rkAuditDiffItems(c){
 async function rkAuditSame(){
   const c=rkAudit.ctx;if(!c)return;
   Object.keys(c.skus).forEach(k=>{c.draft[k]=(c.skus[k]&&c.skus[k].qty)||0;});
-  const ok=c.kind!=='cell'||await rkAuditRecordCell(c,'same');
+  const ok=await rkAuditRecordCell(c,'same');
   if(!ok)return;
   rkAuditClose();
-  rkToast(c.kind==='cell'?'已盘：与线上一致':'已核对：与线上一致');
+  rkToast('已盘：与线上一致');
   rkLoad();
 }
 async function rkAuditSave(){
@@ -920,10 +932,10 @@ async function rkAuditSave(){
     const res=await fetch('../api/batch_inventory_update.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items,remark:'货架盘点'})});
     const d=await res.json();
     if(!d.success){rkToast(d.error||'提交失败');return;}
-    const ok=c.kind!=='cell'||await rkAuditRecordCell(c,'adjusted');
+    const ok=await rkAuditRecordCell(c,'adjusted');
     if(!ok)return;
     rkAuditClose();
-    rkToast('本格已保存并记录盘过');
+    rkToast((c.isTemp||c.kind!=='cell')?'已保存并记录盘过':'本格已保存并记录盘过');
     rkLoad();
   }catch(e){rkToast('提交失败：'+e.message);}
 }
