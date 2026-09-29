@@ -948,8 +948,7 @@ document.addEventListener('click',e=>{
   if(!rkAudit.active||!document.body.classList.contains('rk-auditing'))return;
   const cell=e.target.closest('.rk-cell[data-rack]');
   if(!cell)return;
-  const rowData=(rkRacks[cell.dataset.rack]&&rkRacks[cell.dataset.rack][cell.dataset.row])||{};
-  const c=rowData[cell.dataset.pos];
+  const c=rkCellAt(cell.dataset.rack,+cell.dataset.row,+cell.dataset.pos);
   if(c&&c.product)rkAuditOpenCell(cell.dataset.rack,+cell.dataset.row,+cell.dataset.pos);
 });
 document.body.classList.add('rk-panel-open'); // 面板默认展开，货架区让出右侧面板宽度
